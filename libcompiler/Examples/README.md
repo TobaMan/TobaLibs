@@ -90,5 +90,15 @@ Timing()
 - These examples require the corresponding compiler executables (e.g., Clang, GCC) to be installed.
 - Ensure that the `libcompiler` library is properly configured in your Toba environment.
 
+### ⚠️ cpl._compiler
+
+For each compiler class (e.g., GCC, Clang, TCC), the path to the folder containing the compiler executable must be defined. This path must be assigned to the `cpl._compiler` variable before any compilation operation.
+
+### TCC :
+```toba
+cpl = compiler_tcc::TCC()
+cpl._compiler = fspath(1)$"libcompiler/Compilers/tcc/tcc.exe"
+```
+
 ## License
 These files are licensed under the MIT License. For more details, see [LICENSE](https://opensource.org/licenses/MIT).
