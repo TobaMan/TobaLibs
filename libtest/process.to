@@ -1,134 +1,169 @@
 /* 
 
-	Copyright (c) 2021 Damien Culot. All rights reserved.
-	
-	This work is licensed under the terms of the MIT license.  
-	For a copy, see <https://opensource.org/licenses/MIT>.
+    Copyright (c) 2021 Damien Culot. All rights reserved.
+    
+    This work is licensed under the terms of the MIT license.  
+    For a copy, see <https://opensource.org/licenses/MIT>.
 
  */
  
- 
+/**
+ * @brief Represents a file object used for testing.
+ */
 obj:File()
 {
-	self.file 	= null()
-	self.nok  	= 0
-	self.nko  	= 0
-	self.status = 0
-	
-	func:Report(self){
-		
-		ntest = self.nok + self.nko
-		file_state = ("failed","passed")
-		result = trunc(((ntest-self.nko)/ntest)*100.0,2)
-		if( self.nok == 0){
-			result = 0
-		}
-		print("file: [",file_state[self.status],"]",self.file)
-		print("success:",self.nok,"test(s)")
-		print("failure:",self.nko,"test(s)")
-		print("result:",result,"%")
-		print()
-	
-	}
+    self.file 	= null() /**< The name of the file. */
+    self.nok  	= 0     /**< Number of successful tests. */
+    self.nko  	= 0     /**< Number of failed tests. */
+    self.status = 0     /**< Status of the file (0 = failed, 1 = passed). */
+    
+    /**
+     * @brief Generates a report for the file.
+     * 
+     * Calculates the success rate and prints the test results for the file.
+     */
+    func:Report(self){
+        
+        ntest = self.nok + self.nko
+        file_state = ("failed","passed")
+        result = trunc(((ntest-self.nko)/ntest)*100.0,2)
+        if( self.nok == 0){
+            result = 0
+        }
+        print("file: [",file_state[self.status],"]",self.file)
+        print("success:",self.nok,"test(s)")
+        print("failure:",self.nko,"test(s)")
+        print("result:",result,"%")
+        print()
+    
+    }
 }
 
-
+/**
+ * @brief Represents a test object that manages test execution and reporting.
+ */
 obj:Test(){
 
-	self.resname = "Result.txt"
-	self.result = " "
-	self.files = null()
-	self.report = null()
-	
-	
-	func:SetFiles(self,files){
-		self.files = files
-	}
+    self.resname = "Result.txt" /**< The name of the result file. */
+    self.result = " "           /**< The content of the test results. */
+    self.files = null()         /**< List of files to test. */
+    self.report = null()        /**< Report data for all files. */
+    
+    /**
+     * @brief Sets the list of files to be tested.
+     * 
+     * @param files The list of files to test.
+     */
+    func:SetFiles(self,files){
+        self.files = files
+    }
 
-	func:ExecTest(self,file)
-	{
-		file = "\"" $ file  $ "\""
-		tobapath = "\"" $ fspath(0) $ "Toba.exe"  $ "\""
-		cmd = tobapath $ " " $ file $ " editor"
-		return(runproc(cmd,null()))
-	}
-	
-	func:FileReport(self,file, res){
-	
-		status = sizeof(res) > 0
-		
-		s = File()
-		s.file 	 = file
-		s.status = status
-		
-		if(status){
-		
-			ok = find(res,"TEST OK !")
-			ko = find(res,"TEST KO ?")
-			s.nok = size(ok)
-			s.nko = size(ko)
-			
-			fname = "*** " $ file $ " ***"
-			line = "\n" $ array(200,"-") $ "\n"
-			title = "\n" $ line $ fname $ line $ "\n"
-			self.result = self.result $ title $ res
+    /**
+     * @brief Executes a test on a single file.
+     * 
+     * @param file The file to test.
+     * @return The result of the test execution.
+     */
+    func:ExecTest(self,file)
+    {
+        file = "\"" $ file  $ "\""
+        tobapath = "\"" $ fspath(0) $ "Toba.exe"  $ "\""
+        cmd = tobapath $ " " $ file $ " editor"
+        return(runproc(cmd,null()))
+    }
+    
+    /**
+     * @brief Generates a report for a specific file based on test results.
+     * 
+     * @param file The file being tested.
+     * @param res The result of the test execution.
+     */
+    func:FileReport(self,file, res){
+    
+        status = sizeof(res) > 0
+        
+        s = File()
+        s.file 	 = file
+        s.status = status
+        
+        if(status){
+        
+            ok = find(res,"TEST OK !")
+            ko = find(res,"TEST KO ?")
+            s.nok = size(ok)
+            s.nko = size(ko)
+            
+            fname = "*** " $ file $ " ***"
+            line = "\n" $ array(200,"-") $ "\n"
+            title = "\n" $ line $ fname $ line $ "\n"
+            self.result = self.result $ title $ res
 
-		}
-		
-		self.report = self.report $ map(1,s)
-		
-	}
-	
-	func:TestFile(self,file){
-	
-		res = self.ExecTest(file)
-		
-		self.FileReport(file, res)
-	}
-	
-	func:TestAll(self){
-	
-		file = foreach(self.files){
-		
-			print("test :",file,"...")
-			self.TestFile(file)
-		}
-		print()
-	}
-	
-	func:CreateReport(self){
-		
-		print("Details ---------------\n")
-		
-		//By file report
-		
-		rep = foreach(self.report){
-			rep.Report()
-		}
-		
-		
-		//All test report
-		
-		nsuccess = 0
-		nfailure = 0
-		rep = foreach(self.report){
-			nsuccess = nsuccess + rep.nok
-			nfailure = nfailure + rep.nko
-		}
-		ntest = nsuccess + nfailure
-		result = trunc(((ntest-nfailure)/ntest)*100.0,2)
-		
-		print("-----------------------\n")
-		print("( N test = ",ntest,") Success =>",result,"%")
-		
-		dt = dtime()
-		fname = "report" $\
-			"_" $ strnum(dt[0]) $\
-			strnum(dt[1]) $\
-			strnum(dt[2]) $\
-			".txt"
-		fswritef(fname,self.result)
-	}
+        }
+        
+        self.report = self.report $ map(1,s)
+        
+    }
+    
+    /**
+     * @brief Tests a single file and updates the report.
+     * 
+     * @param file The file to test.
+     */
+    func:TestFile(self,file){
+    
+        res = self.ExecTest(file)
+        
+        self.FileReport(file, res)
+    }
+    
+    /**
+     * @brief Tests all files in the list.
+     */
+    func:TestAll(self){
+    
+        file = foreach(self.files){
+        
+            print("test :",file,"...")
+            self.TestFile(file)
+        }
+        print()
+    }
+    
+    /**
+     * @brief Creates a detailed report for all tests.
+     * 
+     * Generates a summary of all test results and writes the report to a file.
+     */
+    func:CreateReport(self){
+        
+        print("Details ---------------\n")
+        
+        // By file report
+        rep = foreach(self.report){
+            rep.Report()
+        }
+        
+        // All test report
+        nsuccess = 0
+        nfailure = 0
+        rep = foreach(self.report){
+            nsuccess = nsuccess + rep.nok
+            nfailure = nfailure + rep.nko
+        }
+        ntest = nsuccess + nfailure
+        result = trunc(((ntest-nfailure)/ntest)*100.0,2)
+        
+        print("-----------------------\n")
+        print("( N test = ",ntest,") Success =>",result,"%")
+        
+        dt = dtime()
+        fname = "report" $\
+            "_" $ strnum(dt[0]) $\
+            strnum(dt[1]) $\
+            strnum(dt[2]) $\
+            ".txt"
+        fswritef(fname,self.result)
+    }
 
 }
 

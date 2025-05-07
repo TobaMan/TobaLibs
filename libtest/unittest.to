@@ -1,37 +1,68 @@
 /* 
 
-	Copyright (c) 2021 Damien Culot. All rights reserved.
-	
-	This work is licensed under the terms of the MIT license.  
-	For a copy, see <https://opensource.org/licenses/MIT>.
+    Copyright (c) 2021 Damien Culot. All rights reserved.
+    
+    This work is licensed under the terms of the MIT license.  
+    For a copy, see <https://opensource.org/licenses/MIT>.
 
  */
- 
- 
+
+/**
+ * @brief Truncates the input value if it exceeds 32 characters.
+ * 
+ * @param value The input value to process. Can be a number or a string.
+ * @return The processed value, truncated to 32 characters if necessary.
+ */
 func:printv(value){
-	if(isnum(value)||isstr(value)){
-		if(size(value)>32){
-			value = slice(value,0,32)}}
-	return(value)
+    if(isnum(value)||isstr(value)){
+        if(size(value)>32){
+            value = slice(value,0,32)}}
+    return(value)
 }
 
-
-
+/**
+ * @brief Tests if the given value is equal to the reference value.
+ * 
+ * @param val The value to test.
+ * @param fname The name of the test or function being tested.
+ * @param ref The reference value to compare against.
+ */
 func:TEST_EQUALITY(val,fname,ref){
-	if(val == ref){print("TEST OK ! ",fname,"=>",printv(ref))}
-	else{print("TEST KO ? ",fname,"=>",printv(val),"!=",printv(ref))}}
-	
+    if(val == ref){print("TEST OK ! ",fname,"=>",printv(ref))}
+    else{print("TEST KO ? ",fname,"=>",printv(val),"!=",printv(ref))}}
+    
+/**
+ * @brief Tests if the given value is not inside the reference value.
+ * 
+ * @param val The value to test.
+ * @param fname The name of the test or function being tested.
+ * @param ref The reference value to compare against.
+ */
 func:TEST_INSIDE(val,fname,ref){
-	if(ref <> val){print("TEST OK ! ",fname,"=>",printv(ref))}
-	else{print("TEST KO ? ",fname,"=>",printv(val),"not inside",printv(ref))}}
+    if(ref <> val){print("TEST OK ! ",fname,"=>",printv(ref))}
+    else{print("TEST KO ? ",fname,"=>",printv(val),"not inside",printv(ref))}}
 
+/**
+ * @brief Tests if the given value is not equal to the reference value.
+ * 
+ * @param val The value to test.
+ * @param fname The name of the test or function being tested.
+ * @param ref The reference value to compare against.
+ */
 func:TEST_UNEQUALITY(val,fname,ref){
-	if(val != ref){print("TEST OK ! ",fname,"=>",printv(ref))}
-	else{print("TEST KO ? ",fname,"=>",printv(val),"==",printv(ref))}}
+    if(val != ref){print("TEST OK ! ",fname,"=>",printv(ref))}
+    else{print("TEST KO ? ",fname,"=>",printv(val),"==",printv(ref))}}
 
+/**
+ * @brief Tests if the reference value is greater than the given value.
+ * 
+ * @param val The value to test.
+ * @param fname The name of the test or function being tested.
+ * @param ref The reference value to compare against.
+ */
 func:TEST_GREATERTHAN(val,fname,ref){
-	if(ref > val){print("TEST OK ! ",fname,"=>",printv(ref))}
-	else{print("TEST KO ? ",fname,"=>",printv(val),">=",printv(ref))}}
+    if(ref > val){print("TEST OK ! ",fname,"=>",printv(ref))}
+    else{print("TEST KO ? ",fname,"=>",printv(val),">=",printv(ref))}}
 
 
 
