@@ -26,9 +26,9 @@ The `path.to` file includes the following functionalities:
 
 ### Path Formatting for Shell Commands
 ```toba
-path = "C:\\Users\\Example\\Documents"
+path = "C:\Users\Example\Documents"
 shellPath = CmdPath(path)
-// Output: "\"C:/Users/Example/Documents\""
+// Output: "C:/Users/Example/Documents"
 ```
 
 ### Retrieving Directory Names
@@ -65,4 +65,3 @@ foundPath = FindFile(pathlist, fileName)
 
 ## License
 This library is licensed under the terms of the MIT license. See [MIT License](https://opensource.org/licenses/MIT) for more details.
-```
