@@ -7,7 +7,6 @@ This directory contains example scripts for using the **Toba LibCompiler** libra
 - **`compile.to`**: Demonstrates a basic compilation of a simple C program.
 - **`compute.to`**: Shows dynamic generation, compilation, and execution of C code for computations.
 - **`runexe.to`**: Demonstrates executing C code directly from a string.
-- **`test.c`**: A basic "Hello World" program in C.
 - **`timing.to`**: Provides examples of measuring performance for different compilers using generated C code.
 
 ## Example Descriptions
@@ -69,21 +68,6 @@ void main(void){
 "
 c = compiler_clang::Clang()
 c.ExecFromString(helloworld)
-```
-
----
-
-### `test.c`
-A basic "Hello World" C program that can be compiled and executed using the examples.
-
-#### Code:
-```c
-#include <stdio.h>
-#include <stdlib.h>
-void main(void){
-    printf("hello world !");
-    system("PAUSE");
-}
 ```
 
 ---
