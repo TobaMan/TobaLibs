@@ -1,98 +1,137 @@
 /* 
 
-	Copyright (c) 2021 Damien Culot. All rights reserved.
-	
-	This work is licensed under the terms of the MIT license.  
-	For a copy, see <https://opensource.org/licenses/MIT>.
+    Copyright (c) 2021 Damien Culot. All rights reserved.
+    
+    This work is licensed under the terms of the MIT license.  
+    For a copy, see <https://opensource.org/licenses/MIT>.
 
  */
- 
 
+/**
+ * @brief Returns a directory suitable for Shell commands.
+ * 
+ * @param path The pathname.
+ * @return The formatted path suitable for Shell commands.
+ */
 func : CmdPath( path )
 {
-	//Returns a directory suitable for Shell commands
-	//path : The pathname path
-	path = freplace(path,"\\","/")
-	path = "\"" $ path $ "\" "
-	return(path)
+    // Returns a directory suitable for Shell commands
+    path = freplace(path,"\\","/")
+    path = "\"" $ path $ "\" "
+    return(path)
 }
- 
+
+/**
+ * @brief Returns the directory name of the given pathname.
+ * 
+ * @param path The pathname.
+ * @return The directory name of the pathname.
+ */
 func : GetPath2( path )
 {
-	//Return the directory name of pathname path
-	//path : The pathname path 
-	path=freplace(path,"\\","/")
-	pos=find(path,"/")
-	path=remove(path,pos[size(pos)-1],size(path))
-	return(path)
+    // Return the directory name of pathname path
+    path=freplace(path,"\\","/")
+    pos=find(path,"/")
+    path=remove(path,pos[size(pos)-1],size(path))
+    return(path)
 }
 
+/**
+ * @brief Returns the directory name of the given pathname with a trailing slash.
+ * 
+ * @param path The pathname.
+ * @return The directory name of the pathname with a trailing slash.
+ */
 func : GetPath( path )
 {
-	//Return the directory name of pathname path
-	//path : The pathname path 
-	return(GetPath2( path )$"/")
+    // Return the directory name of pathname path
+    return(GetPath2( path )$"/")
 }
 
+/**
+ * @brief Returns the file name from the given pathname.
+ * 
+ * @param path The pathname.
+ * @return The file name extracted from the pathname.
+ */
 func : GetName( path )
 {
-	//Return the file name of the of pathname path
-	//path : The pathname path 
-	path=freplace(path,"\\","/")
-	pos=find(path,"/")
-	if(size(pos)>0){
-		name=remove(path,0,pos[size(pos)-1]+1)}
-	else{name=path}
-	return(name)
+    // Return the file name of the pathname path
+    path=freplace(path,"\\","/")
+    pos=find(path,"/")
+    if(size(pos)>0){
+        name=remove(path,0,pos[size(pos)-1]+1)}
+    else{name=path}
+    return(name)
 }
 
+/**
+ * @brief Returns the parent path of the given pathname.
+ * 
+ * @param path The pathname.
+ * @return The parent path of the pathname.
+ */
 func : GetParent( path )
 {
-	//Return the parent path of the of pathname path
-	//path : The pathname path 
-	path=freplace(path,"\\","/")
-	ps=size(path)
-	if(path[ps-1]=="/"){
-		path=remove(path,ps-1,ps)}
-	pos=find(path,"/")
-	if(size(pos)>0){
-		prt=slice(path,0,pos[size(pos)-1]+1)}
-	else{prt=path}
-	return(prt)
+    // Return the parent path of the pathname path
+    path=freplace(path,"\\","/")
+    ps=size(path)
+    if(path[ps-1]=="/"){
+        path=remove(path,ps-1,ps)}
+    pos=find(path,"/")
+    if(size(pos)>0){
+        prt=slice(path,0,pos[size(pos)-1]+1)}
+    else{prt=path}
+    return(prt)
 }
 
+/**
+ * @brief Gets the extension of the file name or pathname.
+ * 
+ * @param path The pathname.
+ * @return The file extension, or null if none exists.
+ */
 func : GetExt( path )
 {
-	//Get extension of the file name or the pathname path
-	//path : The pathname path
-	pos=find(path,".")
-	if(sizeof(pos)){
-		ext=slice(path,pos,size(path))}
-	else{ext=null()}
-	return(ext)
+    // Get extension of the file name or the pathname path
+    pos=find(path,".")
+    if(sizeof(pos)){
+        ext=slice(path,pos,size(path))}
+    else{ext=null()}
+    return(ext)
 }
 
+/**
+ * @brief Removes the extension from the file name or pathname.
+ * 
+ * @param path The pathname.
+ * @return The pathname without the file extension.
+ */
 func : RemoveExt( path )
 {
-	//Remove extension of the file name or the pathname path
-	//path : The pathname path
-	pos=find(path,".")
-	noext=remove(path,pos,size(path))
-	return(noext)
+    // Remove extension of the file name or the pathname path
+    pos=find(path,".")
+    noext=remove(path,pos,size(path))
+    return(noext)
 }
 
+/**
+ * @brief Searches for a file in a list of possible locations.
+ * 
+ * @param pathlist The list of possible locations.
+ * @param name The file name to search for.
+ * @return The path to the file if found, otherwise exits the program.
+ */
 func : FindFile(pathlist, name)
 {
-	//Search for a file with a list of possible locations
-	//pathlist : The location list
-	//name 	   : The file name
-	thepath=null()
-	path = foreach(pathlist){
-		if(fstype(path)>0){thepath=path;break}}
-	if(sizeof(thepath)==0){
-		print("Can't find file :",name)
-		input();exit()}	
-	return(thepath)
+    // Search for a file with a list of possible locations
+    thepath=null()
+    path = foreach(pathlist){
+        if(fstype(path)>0){thepath=path;break}}
+    if(sizeof(thepath)==0){
+        print("Can't find file :",name)
+        input();exit()}	
+    return(thepath)
 }
 
 
