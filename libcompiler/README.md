@@ -69,5 +69,4 @@ tcc.BuildExe()
 ## Notes
 - Ensure that the compiler executables (e.g., `clang.exe`, `gcc.exe`, etc.) are available in the `Compilers/` folder.
 - All files are licensed under the MIT license.
-```
 
