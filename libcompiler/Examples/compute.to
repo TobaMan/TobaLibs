@@ -1,0 +1,112 @@
+import : libcompiler / compiler_clang
+
+/**
+ * @class CCompute
+ * @brief This class dynamically generates, compiles, and executes C code for computations.
+ */
+obj:CCompute(){
+
+    /**
+     * @brief Instance of the Clang compiler used for compilation.
+     */
+    self.compiler = compiler_clang::Clang()
+
+    /**
+     * @brief Compilation options (currently unused).
+     */
+    self.options = null()
+
+    /**
+     * @brief The generated source code for the computation function.
+     */
+    self.code = null()
+
+    /**
+     * @brief The name of the generated function.
+     */
+    self.function = null()
+
+    /**
+     * @brief Generates the standard header for the C code.
+     * @return A string containing the C header.
+     */
+    func:Header(self){
+        header = "
+        #include <stdio.h>
+        #include <stdlib.h>
+
+        #ifdef _WIN32
+        #define EXPORT __declspec(dllexport)
+        #else
+        #define EXPORT
+        #endif
+        "
+        return(header)
+    }
+
+    /**
+     * @brief Defines the computation function by generating the C source code.
+     * @param code The body of the function as a string.
+     */
+    func:SetFunction(self, code){
+        type = "float"
+        fname = "Compute"
+        dname = "data"
+        header = self.Header()
+        function = "\nEXPORT void "$fname$"("$type$"* "$dname$",int size){\n"
+        function = function $ code
+        function = function $ "\n}\n"
+        self.code = header $ function
+    }
+
+    /**
+     * @brief Compiles the generated source code into a shared library.
+     */
+    func:Compile(self){
+        namec = "_compute_.c"
+        exename = "_compute_"
+        fswritef(namec, self.code)
+        cl = self.compiler
+        cl.SetSourceFile(namec)
+        cl.Set64bits()
+        cl.SetFast()
+        cl.BuildSharedLib()
+    }
+
+    /**
+     * @brief Executes the compiled function with the provided data.
+     * @param data An array of data to pass to the function.
+     * @return The modified data after the function execution.
+     */
+    func:Call(self, data){
+        exename = "_compute_.dll"
+        fname = "Compute"
+        dsize = size(data)
+        dlib = dlopen(exename, dlcdecl())
+        ptr = ctoptr(cfloat(), data) 
+        args = (cvoid(), (cpointer(), ptr))
+        dlcall(dlib, fname, args)
+        ndata = cfromptr(ptr, cfloat(), dsize)
+        cfreeptr(ptr)
+        dlclose(dlib)
+        return(ndata)
+    }
+}
+
+if(main()){
+
+    /**
+     * @brief Example usage of the CCompute class.
+     */
+    code = "
+    int i;
+    for(i=0;i<size;i++){
+        data[i] = i+1;
+    }
+    "
+
+    c = CCompute()
+    c.SetFunction(code)
+    c.Compile()
+    print(c.Call(array(10,0)))
+}

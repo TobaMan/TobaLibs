@@ -1,0 +1,7 @@
+import : libcompiler / compiler_clang
+
+cl = compiler_clang::Clang()
+cl.SetSourceFile("test.c")
+cl.Set64bits()
+cl.SetO0()
+cl.BuildExe()

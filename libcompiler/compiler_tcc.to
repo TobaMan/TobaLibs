@@ -1,0 +1,89 @@
+/* 
+
+	Copyright (c) 2024 Damien Culot. All rights reserved.
+	
+	This work is licensed under the terms of the MIT license.  
+	For a copy, see <https://opensource.org/licenses/MIT>.
+
+ */
+
+
+import:libcompiler/compiler
+
+
+enum:_module_{
+	_name_ = "compiler_tcc";
+	_version_ = [1, 0, 0];
+	_date_ = [1, 5, 24];
+	_author = "damien culot"
+}
+
+
+ obj:TCC(){
+ 
+	cpl = compiler::Compiler()
+	cpl._compiler = fspath(1)$"libcompiler/Compilers/tcc/tcc.exe"
+	self.cpl = cpl
+	 
+ 
+	func:SetSourceFile(self, file){
+	 	self.cpl.SetSourceFile(file)}
+ 
+	func:SetName(self, name){
+	 	self.cpl.SetName(name)}
+ 
+	func:SetPath(self, fpath){
+	 	self.cpl.SetPath(fpath)}
+ 
+	func:Set32bits(self){
+	 	self.cpl.Set32bits()}
+ 
+	func:Set64bits(self){
+	 	self.cpl.Set64bits()}
+ 
+	func:SetO0(self){
+	 	self.cpl.SetO0()}
+ 
+	func:SetO1(self){
+	 	self.cpl.SetO1()}
+ 
+	func:SetO2(self){
+	 	self.cpl.SetO2()}
+ 
+	func:SetO3(self){
+	 	self.cpl.SetO3()}
+
+	func:SetDebugMode(self){
+		self.cpl.SetDebugMode()}
+
+	func:ShowAllWarnings(self){
+		self.cpl.ShowAllWarnings()}
+
+	func:ShowExtraWarnings(self){
+		self.cpl.ShowExtraWarnings()}
+ 
+	func:ShowCommandLine(self){
+	 	self.cpl.ShowCommandLine()}
+ 
+	func:BuildExe(self){
+	 	self.cpl.BuildExe()}
+ 
+	func:BuildSharedLib(self){
+	 	self.cpl.BuildSharedLib()}
+ 
+	func:ExecFromString(self, string){
+		self.cpl.ExecFromString(string)}
+
+	func:Timing(self, code){
+		self.cpl.Timing(code)}
+ 
+ }
+ 
+ 
+ if(main()){
+ 
+	 cl = TCC()
+	 cl.SetSourceFile("examples/test.c")
+	 cl.Set64bits()
+	 cl.BuildExe()
+ }

@@ -1,0 +1,38 @@
+/* 
+
+	Copyright (c) 2021 Damien Culot. All rights reserved.
+	
+	This work is licensed under the terms of the MIT license.  
+	For a copy, see <https://opensource.org/licenses/MIT>.
+
+ */
+ 
+ 
+func:printv(value){
+	if(isnum(value)||isstr(value)){
+		if(size(value)>32){
+			value = slice(value,0,32)}}
+	return(value)
+}
+
+
+
+func:TEST_EQUALITY(val,fname,ref){
+	if(val == ref){print("TEST OK ! ",fname,"=>",printv(ref))}
+	else{print("TEST KO ? ",fname,"=>",printv(val),"!=",printv(ref))}}
+	
+func:TEST_INSIDE(val,fname,ref){
+	if(ref <> val){print("TEST OK ! ",fname,"=>",printv(ref))}
+	else{print("TEST KO ? ",fname,"=>",printv(val),"not inside",printv(ref))}}
+
+func:TEST_UNEQUALITY(val,fname,ref){
+	if(val != ref){print("TEST OK ! ",fname,"=>",printv(ref))}
+	else{print("TEST KO ? ",fname,"=>",printv(val),"==",printv(ref))}}
+
+func:TEST_GREATERTHAN(val,fname,ref){
+	if(ref > val){print("TEST OK ! ",fname,"=>",printv(ref))}
+	else{print("TEST KO ? ",fname,"=>",printv(val),">=",printv(ref))}}
+
+
+
+

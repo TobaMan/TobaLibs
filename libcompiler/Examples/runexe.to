@@ -1,0 +1,24 @@
+/* 
+
+	Copyright (c) 2024 Damien Culot. All rights reserved.
+	
+	This work is licensed under the terms of the MIT license.  
+	For a copy, see <https://opensource.org/licenses/MIT>.
+
+ */
+import : libcompiler / compiler_clang
+
+helloworld = "
+#include <stdio.h>
+#include <stdlib.h>
+void main(void){
+	printf(''hello world !\\n'');
+	system(''PAUSE'');
+}
+"
+c = compiler_clang::Clang()
+c.ExecFromString(helloworld)
+
+
+
+

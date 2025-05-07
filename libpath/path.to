@@ -1,0 +1,102 @@
+/* 
+
+	Copyright (c) 2021 Damien Culot. All rights reserved.
+	
+	This work is licensed under the terms of the MIT license.  
+	For a copy, see <https://opensource.org/licenses/MIT>.
+
+ */
+ 
+
+func : CmdPath( path )
+{
+	//Returns a directory suitable for Shell commands
+	//path : The pathname path
+	path = freplace(path,"\\","/")
+	path = "\"" $ path $ "\" "
+	return(path)
+}
+ 
+func : GetPath2( path )
+{
+	//Return the directory name of pathname path
+	//path : The pathname path 
+	path=freplace(path,"\\","/")
+	pos=find(path,"/")
+	path=remove(path,pos[size(pos)-1],size(path))
+	return(path)
+}
+
+func : GetPath( path )
+{
+	//Return the directory name of pathname path
+	//path : The pathname path 
+	return(GetPath2( path )$"/")
+}
+
+func : GetName( path )
+{
+	//Return the file name of the of pathname path
+	//path : The pathname path 
+	path=freplace(path,"\\","/")
+	pos=find(path,"/")
+	if(size(pos)>0){
+		name=remove(path,0,pos[size(pos)-1]+1)}
+	else{name=path}
+	return(name)
+}
+
+func : GetParent( path )
+{
+	//Return the parent path of the of pathname path
+	//path : The pathname path 
+	path=freplace(path,"\\","/")
+	ps=size(path)
+	if(path[ps-1]=="/"){
+		path=remove(path,ps-1,ps)}
+	pos=find(path,"/")
+	if(size(pos)>0){
+		prt=slice(path,0,pos[size(pos)-1]+1)}
+	else{prt=path}
+	return(prt)
+}
+
+func : GetExt( path )
+{
+	//Get extension of the file name or the pathname path
+	//path : The pathname path
+	pos=find(path,".")
+	if(sizeof(pos)){
+		ext=slice(path,pos,size(path))}
+	else{ext=null()}
+	return(ext)
+}
+
+func : RemoveExt( path )
+{
+	//Remove extension of the file name or the pathname path
+	//path : The pathname path
+	pos=find(path,".")
+	noext=remove(path,pos,size(path))
+	return(noext)
+}
+
+func : FindFile(pathlist, name)
+{
+	//Search for a file with a list of possible locations
+	//pathlist : The location list
+	//name 	   : The file name
+	thepath=null()
+	path = foreach(pathlist){
+		if(fstype(path)>0){thepath=path;break}}
+	if(sizeof(thepath)==0){
+		print("Can't find file :",name)
+		input();exit()}	
+	return(thepath)
+}
+
+
+
+
+
+

@@ -1,0 +1,57 @@
+import : libcompiler / compiler_gcc
+import : libcompiler / compiler_clang
+import : libcompiler / compiler_tcc
+
+
+func:Compute(cpl, code){
+	cpl.Set64bits()
+	cpl.SetFast()
+	cpl.SetOpenmp()
+	cpl.Timing(code)
+}
+
+func:Timing(){
+
+	code = "
+	int i = 0;
+	int msize = 10000;
+	int w = msize;
+	int h = msize;
+	int vsize = w*h;
+	float* arr = calloc(vsize,sizeof(float));
+	#pragma omp parallel for simd
+	for(i=0;i<vsize;i++){
+		int x = (int)(i / msize);
+		int y = i % msize;
+		arr[y*msize + x] = (float)i;}
+	printf(''arr: [%g, %g, %g, %g, %g, ...]\\n'', 
+		arr[0], arr[1], arr[2], arr[3], arr[4]);
+	free(arr);
+	"
+
+	Compute(compiler_gcc::GCC(), code)
+	Compute(compiler_clang::Clang(), code)
+	//Compute(compiler_tcc::TCC(), code)
+	
+}
+
+func:Timing2(){
+
+	code = "
+	int n = 90000000;
+	long long a = 0, b = 1, temp;
+	for (int i = 0; i < n; i++) {
+		temp = a;
+		a = b;
+		b = temp + b;
+	}
+	printf(''Fibonacci: %i\\n'', a);
+	"
+
+	Compute(compiler_gcc::GCC(), code)
+	Compute(compiler_clang::Clang(), code)
+	// Compute(compiler_tcc::TCC(), code)
+	
+}
+
+Timing()

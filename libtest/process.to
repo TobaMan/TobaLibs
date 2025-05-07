@@ -1,0 +1,137 @@
+/* 
+
+	Copyright (c) 2021 Damien Culot. All rights reserved.
+	
+	This work is licensed under the terms of the MIT license.  
+	For a copy, see <https://opensource.org/licenses/MIT>.
+
+ */
+ 
+ 
+obj:File()
+{
+	self.file 	= null()
+	self.nok  	= 0
+	self.nko  	= 0
+	self.status = 0
+	
+	func:Report(self){
+		
+		ntest = self.nok + self.nko
+		file_state = ("failed","passed")
+		result = trunc(((ntest-self.nko)/ntest)*100.0,2)
+		if( self.nok == 0){
+			result = 0
+		}
+		print("file: [",file_state[self.status],"]",self.file)
+		print("success:",self.nok,"test(s)")
+		print("failure:",self.nko,"test(s)")
+		print("result:",result,"%")
+		print()
+	
+	}
+}
+
+
+obj:Test(){
+
+	self.resname = "Result.txt"
+	self.result = " "
+	self.files = null()
+	self.report = null()
+	
+	
+	func:SetFiles(self,files){
+		self.files = files
+	}
+
+	func:ExecTest(self,file)
+	{
+		file = "\"" $ file  $ "\""
+		tobapath = "\"" $ fspath(0) $ "Toba.exe"  $ "\""
+		cmd = tobapath $ " " $ file $ " editor"
+		return(runproc(cmd,null()))
+	}
+	
+	func:FileReport(self,file, res){
+	
+		status = sizeof(res) > 0
+		
+		s = File()
+		s.file 	 = file
+		s.status = status
+		
+		if(status){
+		
+			ok = find(res,"TEST OK !")
+			ko = find(res,"TEST KO ?")
+			s.nok = size(ok)
+			s.nko = size(ko)
+			
+			fname = "*** " $ file $ " ***"
+			line = "\n" $ array(200,"-") $ "\n"
+			title = "\n" $ line $ fname $ line $ "\n"
+			self.result = self.result $ title $ res
+
+		}
+		
+		self.report = self.report $ map(1,s)
+		
+	}
+	
+	func:TestFile(self,file){
+	
+		res = self.ExecTest(file)
+		
+		self.FileReport(file, res)
+	}
+	
+	func:TestAll(self){
+	
+		file = foreach(self.files){
+		
+			print("test :",file,"...")
+			self.TestFile(file)
+		}
+		print()
+	}
+	
+	func:CreateReport(self){
+		
+		print("Details ---------------\n")
+		
+		//By file report
+		
+		rep = foreach(self.report){
+			rep.Report()
+		}
+		
+		
+		//All test report
+		
+		nsuccess = 0
+		nfailure = 0
+		rep = foreach(self.report){
+			nsuccess = nsuccess + rep.nok
+			nfailure = nfailure + rep.nko
+		}
+		ntest = nsuccess + nfailure
+		result = trunc(((ntest-nfailure)/ntest)*100.0,2)
+		
+		print("-----------------------\n")
+		print("( N test = ",ntest,") Success =>",result,"%")
+		
+		dt = dtime()
+		fname = "report" $\
+			"_" $ strnum(dt[0]) $\
+			strnum(dt[1]) $\
+			strnum(dt[2]) $\
+			".txt"
+		fswritef(fname,self.result)
+	}
+
+}
+
+
+
+
