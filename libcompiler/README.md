@@ -1,6 +1,3 @@
-Voici un fichier `README.md` généré en fonction de ma précédente réponse :
-
-```markdown
 # LibCompiler
 
 This directory contains libraries and classes for managing and configuring various compilers like Clang, GCC, and TCC. These libraries are developed as part of the **Toba** language and provide abstractions for configuring, executing, and measuring compiler performance.
