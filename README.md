@@ -4,7 +4,7 @@ This repository contains all the **Toba programming language libraries**. These 
 
 ## Repository Structure
 
-Each directory in this repository corresponds to a specific library for the Toba language. These libraries provide various utilities and functionalities to simplify development with Toba.
+Each directory in this repository corresponds to a specific library for the Toba language.
 
 ## Installation Instructions
 
@@ -20,10 +20,6 @@ To use these libraries with the Toba executable, follow these steps:
      git clone https://github.com/TobaMan/TobaLibs.git
      ```
    - Copy the desired libraries (or all libraries) into the `modules` directory at the root of the Toba executable.
-
-3. **Verify Installation**:
-   - Start the Toba environment and ensure that the libraries are properly loaded.
-   - Use the available library functions to confirm they are operational.
 
 ## Example
 
@@ -41,7 +37,7 @@ If your Toba executable is located in `/path/to/toba/`, the structure should loo
 
 ## Notes
 
-- For further details on each library's functionality, refer to the individual `README.md` files within each library directory (if available).
+- For further details on each library's functionality, refer to the individual `README.md` files within each library directory.
 
 ## License
 
