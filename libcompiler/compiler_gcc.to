@@ -7,87 +7,166 @@
 
  */
 
- import:libcompiler/compiler
+/**
+ * @file compiler_gcc.to
+ * @brief This file defines the GCC class, which provides an interface for configuring and using the GCC compiler.
+ */
 
+import:libcompiler/compiler
 
- enum:_module_{
+/**
+ * @enum _module_
+ * @brief Metadata about the module.
+ * @details Contains the name, version, date, and author of the module.
+ */
+enum:_module_{
 	_name_ = "compiler_gcc";
 	_version_ = [1, 0, 0];
 	_date_ = [1, 5, 24];
 	_author = "damien culot"
 }
 
+/**
+ * @class GCC
+ * @brief A class that wraps the GCC compiler and provides methods for configuration and execution.
+ */
+obj:GCC(){
 
- obj:GCC(){
- 
+	/**
+	 * @var cpl
+	 * @brief An instance of the Compiler class used to configure and execute the GCC compiler.
+	 */
 	cpl = compiler::Compiler()
 	cpl._compiler = fspath(1)$"libcompiler/Compilers/llvm-mingw_x86_64/bin/gcc.exe"
 	self.cpl = cpl
-	 
- 
+
+	/**
+	 * @brief Sets the source file to be compiled.
+	 * @param file The path to the source file.
+	 */
 	func:SetSourceFile(self, file){
-	 	self.cpl.SetSourceFile(file)}
+		self.cpl.SetSourceFile(file)}
 
+	/**
+	 * @brief Sets the name of the output file.
+	 * @param name The name of the output file.
+	 */
 	func:SetName(self, name){
-	 	self.cpl.SetName(name)}
+		self.cpl.SetName(name)}
 
+	/**
+	 * @brief Sets the output path for the compiled file.
+	 * @param fpath The output path.
+	 */
 	func:SetPath(self, fpath){
-	 	self.cpl.SetPath(fpath)}
+		self.cpl.SetPath(fpath)}
 
+	/**
+	 * @brief Configures the compiler to generate 32-bit binaries.
+	 */
 	func:Set32bits(self){
-	 	self.cpl.Set32bits()}
+		self.cpl.Set32bits()}
 
+	/**
+	 * @brief Configures the compiler to generate 64-bit binaries.
+	 */
 	func:Set64bits(self){
-	 	self.cpl.Set64bits()}
+		self.cpl.Set64bits()}
 
+	/**
+	 * @brief Sets the optimization level to -O0 (no optimization).
+	 */
 	func:SetO0(self){
-	 	self.cpl.SetO0()}
+		self.cpl.SetO0()}
 
+	/**
+	 * @brief Sets the optimization level to -O1 (basic optimization).
+	 */
 	func:SetO1(self){
-	 	self.cpl.SetO1()}
+		self.cpl.SetO1()}
 
+	/**
+	 * @brief Sets the optimization level to -O2 (moderate optimization).
+	 */
 	func:SetO2(self){
-	 	self.cpl.SetO2()}
+		self.cpl.SetO2()}
 
+	/**
+	 * @brief Sets the optimization level to -O3 (high optimization).
+	 */
 	func:SetO3(self){
 		self.cpl.SetO3()}
 
+	/**
+	 * @brief Sets the optimization level to -Ofast (aggressive optimization).
+	 */
 	func:SetFast(self){
 		self.cpl._optimization = "-Ofast"}
 
+	/**
+	 * @brief Enables OpenMP support for parallel programming.
+	 */
 	func:SetOpenmp(self){
 		self.cpl.SetOpenmp()}
 
+	/**
+	 * @brief Enables debug mode for the compiler.
+	 */
 	func:SetDebugMode(self){
 		self.cpl.SetDebugMode()}
 
+	/**
+	 * @brief Enables the display of all warnings during compilation.
+	 */
 	func:ShowAllWarnings(self){
 		self.cpl.ShowAllWarnings()}
 
+	/**
+	 * @brief Enables the display of extra warnings during compilation.
+	 */
 	func:ShowExtraWarnings(self){
 		self.cpl.ShowExtraWarnings()}
- 
+
+	/**
+	 * @brief Displays the command line used for the compilation process.
+	 */
 	func:ShowCommandLine(self){
-	 	self.cpl.ShowCommandLine()}
+		self.cpl.ShowCommandLine()}
 
+	/**
+	 * @brief Builds an executable file from the source code.
+	 */
 	func:BuildExe(self){
-	 	self.cpl.BuildExe()}
+		self.cpl.BuildExe()}
 
+	/**
+	 * @brief Builds a shared library from the source code.
+	 */
 	func:BuildSharedLib(self){
-	 	self.cpl.BuildSharedLib()}
+		self.cpl.BuildSharedLib()}
 
+	/**
+	 * @brief Executes a command directly from a string.
+	 * @param string The command string to execute.
+	 */
 	func:ExecFromString(self, string){
 		self.cpl.ExecFromString(string)}
- 
+
+	/**
+	 * @brief Measures the execution time of a given code block.
+	 * @param code The code block to time.
+	 */
 	func:Timing(self, code){
-		self.cpl.Timing(code)} 
- }
- 
- 
- if(main()){
- 
-	 cl = GCC()
-	 cl.SetSourceFile("examples/test.c")
-	 cl.Set64bits()
-	 cl.BuildExe()
- }
+		self.cpl.Timing(code)}
+}
+
+/**
+ * @brief Main function to demonstrate the usage of the GCC class.
+ */
+if(main()){
+
+	cl = GCC()
+	cl.SetSourceFile("examples/test.c")
+	cl.Set64bits()
+	cl.BuildExe()
+}

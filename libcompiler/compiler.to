@@ -5,266 +5,318 @@
 	This work is licensed under the terms of the MIT license.  
 	For a copy, see <https://opensource.org/licenses/MIT>.
 
-
-	This code is a C/C++ compilation module. 
-
-	It defines two main objects: Options and Compiler.
-
-		The Options object has an opt property, which is a character string. It has two functions, Add and Get. The Add function 
-		adds a value to the opt string if the value is not empty. The Get function returns the opt string.
-
-		The Compiler object has several properties for storing compiler options, compiler path, source file name and so on. 
-		It has several functions to set these properties, build the compiler options, build the command line for the compiler, 
-		and run the compiler.
-
-		Here are some key functions of the Compiler object:
-		- SetPath: Sets the compiler path.
-		- SetSourceFile: Sets the source file to be compiled.
-		- SetName: Sets the name of the output file.
-		- Set32bits and Set64bits: Set the machine option for compilation (32-bit or 64-bit).
-		- SetO0, SetO1, SetO2, SetO3: Set the optimization level for compilation.
-		- SetDebugMode: Enables debugging mode for compilation.
-		- ShowAllWarnings and ShowExtraWarnings: Activate different levels of compilation warnings.
-		- BuildOptions: Builds compilation options.
-		- BuildCommandLineObj, BuildCommandLineExe, BuildCommandLineDll: Build the command line for the compiler.
-		- BuildExe and BuildSharedLib: Execute the compiler to build an executable or a library.
-		- ExecFromString: Executes code from a string.
-		- Timing: Measures the execution time of a block of code.
-
-
  */
 
- enum:_module_{
-	_name_ = "compiler";
-	_version_ = [1, 0, 0];
-	_date_ = [1, 5, 24];
-	_author = "damien culot"
+ /**
+ * @enum _module_
+ * @brief Metadata about the module.
+ * @details Contains the name, version, date, and author of the module.
+ */
+enum:_module_{
+    _name_ = "compiler";
+    _version_ = [1, 0, 0];
+    _date_ = [1, 5, 24];
+    _author = "damien culot"
 }
-
-
-
 
 import:libpath/path
 
-
+/**
+ * @class Options
+ * @brief A class that manages compiler options as a string.
+ */
 obj:Options(){
-	self.opt = " "
+    self.opt = " "
 
-	func:Add(self, value){
-		if(sizeof(value)){
-			self.opt = self.opt $ " " $ value
-		}
-	}
+    /**
+     * @brief Adds a value to the options string if it is not empty.
+     * @param value The value to add to the options string.
+     */
+    func:Add(self, value){
+        if(sizeof(value)){
+            self.opt = self.opt $ " " $ value
+        }
+    }
 
-	func:Get(self){
-		return(self.opt)
-	}
+    /**
+     * @brief Retrieves the options string.
+     * @return The options string.
+     */
+    func:Get(self){
+        return(self.opt)
+    }
 }
 
+/**
+ * @class Compiler
+ * @brief A class that provides methods for configuring and executing a C/C++ compiler.
+ */
+obj:Compiler(){
+    self._debug = " "
+    self._machine = "-m32"
+    self._optimization = "-O0"
+    self._opts = "-O0 -ldl"
+    self._compiler = " "
+    self._objfolder = "obj"
+    self._srcfile = "main.c"
+    self._srcname = " "
+    self._outfile = " "
+    self._srcext = " "
+    self._warning = "-w"
+    self._openmp = " "
 
- obj:Compiler(){
+    /**
+     * @brief Sets the path to the compiler executable.
+     * @param cpath The path to the compiler.
+     */
+    func:SetPath(self, cpath){
+     	self._compiler = cpath
+    }
+
+    /**
+     * @brief Sets the source file to be compiled.
+     * @param file The path to the source file.
+     */
+    func:SetSourceFile(self, file){
+        self._srcname = path::GetName(file)
+        self._srcname = path::RemoveExt(self._srcname)
+        self._srcext = path::GetExt(file)
+        self._srcfile = file
+    }
+
+    /**
+     * @brief Sets the name of the output file.
+     * @param name The name of the output file.
+     */
+    func:SetName(self, name){
+     	self._srcname = name
+    }
+
+    /**
+     * @brief Configures the compiler to generate 32-bit binaries.
+     */
+    func:Set32bits(self){
+     	self._machine = "-m32"
+    }
+
+    /**
+     * @brief Configures the compiler to generate 64-bit binaries.
+     */
+    func:Set64bits(self){
+     	self._machine = "-m64"	
+    }
+
+    /**
+     * @brief Sets the optimization level to -O0 (no optimization).
+     */
+    func:SetO0(self){
+        self._optimization = "-O0"
+    }
+
+    /**
+     * @brief Sets the optimization level to -O1 (basic optimization).
+     */
+    func:SetO1(self){
+        self._optimization = "-O1"
+    }
+
+    /**
+     * @brief Sets the optimization level to -O2 (moderate optimization).
+     */
+    func:SetO2(self){
+        self._optimization = "-O2"
+    }
+
+    /**
+     * @brief Sets the optimization level to -O3 (high optimization).
+     */
+    func:SetO3(self){
+        self._optimization = "-O3"
+    }
+
+    /**
+     * @brief Enables OpenMP support for parallel programming.
+     */
+    func:SetOpenmp(self){
+        self._openmp = "-fopenmp"
+    }
+    
+    /**
+     * @brief Enables debug mode for the compiler.
+     */
+    func:SetDebugMode(self){
+        self._debug = "-g"
+    }
+
+    /**
+     * @brief Enables all warnings during compilation.
+     */
+    func:ShowAllWarnings(self){
+        self._warning = "-Wall"
+    }
+
+    /**
+     * @brief Enables extra warnings during compilation.
+     */
+    func:ShowExtraWarnings(self){
+        self._warning = "-Wextra"
+    }
+
+    /**
+     * @brief Builds the compiler options string.
+     * @return The compiler options string.
+     */
+    func:BuildOptions(self){
+        options = Options()
+        options.Add(self._optimization)
+        self._opts = options.Get()
+        return(self._opts)
+    }
  
-	self._debug = " "
-	self._machine = "-m32"
-	self._optimization = "-O0"
-	self._opts = "-O0 -ldl"
-	self._compiler = " "
-	self._objfolder = "obj"
-	self._srcfile = "main.c"
-	self._srcname = " "
-	self._outfile = " "
-	self._srcext = " "
-	self._warning = "-w"
-	self._openmp = " "
+    /**
+     * @brief Builds the command line for compiling an object file.
+     * @return The command line as a string.
+     */
+    func:BuildCommandLineObj(self){
+        cmdline = Options()
+        objf = "obj/" $ self._srcname $ ".o"
+        cmdline.Add(self._compiler)
+        cmdline.Add(self._debug)
+        cmdline.Add(self._warning)
+        cmdline.Add(self._machine)
+        cmdline.Add(self._openmp)
+        cmdline.Add(self._opts)
+        cmdline.Add("-c")
+        cmdline.Add(self._srcfile)
+        cmdline.Add("-o")
+        cmdline.Add(objf)
+        return(cmdline.Get())
+    }
 
-	func:SetPath(self, cpath){
-	 	self._compiler = cpath
-	}
+    /**
+     * @brief Builds the command line for creating an executable file.
+     * @return The command line as a string.
+     */
+    func:BuildCommandLineExe(self){
+        ext = ".exe"
+        cmdline = Options()
+        if(platform() == "Windows"){
+            ext = ".exe"}
+        if(platform() == "Linux"){
+            ext = ".bin"}
+        outf = self._srcname $ ext
+        objf = "obj/" $ self._srcname $ ".o"
+        cmdline.Add(self._compiler)
+        cmdline.Add("-o")
+        cmdline.Add(outf)
+        cmdline.Add(objf)
+        cmdline.Add(self._machine)
+        cmdline.Add(self._openmp)
+        return(cmdline.Get())
+    }
 
-	func:SetSourceFile(self, file){
-		self._srcname = path::GetName(file)
-		self._srcname = path::RemoveExt(self._srcname)
-		self._srcext = path::GetExt(file)
-		self._srcfile = file
-	}
+    /**
+     * @brief Builds the command line for creating a shared library.
+     * @return The command line as a string.
+     */
+    func:BuildCommandLineDll(self){
+        ext = ".dll"
+        cmdline = Options()
+        if(platform() == "Windows"){
+            ext = ".dll"}
+        if(platform() == "Linux"){
+            ext = ".so"}
+        outf = self._srcname $ ext
+        objf = "obj/" $ self._srcname $ ".o"
+        cmdline.Add(self._compiler)
+        cmdline.Add("-shared")
+        cmdline.Add("-o")
+        cmdline.Add(outf)
+        cmdline.Add(objf)
+        cmdline.Add(self._machine)
+        cmdline.Add(self._openmp)
+        return(cmdline.Get())
+    }
 
-	func:SetName(self, name){
-	 	self._srcname = name
-	}
+    /**
+     * @brief Executes the compiler to build an executable file.
+     */
+    func:BuildExe(self){
+        fswrited(self._objfolder)
+        self.BuildOptions()
+        system(self.BuildCommandLineObj())
+        system(self.BuildCommandLineExe())
+        fsremove(self._objfolder$"/"$self._srcname$".o")
+        fsremove(self._objfolder)
+    }
 
-	func:Set32bits(self){
-	 	self._machine = "-m32"
-	}
+    /**
+     * @brief Executes the compiler to build a shared library.
+     */
+    func:BuildSharedLib(self){
+        fswrited(self._objfolder)
+        self.BuildOptions()
+        system(self.BuildCommandLineObj())
+        system(self.BuildCommandLineDll())
+        fsremove(self._objfolder$"/"$self._srcname$".o")
+        fsremove(self._objfolder)
+    }
 
-	func:Set64bits(self){
-	 	self._machine = "-m64"	
-	}
+    /**
+     * @brief Executes code from a string.
+     * @param code The code to execute.
+     */
+    func:ExecFromString(self, code){
+        namec="_temp_.c"
+        exename="_temp_"
+        fswritef(namec,code)
+        self.SetSourceFile(namec)
+        self.BuildExe()
+        fsremove(namec)
+        system("cls")
+        print("\n>> ")
+        system(exename)
+    }
 
-	func:SetO0(self){
-		self._optimization = "-O0"
-	}
+    /**
+     * @brief Measures the execution time of a block of code.
+     * @param code The code block to time.
+     */
+    func:Timing(self, code){
+        computecode="
+        #include <stdio.h>
+        #include <stdlib.h>
+        #include <time.h>
+        #include <omp.h>
+        clock_t start(void);
+        void stop(clock_t t);	
+        void CFunction(void);
+        clock_t start(void){
+            clock_t t; 
+            t = clock();
+            return t;}
+         void stop(clock_t t){
+            clock_t et = clock() - t; 
+            double time_taken = 1000.0*((double)et)/CLOCKS_PER_SEC; 
+            printf(''C function compute: %f ms\\n'', time_taken);
+            system(''PAUSE'');}
+        void CFunction(void){"$code$"}
+        int main(void){
+            clock_t t0 = start();
+            CFunction();
+            stop(t0);
+            return 1;}
+        "
+        self.ExecFromString(computecode)
+    }
 
-	func:SetO1(self){
-		self._optimization = "-O1"
-	}
-
-	func:SetO2(self){
-		self._optimization = "-O2"
-	}
-
-	func:SetO3(self){
-		self._optimization = "-O3"
-	}
-
-	func:SetOpenmp(self){
-		self._openmp = "-fopenmp"
-	}
-	
-	func:SetDebugMode(self){
-		self._debug = "-g"
-	}
-
-	func:ShowAllWarnings(self){
-		//This enables all the warnings about constructions that some users consider questionable
-		self._warning = "-Wall"
-	}
-
-	func:ShowExtraWarnings(self){
-		//This enables some extra warning flags that are not enabled by -Wall
-		self._warning = "-Wextra"
-	}
-
-	func:BuildOptions(self){
-		options = Options()
-		options.Add(self._optimization)
-		self._opts = options.Get()
-		return(self._opts)
-	}
- 
-	func:BuildCommandLineObj(self){
-		/*This BuildCommandLineObj function builds a command line for the Clang 
-		compiler using the specified options and file paths. 
-		It returns this command line as a string. This command line can 
-		then be used to invoke the Clang compiler with the appropriate options.*/
-		cmdline = Options()
-		objf = "obj/" $ self._srcname $ ".o"
-		cmdline.Add(self._compiler)
-		cmdline.Add(self._debug)
-		cmdline.Add(self._warning)
-		cmdline.Add(self._machine)
-		cmdline.Add(self._openmp)
-		cmdline.Add(self._opts)
-		cmdline.Add("-c")
-		cmdline.Add(self._srcfile)
-		cmdline.Add("-o")
-		cmdline.Add(objf)
-		return(cmdline.Get())
-	}
-
-	func:BuildCommandLineExe(self){
-		ext = ".exe"
-		cmdline = Options()
-		if(platform() == "Windows"){
-			ext = ".exe"}
-		if(platform() == "Linux"){
-			ext = ".bin"}
-		outf = self._srcname $ ext
-		objf = "obj/" $ self._srcname $ ".o"
-		cmdline.Add(self._compiler)
-		cmdline.Add("-o")
-		cmdline.Add(outf)
-		cmdline.Add(objf)
-		cmdline.Add(self._machine)
-		cmdline.Add(self._openmp)
-		return(cmdline.Get())
-	}
-
-	func:BuildCommandLineDll(self){
-		ext = ".dll"
-		cmdline = Options()
-		if(platform() == "Windows"){
-			ext = ".dll"}
-		if(platform() == "Linux"){
-			ext = ".so"}
-		outf = self._srcname $ ext
-		objf = "obj/" $ self._srcname $ ".o"
-		cmdline.Add(self._compiler)
-		cmdline.Add("-shared")
-		cmdline.Add("-o")
-		cmdline.Add(outf)
-		cmdline.Add(objf)
-		cmdline.Add(self._machine)
-		cmdline.Add(self._openmp)
-		return(cmdline.Get())
-	}
-
-	func:BuildExe(self){
-		//Execute the compiler to build an executable
-		fswrited(self._objfolder)
-		self.BuildOptions()
-		system(self.BuildCommandLineObj())
-		system(self.BuildCommandLineExe())
-		fsremove(self._objfolder$"/"$self._srcname$".o")
-		fsremove(self._objfolder)
-	}
-
-	func:BuildSharedLib(self){
-		//Execute the compiler to build a library
-		fswrited(self._objfolder)
-		self.BuildOptions()
-		system(self.BuildCommandLineObj())
-		system(self.BuildCommandLineDll())
-		fsremove(self._objfolder$"/"$self._srcname$".o")
-		fsremove(self._objfolder)
-	}
-
-	func:ExecFromString(self, code){
-		//Executes code from a string
-		namec="_temp_.c"
-		exename="_temp_"
-		fswritef(namec,code)
-		self.SetSourceFile(namec)
-		self.BuildExe()
-		fsremove(namec)
-		system("cls")
-		print("\n>> ")
-		system(exename)
-	}
-
-	func:Timing(self, code){
-		//Measures the execution time of a block of code
-		computecode="
-		#include <stdio.h>
-		#include <stdlib.h>
-		#include <time.h>
-		#include <omp.h>
-		clock_t start(void);
-		void stop(clock_t t);	
-		void CFunction(void);
-		clock_t start(void){
-			clock_t t; 
-			t = clock();
-			return t;}
-		 void stop(clock_t t){
-			clock_t et = clock() - t; 
-			double time_taken = 1000.0*((double)et)/CLOCKS_PER_SEC; 
-			printf(''C function compute: %f ms\\n'', time_taken);
-			system(''PAUSE'');}
-		void CFunction(void){"$code$"}
-		int main(void){
-			clock_t t0 = start();
-			CFunction();
-			stop(t0);
-			return 1;}
-		"
-		self.ExecFromString(computecode)
-	}
-
-	func:ShowCommandLine(self){
-		self.BuildOptions()
-		print(self.BuildCommandLineObj())
-		print(self.BuildCommandLineExe())
-		print(self.BuildCommandLineDll())
-	}
- 
- }
+    /**
+     * @brief Displays the command lines for building object files, executables, and shared libraries.
+     */
+    func:ShowCommandLine(self){
+        self.BuildOptions()
+        print(self.BuildCommandLineObj())
+        print(self.BuildCommandLineExe())
+        print(self.BuildCommandLineDll())
+    }
+}
