@@ -118,6 +118,12 @@ obj:Clang(){
 		self.cpl._optimization = "-Ofast"}
 
 	/**
+     * @brief Sets custom option to command line (ex: "-march=native -ldl ...").
+     */
+	func:SetCustom(self, custom){
+		self.cpl.SetCustom(custom)}
+
+	/**
 	 * @brief Enables OpenMP support for parallel programming.
 	 */
 	func:SetOpenmp(self){

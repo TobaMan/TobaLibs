@@ -98,6 +98,12 @@ obj:TCC(){
         self.cpl.SetO3()}
 
     /**
+     * @brief Sets custom option to command line (ex: "-march=native -ldl ...").
+     */
+    func:SetCustom(self, custom){
+		self.cpl.SetCustom(custom)}
+
+    /**
      * @brief Enables debug mode for the compiler.
      */
     func:SetDebugMode(self){

@@ -56,6 +56,7 @@ obj:Compiler(){
     self._machine = "-m32"
     self._optimization = "-O0"
     self._opts = "-O0 -ldl"
+    self._custom = " "
     self._compiler = " "
     self._objfolder = "obj"
     self._srcfile = "main.c"
@@ -133,6 +134,13 @@ obj:Compiler(){
     func:SetO3(self){
         self._optimization = "-O3"
     }
+
+    /**
+     * @brief Sets custom option to command line (ex: "-march=native -ldl ...").
+     */
+    func:SetCustom(self, custom){
+		self._custom = custom
+	}
 
     /**
      * @brief Enables OpenMP support for parallel programming.
