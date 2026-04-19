@@ -1,0 +1,104 @@
+// libtime - Bibliothèque de gestion du temps pour Toba
+// Version 1.0
+
+namespace Time {
+
+    // Structure pour représenter un instant
+    struct DateTime {
+        year: int;
+        month: int;
+        day: int;
+        hour: int;
+        minute: int;
+        second: int;
+        millisecond: int;
+    }
+
+    // Structure pour représenter une durée
+    struct Duration {
+        seconds: long;
+        milliseconds: int;
+    }
+
+    // Retourne le timestamp actuel (secondes depuis Unix epoch)
+    func now() -> long {
+        // Implementation dépendante de la plateforme
+        return platform_timestamp();
+    }
+
+    // Retourne la date et heure actuelles
+    func currentDateTime() -> DateTime {
+        let timestamp = now();
+        return timestampToDateTime(timestamp);
+    }
+
+    // Convertit un timestamp en DateTime
+    func timestampToDateTime(timestamp: long) -> DateTime {
+        // Implementation de conversion
+        var dt: DateTime;
+        // ... logique de conversion
+        return dt;
+    }
+
+    // Convertit un DateTime en timestamp
+    func dateTimeToTimestamp(dt: DateTime) -> long {
+        // Implementation de conversion
+        return 0;
+    }
+
+    // Formate un DateTime en chaîne
+    func format(dt: DateTime, formatStr: string) -> string {
+        // Exemple: format(dt, "YYYY-MM-DD HH:MM:SS")
+        return buildFormattedString(dt, formatStr);
+    }
+
+    // Parse une chaîne en DateTime
+    func parse(dateStr: string, formatStr: string) -> DateTime {
+        // Exemple: parse("2024-01-15 10:30:00", "YYYY-MM-DD HH:MM:SS")
+        return parseFormattedString(dateStr, formatStr);
+    }
+
+    // Crée une durée à partir de secondes
+    func durationFromSeconds(seconds: long) -> Duration {
+        var d: Duration;
+        d.seconds = seconds;
+        d.milliseconds = 0;
+        return d;
+    }
+
+    // Crée une durée à partir de millisecondes
+    func durationFromMilliseconds(ms: long) -> Duration {
+        var d: Duration;
+        d.seconds = ms / 1000;
+        d.milliseconds = ms % 1000;
+        return d;
+    }
+
+    // Ajoute une durée à un DateTime
+    func addDuration(dt: DateTime, duration: Duration) -> DateTime {
+        // Implementation
+        return dt;
+    }
+
+    // Calcule la différence entre deux DateTime
+    func difference(start: DateTime, end: DateTime) -> Duration {
+        // Implementation
+        var d: Duration;
+        return d;
+    }
+
+    // Sleep pendant une durée donnée (en millisecondes)
+    func sleep(milliseconds: int) {
+        platform_sleep(milliseconds);
+    }
+
+    // Sleep pendant un nombre de secondes
+    func sleepSeconds(seconds: int) {
+        sleep(seconds * 1000);
+    }
+
+    // Fonction helper interne (à implémenter selon la plateforme)
+    extern func platform_timestamp() -> long;
+    extern func platform_sleep(milliseconds: int);
+
+}
