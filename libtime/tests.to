@@ -1,0 +1,56 @@
+// Tests unitaires pour libtime
+import unittest;
+import time;
+
+namespace TimeTests {
+
+    func testNow() {
+        let timestamp = Time.now();
+        unittest.assert(timestamp > 0, "Le timestamp actuel doit être positif");
+    }
+
+    func testCurrentDateTime() {
+        let dt = Time.currentDateTime();
+        unittest.assert(dt.year >= 2024, "L'année doit être valide");
+        unittest.assert(dt.month >= 1 && dt.month <= 12, "Le mois doit être entre 1 et 12");
+        unittest.assert(dt.day >= 1 && dt.day <= 31, "Le jour doit être valide");
+        unittest.assert(dt.hour >= 0 && dt.hour <= 23, "L'heure doit être entre 0 et 23");
+        unittest.assert(dt.minute >= 0 && dt.minute <= 59, "Les minutes doivent être entre 0 et 59");
+        unittest.assert(dt.second >= 0 && dt.second <= 59, "Les secondes doivent être entre 0 et 59");
+    }
+
+    func testDurationFromSeconds() {
+        let duration = Time.durationFromSeconds(120);
+        unittest.assert(duration.seconds == 120, "La durée en secondes doit être correcte");
+        unittest.assert(duration.milliseconds == 0, "Les millisecondes doivent être à 0");
+    }
+
+    func testDurationFromMilliseconds() {
+        let duration = Time.durationFromMilliseconds(2500);
+        unittest.assert(duration.seconds == 2, "Les secondes doivent être correctes");
+        unittest.assert(duration.milliseconds == 500, "Les millisecondes doivent être correctes");
+    }
+
+    func testSleep() {
+        let start = Time.now();
+        Time.sleep(100); // Sleep 100ms
+        let end = Time.now();
+        let diff = end - start;
+        unittest.assert(diff >= 0.1, "Le sleep doit durer au moins 100ms");
+    }
+
+    func runAllTests() {
+        unittest.run("Time.now", testNow);
+        unittest.run("Time.currentDateTime", testCurrentDateTime);
+        unittest.run("Time.durationFromSeconds", testDurationFromSeconds);
+        unittest.run("Time.durationFromMilliseconds", testDurationFromMilliseconds);
+        unittest.run("Time.sleep", testSleep);
+    }
+
+}
+
+// Point d'entrée pour exécuter les tests
+func main() {
+    TimeTests.runAllTests();
+    println("Tous les tests de libtime sont terminés.");
+}
