@@ -1,0 +1,27 @@
+/*
+    test_date.to - Test suite for libdate
+    Run : cd C:\Toba  &&  Toba.exe C:\Toba\modules\libdate\test_date.to editor
+    OK  = no "error(" in the output ; deterministic values match the comments.
+*/
+
+import : libdate / date
+
+func: Run() {
+    // Deterministic functions (verifiable)
+    print("MonthName(3)        = " $ date::MonthName(3) $ "\n")           // March
+    print("IsLeapYear(2024)    = " $ strnum(date::IsLeapYear(2024)) $ "\n") // 1
+    print("IsLeapYear(2100)    = " $ strnum(date::IsLeapYear(2100)) $ "\n") // 0
+    print("IsLeapYear(2000)    = " $ strnum(date::IsLeapYear(2000)) $ "\n") // 1
+    print("DaysInMonth(2,2024) = " $ strnum(date::DaysInMonth(2, 2024)) $ "\n") // 29
+    print("DaysInMonth(2,2023) = " $ strnum(date::DaysInMonth(2, 2023)) $ "\n") // 28
+    print("DaysInMonth(4,2023) = " $ strnum(date::DaysInMonth(4, 2023)) $ "\n") // 30
+    print("Pad2(5)             = " $ date::Pad2(5) $ "\n")                // 05
+    print("FormatDate(2026,7,4)= " $ date::FormatDate(2026, 7, 4) $ "\n") // 04/07/2026
+    print("FormatTime(9,5,3)   = " $ date::FormatTime(9, 5, 3) $ "\n")    // 09:05:03
+    // Current instant (not asserted, just shown)
+    print("NowString()         = " $ date::NowString() $ "\n")
+}
+
+if (main()) {
+    Run()
+}

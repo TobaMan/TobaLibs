@@ -1,0 +1,148 @@
+/*
+    libtype - Type guards and display helpers for Toba
+    Usage : import : libtype / type
+            name = type::TypeName(42)
+
+    Keeps common type checks readable. Toba style : single return.
+*/
+
+func: TypeName(value) {
+    // Returns the type name of value: number/string/map/object/function/enum/archive
+    res = "null_or_unknown"
+    if (isnum(value)) {
+        res = "number"
+    }
+    else {
+        if (isstr(value)) {
+            res = "string"
+        }
+        else {
+            if (ismap(value)) {
+                res = "map"
+            }
+            else {
+                if (isobj(value)) {
+                    res = "object"
+                }
+                else {
+                    if (isfunc(value)) {
+                        res = "function"
+                    }
+                    else {
+                        if (isenum(value)) {
+                            res = "enum"
+                        }
+                        else {
+                            if (isarch(value)) {
+                                res = "archive"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return (res)
+}
+
+func: IsScalar(value) {
+    // 1 if value is a number or a string
+    res = 0
+    if (isnum(value)) {
+        res = 1
+    }
+    else {
+        if (isstr(value)) {
+            res = 1
+        }
+    }
+    return (res)
+}
+
+func: IsContainer(value) {
+    // 1 if value is a container (string or map)
+    res = 0
+    if (isstr(value)) {
+        res = 1
+    }
+    else {
+        if (ismap(value)) {
+            res = 1
+        }
+    }
+    return (res)
+}
+
+func: IsCallable(value) {
+    // 1 if value is a function
+    res = 0
+    if (isfunc(value)) {
+        res = 1
+    }
+    return (res)
+}
+
+func: IsSameType(a, b) {
+    // 1 if a and b share the same type
+    res = 0
+    if (TypeName(a) == TypeName(b)) {
+        res = 1
+    }
+    return (res)
+}
+
+func: ToText(value) {
+    // Human-readable text for any value (string as-is, number via strnum, [map:n]...)
+    res = ""
+    if (isstr(value)) {
+        res = value
+    }
+    else {
+        if (isnum(value)) {
+            res = strnum(value)
+        }
+        else {
+            if (ismap(value)) {
+                res = "[map:" $ strnum(size(value)) $ "]"
+            }
+            else {
+                res = "[" $ TypeName(value) $ "]"
+            }
+        }
+    }
+    return (res)
+}
+
+func: StringOr(value, fallback) {
+    // value if it is a string, else fallback
+    res = fallback
+    if (isstr(value)) {
+        res = value
+    }
+    return (res)
+}
+
+func: NumberOr(value, fallback) {
+    // value if it is a number, else fallback
+    res = fallback
+    if (isnum(value)) {
+        res = value
+    }
+    return (res)
+}
+
+func: IsBooleanNumber(value) {
+    // 1 if value is the number 0 or 1
+    res = 0
+    if (isnum(value)) {
+        if (value == 0) {
+            res = 1
+        }
+        else {
+            if (value == 1) {
+                res = 1
+            }
+        }
+    }
+    return (res)
+}

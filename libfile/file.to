@@ -1,0 +1,160 @@
+/*
+    libfile - File system utilities for Toba
+    Usage : import : libfile / file
+            content = file::Read("data.txt")
+
+    Built on the natives fsreadf / fswritef / fsremove / fstype.
+    Toba style : single return, type guards via isstr/fstype.
+
+    NB : fsreadf returns null if the file does not exist -> isstr(...) == 0.
+         fstype : 0 = does not exist, 1 = file, 2 = directory.
+*/
+
+// ===================================================================
+// EXISTENCE AND TYPE
+// ===================================================================
+
+func: Exists(path) {
+    // 1 if the path points to an existing file or directory
+    res = 0
+    if (fstype(path) > 0) {
+        res = 1
+    }
+    return (res)
+}
+
+func: IsFile(path) {
+    res = 0
+    if (fstype(path) == 1) {
+        res = 1
+    }
+    return (res)
+}
+
+func: IsDir(path) {
+    res = 0
+    if (fstype(path) == 2) {
+        res = 1
+    }
+    return (res)
+}
+
+// ===================================================================
+// READING
+// ===================================================================
+
+func: Read(path) {
+    // Reads the whole content of a file. Returns "" if absent.
+    res = ""
+    content = fsreadf(path)
+    if (isstr(content)) {
+        res = content
+    }
+    return (res)
+}
+
+func: ReadLines(path) {
+    // Reads a file and returns the list (MAPTYPE) of its lines
+    res = map(0, 0)
+    content = fsreadf(path)
+    if (isstr(content)) {
+        positions = find(content, "\n")
+        if (size(positions) == 0) {
+            res = res $ (content)
+        }
+        else {
+            start = 0
+            i = for (0, size(positions), 1) {
+                p = positions[i]
+                res = res $ (slice(content, start, p))
+                start = p + 1
+            }
+            // last part after the last newline, only if some content remains
+            if (start < size(content)) {
+                res = res $ (slice(content, start, size(content)))
+            }
+        }
+    }
+    return (res)
+}
+
+func: CountLines(path) {
+    // Number of lines in a file (0 if absent)
+    return (size(ReadLines(path)))
+}
+
+// ===================================================================
+// WRITING
+// ===================================================================
+
+func: Write(path, content) {
+    // Writes (replaces) the content of a file. Returns 1 if ok.
+    fswritef(path, content)
+    res = 0
+    if (IsFile(path)) {
+        res = 1
+    }
+    return (res)
+}
+
+func: Append(path, content) {
+    // Appends content at the end of a file (creates it if absent)
+    old = ""
+    cur = fsreadf(path)
+    if (isstr(cur)) {
+        old = cur
+    }
+    fswritef(path, old $ content)
+    return (1)
+}
+
+func: AppendLine(path, line) {
+    // Appends a line (with a trailing newline) at the end of a file
+    return (Append(path, line $ "\n"))
+}
+
+// ===================================================================
+// DELETE AND COPY
+// ===================================================================
+
+func: Delete(path) {
+    // Deletes a file. Returns 1 if the file no longer exists afterwards.
+    res = 1
+    if (IsFile(path)) {
+        fsremove(path)
+        res = 0
+        if (!IsFile(path)) {
+            res = 1
+        }
+    }
+    return (res)
+}
+
+func: Copy(source, destination) {
+    // Copies a file (read then write). Returns 1 if ok.
+    res = 0
+    if (IsFile(source)) {
+        content = fsreadf(source)
+        if (isstr(content)) {
+            fswritef(destination, content)
+            if (IsFile(destination)) {
+                res = 1
+            }
+        }
+    }
+    return (res)
+}
+
+// ===================================================================
+// SYSTEM PATHS
+// ===================================================================
+
+func: TobaDir() {
+    // Directory of the Toba executable
+    return (fspath(0))
+}
+
+func: ModulesDir() {
+    // Directory of the Toba modules
+    return (fspath(1))
+}

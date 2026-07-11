@@ -1,0 +1,141 @@
+/*
+    libvalidate - String validators useful for parsers and small languages
+    Usage : import : libvalidate / validate
+            ok = validate::IsIdentifier("name_1")
+
+    Toba style : single return, no module-level variables.
+*/
+
+func: Digits() {
+    // "0123456789"
+    return ("0123456789")
+}
+
+func: Letters() {
+    // The 52 ASCII letters (a-z A-Z)
+    return ("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+}
+
+func: IdentifierExtra() {
+    // Extra characters allowed in identifiers ("_")
+    return ("_")
+}
+
+func: IsDigitChar(c) {
+    // 1 if c is a single digit character
+    res = 0
+    if (size(c) == 1) {
+        pos = find(Digits(), c)
+        if (size(pos) > 0) {
+            res = 1
+        }
+    }
+    return (res)
+}
+
+func: IsLetterChar(c) {
+    // 1 if c is a single ASCII letter
+    res = 0
+    if (size(c) == 1) {
+        pos = find(Letters(), c)
+        if (size(pos) > 0) {
+            res = 1
+        }
+    }
+    return (res)
+}
+
+func: IsIdentifierStart(c) {
+    // 1 if c can start an identifier (letter or _)
+    res = 0
+    if (IsLetterChar(c)) {
+        res = 1
+    }
+    else {
+        if (c == "_") {
+            res = 1
+        }
+    }
+    return (res)
+}
+
+func: IsIdentifierChar(c) {
+    // 1 if c can appear inside an identifier (letter, digit or _)
+    res = 0
+    if (IsIdentifierStart(c)) {
+        res = 1
+    }
+    else {
+        if (IsDigitChar(c)) {
+            res = 1
+        }
+    }
+    return (res)
+}
+
+func: IsIntegerText(s) {
+    // 1 if s is a valid integer text (optional leading -)
+    res = 0
+    n = size(s)
+    if (n > 0) {
+        ok = 1
+        begin = 0
+        if (slice(s, 0, 1) == "-") {
+            begin = 1
+            if (n == 1) {
+                ok = 0
+            }
+        }
+        i = for (begin, n, 1) {
+            if (!IsDigitChar(slice(s, i, i + 1))) {
+                ok = 0
+                break
+            }
+        }
+        res = ok
+    }
+    return (res)
+}
+
+func: IsIdentifier(s) {
+    // 1 if s is a valid identifier (letter/_ then letters/digits/_)
+    res = 0
+    n = size(s)
+    if (n > 0) {
+        ok = 1
+        if (!IsIdentifierStart(slice(s, 0, 1))) {
+            ok = 0
+        }
+        else {
+            i = for (1, n, 1) {
+                if (!IsIdentifierChar(slice(s, i, i + 1))) {
+                    ok = 0
+                    break
+                }
+            }
+        }
+        res = ok
+    }
+    return (res)
+}
+
+func: IsOneOf(s, values) {
+    // 1 if s is one of the given values
+    res = 0
+    pos = find(values, s)
+    if (isnum(pos)) {
+        res = 1
+    }
+    return (res)
+}
+
+func: IsInRange(value, lo, hi) {
+    // 1 if lo <= value <= hi
+    res = 0
+    if (value >= lo) {
+        if (value <= hi) {
+            res = 1
+        }
+    }
+    return (res)
+}

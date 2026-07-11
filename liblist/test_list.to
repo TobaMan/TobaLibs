@@ -1,0 +1,35 @@
+/*
+    test_list.to - Test suite for liblist
+    Run : cd C:\Toba  &&  Toba.exe C:\Toba\modules\liblist\test_list.to editor
+    OK  = no "error(" in the output and values match the expected comments.
+*/
+
+import : liblist / list
+
+func: Run() {
+    xs = list::Empty()
+    xs = list::Push(xs, "a")
+    xs = list::Push(xs, "b")
+    xs = list::Push(xs, "c")
+
+    print("Count             = " $ strnum(list::Count(xs)) $ "\n")            // 3
+    print("IsEmpty(empty)    = " $ strnum(list::IsEmpty(list::Empty())) $ "\n") // 1
+    print("First             = " $ list::First(xs) $ "\n")                   // a
+    print("Last              = " $ list::Last(xs) $ "\n")                    // c
+    print("GetOr(1,x)        = " $ list::GetOr(xs, 1, "x") $ "\n")           // b
+    print("GetOr(9,x)        = " $ list::GetOr(xs, 9, "x") $ "\n")           // x
+    print("IndexOf(b)        = " $ strnum(list::IndexOf(xs, "b")) $ "\n")    // 1
+    print("ContainsValue(c)  = " $ strnum(list::ContainsValue(xs, "c")) $ "\n") // 1
+    print("ContainsValue(z)  = " $ strnum(list::ContainsValue(xs, "z")) $ "\n") // 0
+    ys = list::RemoveAt(xs, 1)
+    print("RemoveAt(1) count = " $ strnum(list::Count(ys)) $ "\n")          // 2
+    print("Take(2) count     = " $ strnum(list::Count(list::Take(xs, 2))) $ "\n") // 2
+    print("Drop(1) first     = " $ list::First(list::Drop(xs, 1)) $ "\n")   // b
+    print("Reverse first     = " $ list::First(list::Reverse(xs)) $ "\n")   // c
+    zs = list::Concat(xs, list::Push(list::Empty(), "d"))
+    print("Concat count      = " $ strnum(list::Count(zs)) $ "\n")          // 4
+}
+
+if (main()) {
+    Run()
+}

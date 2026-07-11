@@ -1,0 +1,142 @@
+/*
+    liblist - List helpers for Toba MAPTYPE values
+    Usage : import : liblist / list
+            xs = list::Push(list::Empty(), "hello")
+
+    Complements native map / size / find / slice / remove with common list
+    operations. Toba style : single return.
+*/
+
+func: Empty() {
+    // Returns a new empty list (MAPTYPE)
+    return (map(0, 0))
+}
+
+func: Count(items) {
+    // Number of elements in the list
+    return (size(items))
+}
+
+func: IsEmpty(items) {
+    // 1 if the list has no element, else 0
+    res = 0
+    if (size(items) == 0) {
+        res = 1
+    }
+    return (res)
+}
+
+func: Push(items, value) {
+    // Returns the list with 'value' appended at the end
+    res = items $ (value)
+    return (res)
+}
+
+func: First(items) {
+    // First element (null if the list is empty)
+    res = null()
+    if (size(items) > 0) {
+        res = items[0]
+    }
+    return (res)
+}
+
+func: Last(items) {
+    // Last element (null if the list is empty)
+    res = null()
+    n = size(items)
+    if (n > 0) {
+        res = items[n - 1]
+    }
+    return (res)
+}
+
+func: GetOr(items, idx, fallback) {
+    // Element at 'idx', or 'fallback' if idx is out of bounds
+    res = fallback
+    if (idx >= 0) {
+        if (idx < size(items)) {
+            res = items[idx]
+        }
+    }
+    return (res)
+}
+
+func: IndexOf(items, value) {
+    // Position of the first 'value', or -1 if not found
+    res = -1
+    pos = find(items, value)
+    if (isnum(pos)) {
+        res = pos
+    }
+    return (res)
+}
+
+func: ContainsValue(items, value) {
+    // 1 if 'value' is present in the list, else 0
+    res = 0
+    if (IndexOf(items, value) >= 0) {
+        res = 1
+    }
+    return (res)
+}
+
+func: RemoveAt(items, idx) {
+    // Returns the list without the element at 'idx' (unchanged if out of bounds)
+    res = items
+    if (idx >= 0) {
+        if (idx < size(items)) {
+            res = remove(items, idx, idx + 1)
+        }
+    }
+    return (res)
+}
+
+func: Take(items, count) {
+    // First 'count' elements (fewer if the list is shorter)
+    res = map(0, 0)
+    n = size(items)
+    limit = count
+    if (limit > n) {
+        limit = n
+    }
+    if (limit > 0) {
+        res = slice(items, 0, limit)
+    }
+    return (res)
+}
+
+func: Drop(items, count) {
+    // List without its first 'count' elements
+    res = map(0, 0)
+    n = size(items)
+    if (count < n) {
+        if (count > 0) {
+            res = slice(items, count, n)
+        }
+        else {
+            res = items
+        }
+    }
+    return (res)
+}
+
+func: Reverse(items) {
+    // Returns the list in reverse order
+    res = map(0, 0)
+    n = size(items)
+    i = for (0, n, 1) {
+        pos = n - i - 1
+        res = res $ (items[pos])
+    }
+    return (res)
+}
+
+func: Concat(left, right) {
+    // Returns the concatenation of the two lists
+    res = left
+    i = for (0, size(right), 1) {
+        res = res $ (right[i])
+    }
+    return (res)
+}

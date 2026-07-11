@@ -1,0 +1,27 @@
+/*
+    test_file.to - Test suite for libfile
+    Run : cd C:\Toba  &&  Toba.exe C:\Toba\modules\libfile\test_file.to editor
+    Creates, reads then deletes a temp file. OK = no "error(" and values match.
+*/
+
+import : libfile / file
+
+func: Run() {
+    tmp = "C:/Toba/modules/libfile/_libfile_test.tmp"
+
+    print("Write ok            = " $ strnum(file::Write(tmp, "line1\nline2\nline3")) $ "\n") // 1
+    print("Exists              = " $ strnum(file::Exists(tmp)) $ "\n")        // 1
+    print("IsFile              = " $ strnum(file::IsFile(tmp)) $ "\n")        // 1
+    print("Read                = [" $ file::Read(tmp) $ "]\n")               // [line1..line3]
+    print("CountLines          = " $ strnum(file::CountLines(tmp)) $ "\n")   // 3
+    print("AppendLine ok       = " $ strnum(file::AppendLine(tmp, "line4")) $ "\n") // 1
+    // NB : le fichier finissait par "line3" SANS saut de ligne, donc "line4" se
+    // colle a "line3" (-> "line3line4"). CountLines reste 3, c'est normal.
+    print("CountLines apres    = " $ strnum(file::CountLines(tmp)) $ "\n")   // 3
+    print("Delete              = " $ strnum(file::Delete(tmp)) $ "\n")       // 1
+    print("Exists apres delete = " $ strnum(file::Exists(tmp)) $ "\n")       // 0
+}
+
+if (main()) {
+    Run()
+}

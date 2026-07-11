@@ -1,0 +1,312 @@
+/*
+    libjson - Small JSON readers for Toba
+    Usage : import : libjson / json
+            name = json::GetString(eventJson, "name", "")
+
+    Practical flat JSON object reader for WebUI bridge events.
+    It avoids quote literals because Toba string escaping is fragile.
+*/
+
+func: TextOrEmpty(value) {
+    // Returns value as text ("" if it is neither a string nor a number)
+    res = ""
+    if (isstr(value)) {
+        res = value
+    }
+    else {
+        if (isnum(value)) {
+            res = strnum(value)
+        }
+    }
+    return (res)
+}
+
+func: HasKey(js, key) {
+    // 1 if the JSON text contains the given key
+    js = TextOrEmpty(js)
+    res = 0
+    pos = find(js, key)
+    if (size(pos) > 0) {
+        res = 1
+    }
+    return (res)
+}
+
+func: FindColonAfter(js, start) {
+    // Index of the : after position start, or -1 (stops at , or })
+    js = TextOrEmpty(js)
+    res = -1
+    n = size(js)
+    i = for (start, n, 1) {
+        c = slice(js, i, i + 1)
+        if (c == ":") {
+            res = i
+            break
+        }
+        else {
+            if (c == ",") {
+                break
+            }
+            if (c == "}") {
+                break
+            }
+        }
+    }
+    return (res)
+}
+
+func: ValueStart(js, key) {
+    // Index where the value of key begins (after : and spaces), or -1
+    js = TextOrEmpty(js)
+    res = -1
+    pos = find(js, key)
+    if (size(pos) > 0) {
+        colon = FindColonAfter(js, pos[0] + size(key))
+        if (colon >= 0) {
+            res = colon + 1
+            n = size(js)
+            loop {
+                if (res >= n) {
+                    break
+                }
+                c = slice(js, res, res + 1)
+                if (c != " ") {
+                    break
+                }
+                res = res + 1
+            }
+        }
+    }
+    return (res)
+}
+
+func: FindValueEnd(js, start) {
+    js = TextOrEmpty(js)
+    res = size(js)
+    n = size(js)
+    depth = 0
+    inStr = 0
+    prev = ""
+    i = for (start, n, 1) {
+        c = slice(js, i, i + 1)
+        // Suivi des chaines : tant qu'on est DANS une string JSON, les , ] } { ne
+        // sont PAS des delimiteurs (sinon une virgule du texte -- "bien, merci" --
+        // tronquait la valeur a "bie"). Un " non echappe ouvre/ferme la string.
+        if (inStr == 1) {
+            if (c == "\"") {
+                if (prev != "\\") {
+                    inStr = 0
+                }
+            }
+        }
+        else {
+            if (c == "\"") {
+                inStr = 1
+            }
+            else {
+                if (c == "[") {
+                    depth = depth + 1
+                }
+                else {
+                    if (c == "{") {
+                        depth = depth + 1
+                    }
+                    else {
+                        if (c == "]") {
+                            depth = depth - 1
+                        }
+                        else {
+                            if (c == "}") {
+                                if (depth == 0) {
+                                    res = i
+                                    break
+                                }
+                                else {
+                                    depth = depth - 1
+                                }
+                            }
+                            else {
+                                if (depth == 0) {
+                                    if (c == ",") {
+                                        res = i
+                                        break
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        prev = c
+    }
+    return (res)
+}
+
+func: InnerBlock(raw) {
+    // Removes the first and last character (outer { } or [ ])
+    res = raw
+    n = size(raw)
+    if (n >= 2) {
+        res = slice(raw, 1, n - 1)
+    }
+    return (res)
+}
+
+func: SplitObjects(arrayRaw) {
+    // Splits a JSON array of objects into a list of object texts
+    res = map(0, 0)
+    content = InnerBlock(arrayRaw)
+    n = size(content)
+    start = -1
+    depth = 0
+    i = for (0, n, 1) {
+        c = slice(content, i, i + 1)
+        if (c == "{") {
+            if (depth == 0) {
+                start = i
+            }
+            depth = depth + 1
+        }
+        else {
+            if (c == "}") {
+                depth = depth - 1
+                if (depth == 0) {
+                    if (start >= 0) {
+                        res = res $ (slice(content, start, i + 1))
+                        start = -1
+                    }
+                }
+            }
+        }
+    }
+    return (res)
+}
+
+func: TrimSpaces(s) {
+    // Removes leading/trailing spaces
+    res = s
+    n = size(s)
+    if (n > 0) {
+        first = 0
+        last = n
+        i = for (0, n, 1) {
+            c = slice(s, i, i + 1)
+            if (c != " ") {
+                first = i
+                break
+            }
+        }
+        i = n - 1
+        loop {
+            if (i < 0) {
+                break
+            }
+            c = slice(s, i, i + 1)
+            if (c != " ") {
+                last = i + 1
+                break
+            }
+            i = i - 1
+        }
+        res = slice(s, first, last)
+    }
+    return (res)
+}
+
+func: StripOuter(s) {
+    // Removes the surrounding quotes of a JSON string value
+    res = s
+    n = size(s)
+    if (n >= 2) {
+        res = slice(s, 1, n - 1)
+    }
+    return (res)
+}
+
+func: Unescape(s) {
+    // Turns JSON backslash escapes into their real characters (newline, tab...)
+    res = s
+    res = freplace(res, "\\n", "\n")
+    res = freplace(res, "\\r", "\r")
+    res = freplace(res, "\\t", "\t")
+    res = freplace(res, "\\/", "/")
+    return (res)
+}
+
+func: GetRaw(js, key, fallback) {
+    // Raw value text for key (quotes/braces kept), or fallback
+    res = fallback
+    start = ValueStart(js, key)
+    if (start >= 0) {
+        last = FindValueEnd(js, start)
+        if (last >= start) {
+            res = TrimSpaces(slice(js, start, last))
+        }
+    }
+    return (res)
+}
+
+func: GetString(js, key, fallback) {
+    // String value for key (unquoted, unescaped), or fallback
+    res = fallback
+    raw = GetRaw(js, key, "")
+    if (size(raw) >= 2) {
+        res = Unescape(StripOuter(raw))
+    }
+    return (res)
+}
+
+func: GetNumber(js, key, fallback) {
+    // Numeric value for key, or fallback
+    res = fallback
+    raw = GetRaw(js, key, "")
+    if (size(raw) > 0) {
+        res = numstr(raw)
+    }
+    return (res)
+}
+
+func: GetBool(js, key, fallback) {
+    // 1 for true, 0 for false, else fallback
+    res = fallback
+    raw = GetRaw(js, key, "")
+    if (raw == "true") {
+        res = 1
+    }
+    else {
+        if (raw == "false") {
+            res = 0
+        }
+    }
+    return (res)
+}
+
+func: GetArrayString(js, key, idx, fallback) {
+    // String element at index idx of the array at key, or fallback
+    res = fallback
+    raw = GetRaw(js, key, "")
+    n = size(raw)
+    if (n >= 2) {
+        content = slice(raw, 1, n - 1)
+        cur = 0
+        start = 0
+        i = for (0, size(content), 1) {
+            c = slice(content, i, i + 1)
+            if (c == ",") {
+                if (cur == idx) {
+                    item = TrimSpaces(slice(content, start, i))
+                    res = Unescape(StripOuter(item))
+                    break
+                }
+                cur = cur + 1
+                start = i + 1
+            }
+        }
+        if (cur == idx) {
+            item = TrimSpaces(slice(content, start, size(content)))
+            res = Unescape(StripOuter(item))
+        }
+    }
+    return (res)
+}

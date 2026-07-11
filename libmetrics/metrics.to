@@ -1,0 +1,159 @@
+/*
+    libmetrics - Native system metrics bridge for Toba.
+    Usage : import : libmetrics / metrics
+            metrics::Start(19101)
+            json = metrics::Snapshot()
+
+    Windows backend: metrics_ws_win64.dll
+    Future backends: metrics_ws_linux64.so, metrics_ws_macos.dylib
+*/
+
+func: NativePath() {
+    // Path to the native metrics/proc DLL (Windows backend)
+    return ("C:/Toba/modules/libmetrics/metrics_ws_win64_v7.dll")
+}
+
+func: NativeLib() {
+    // Opens the native DLL (dlopen)
+    lib = dlopen(NativePath(), dlcdecl())
+    return (lib)
+}
+
+func: Start(port) {
+    // Starts the metrics WebSocket server on the given port
+    args = (cint(), (cint(), port))
+    res = dlcall(NativeLib(), "metrics_start", args)
+    return (res)
+}
+
+func: Stop() {
+    // Stops the metrics WebSocket server
+    args = (cint(), (cvoid(), 0))
+    res = dlcall(NativeLib(), "metrics_stop", args)
+    return (res)
+}
+
+func: IsRunning() {
+    // 1 if the metrics server is running, 0 otherwise
+    args = (cint(), (cvoid(), 0))
+    res = dlcall(NativeLib(), "metrics_is_running", args)
+    return (res)
+}
+
+func: Snapshot() {
+    // Current metrics as a JSON string ("" on failure)
+    res = ""
+    args = (cpointer(), (cvoid(), 0))
+    ptr = dlcall(NativeLib(), "metrics_snapshot", args)
+    if (ptr != 0) {
+        res = cfromptr(ptr, cstring(), -1)
+    }
+    if (!isstr(res)) {
+        res = ""
+    }
+    return (res)
+}
+
+func: LastError() {
+    // Last metrics error message ("" if none)
+    res = ""
+    args = (cpointer(), (cvoid(), 0))
+    ptr = dlcall(NativeLib(), "metrics_last_error", args)
+    if (ptr != 0) {
+        res = cfromptr(ptr, cstring(), -1)
+    }
+    if (!isstr(res)) {
+        res = ""
+    }
+    return (res)
+}
+
+func: ClientCount() {
+    // Number of connected WebSocket clients
+    args = (cint(), (cvoid(), 0))
+    res = dlcall(NativeLib(), "metrics_client_count", args)
+    return (res)
+}
+
+func: SentCount() {
+    // Number of messages sent
+    args = (cint(), (cvoid(), 0))
+    res = dlcall(NativeLib(), "metrics_sent_count", args)
+    return (res)
+}
+
+func: AcceptCount() {
+    // Number of accepted connections
+    args = (cint(), (cvoid(), 0))
+    res = dlcall(NativeLib(), "metrics_accept_count", args)
+    return (res)
+}
+
+func: HandshakeFailCount() {
+    // Number of failed WebSocket handshakes
+    args = (cint(), (cvoid(), 0))
+    res = dlcall(NativeLib(), "metrics_handshake_fail_count", args)
+    return (res)
+}
+
+func: ClientThreadCount() {
+    // Number of active client threads
+    args = (cint(), (cvoid(), 0))
+    res = dlcall(NativeLib(), "metrics_client_thread_count", args)
+    return (res)
+}
+
+func: SendFailCount() {
+    // Number of failed sends
+    args = (cint(), (cvoid(), 0))
+    res = dlcall(NativeLib(), "metrics_send_fail_count", args)
+    return (res)
+}
+
+// ===== SUPERVISEUR DE PROCESS (start/stop fiable d'un binaire) =====
+// Lance un binaire en gardant son HANDLE natif -> arret INFAILLIBLE
+// (TerminateProcess), contrairement a la chasse au PID PowerShell.
+
+// ProcStart(cmdline) : lance le binaire. Retourne le PID (>0) ou 0 si echec.
+func: ProcStart(cmdline) {
+    ptr = ctoptr(cstring(), cmdline)
+    args = (culong(), (cpointer(), ptr))
+    res = dlcall(NativeLib(), "proc_start", args)
+    cfreeptr(ptr)
+    return (res)
+}
+
+// ProcStop() : tue le process gere. Retourne 1 si mort confirme, 0 sinon.
+func: ProcStop() {
+    args = (cint(), (cvoid(), 0))
+    res = dlcall(NativeLib(), "proc_stop", args)
+    return (res)
+}
+
+// ProcIsAlive() : 1 si le process gere est vivant, 0 sinon.
+func: ProcIsAlive() {
+    args = (cint(), (cvoid(), 0))
+    res = dlcall(NativeLib(), "proc_is_alive", args)
+    return (res)
+}
+
+// ProcPid() : PID du process gere (0 si aucun).
+func: ProcPid() {
+    args = (culong(), (cvoid(), 0))
+    res = dlcall(NativeLib(), "proc_pid", args)
+    return (res)
+}
+
+// ProcLastError() : message d'erreur du dernier ProcStart/ProcStop.
+func: ProcLastError() {
+    res = ""
+    args = (cpointer(), (cvoid(), 0))
+    ptr = dlcall(NativeLib(), "proc_last_error", args)
+    if (ptr != 0) {
+        res = cfromptr(ptr, cstring(), -1)
+    }
+    if (!isstr(res)) {
+        res = ""
+    }
+    return (res)
+}

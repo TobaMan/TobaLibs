@@ -1,0 +1,132 @@
+/*
+    libdate - Date/time module for Toba
+    Usage : import : libdate / date
+            d = date::Now()
+
+    Built on the native dtime() function which returns a NUMTYPE of size 6 :
+      [0]=YEAR [1]=MONTH [2]=DAY [3]=HOUR [4]=MINUTE [5]=SECOND
+    Toba style : single return, constants via accessor functions.
+*/
+
+// ===================================================================
+// CONSTANTS (accessor functions)
+// ===================================================================
+
+func: MonthName(month) {
+    // Name of the month for a number 1-12, else empty string
+    names = ( "January", "February", "March", "April", "May", "June", \
+              "July", "August", "September", "October", "November", "December" )
+    res = ""
+    if (month >= 1 && month <= 12) {
+        res = names[month - 1]
+    }
+    return (res)
+}
+
+func: DaysInMonthTable(idx) {
+    // Default day count for month index 0-11 (February handled elsewhere)
+    table = ( 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 )
+    return (table[idx])
+}
+
+// ===================================================================
+// CURRENT DATE ACCESS
+// ===================================================================
+
+func: Now() {
+    // Returns the array [year, month, day, hour, minute, second]
+    return (dtime())
+}
+
+func: Year() {
+    d = dtime()
+    return (d[0])
+}
+
+func: Month() {
+    d = dtime()
+    return (d[1])
+}
+
+func: Day() {
+    d = dtime()
+    return (d[2])
+}
+
+func: Hour() {
+    d = dtime()
+    return (d[3])
+}
+
+func: Minute() {
+    d = dtime()
+    return (d[4])
+}
+
+func: Second() {
+    d = dtime()
+    return (d[5])
+}
+
+// ===================================================================
+// LEAP YEAR AND DAY COUNT
+// ===================================================================
+
+func: IsLeapYear(year) {
+    // A year is leap if divisible by 4 and (not by 100 or by 400)
+    res = 0
+    if (year % 4 == 0) {
+        if (year % 100 != 0) {
+            res = 1
+        }
+        else {
+            if (year % 400 == 0) {
+                res = 1
+            }
+        }
+    }
+    return (res)
+}
+
+func: DaysInMonth(month, year) {
+    // Number of days in the month (1-12), accounting for leap years
+    res = 0
+    if (month >= 1 && month <= 12) {
+        res = DaysInMonthTable(month - 1)
+        if (month == 2 && IsLeapYear(year)) {
+            res = 29
+        }
+    }
+    return (res)
+}
+
+// ===================================================================
+// FORMATTING
+// ===================================================================
+
+func: Pad2(n) {
+    // Formats a number on 2 digits (prepends 0 if < 10)
+    res = strnum(n)
+    if (n < 10) {
+        res = "0" $ res
+    }
+    return (res)
+}
+
+func: FormatDate(year, month, day) {
+    // DD/MM/YYYY format
+    return (Pad2(day) $ "/" $ Pad2(month) $ "/" $ strnum(year))
+}
+
+func: FormatTime(hour, minute, second) {
+    // HH:MM:SS format
+    return (Pad2(hour) $ ":" $ Pad2(minute) $ ":" $ Pad2(second))
+}
+
+func: NowString() {
+    // Full "DD/MM/YYYY HH:MM:SS" string of the current instant
+    d = dtime()
+    datepart = FormatDate(d[0], d[1], d[2])
+    timepart = FormatTime(d[3], d[4], d[5])
+    return (datepart $ " " $ timepart)
+}

@@ -7,10 +7,7 @@
     rand) with the common missing utilities. Toba style : single return.
 */
 
-// NB : in Toba, an enum from an IMPORTED module is not visible inside the module
-// functions. So constants used internally are defined LOCALLY in the functions
-// that need them (see Pi() below) rather than in a shared enum.
-
+// Pi as an accessor function (simple and always in scope).
 func: Pi() {
     return (3.14159265358979)
 }

@@ -1,0 +1,25 @@
+/*
+    test_string.to - Test suite for libstring
+    Run : cd C:\Toba  &&  Toba.exe C:\Toba\modules\libstring\test_string.to editor
+    OK  = no "error(" in the output and values match the expected comments.
+*/
+
+import : libstring / string
+
+func: Run() {
+    print("Upper(hello)        = " $ string::Upper("hello") $ "\n")           // HELLO
+    print("Lower(WORLD)        = " $ string::Lower("WORLD") $ "\n")           // world
+    print("IsEmpty()           = " $ strnum(string::IsEmpty("")) $ "\n")      // 1
+    print("Contains(abc,b)     = " $ strnum(string::Contains("abc", "b")) $ "\n")   // 1
+    print("StartsWith(abc,ab)  = " $ strnum(string::StartsWith("abc", "ab")) $ "\n") // 1
+    print("EndsWith(abc,bc)    = " $ strnum(string::EndsWith("abc", "bc")) $ "\n")   // 1
+    print("Repeat(ab,3)        = " $ string::Repeat("ab", 3) $ "\n")          // ababab
+    print("Reverse(abc)        = " $ string::Reverse("abc") $ "\n")           // cba
+    print("Replace(aaa,a,b)    = " $ string::Replace("aaa", "a", "b") $ "\n") // bbb
+    print("Trim(  hi  )        = [" $ string::Trim("  hi  ") $ "]\n")         // [hi]
+    print("Join(Split(a-b-c))  = " $ string::Join(string::Split("a-b-c", "-"), "|") $ "\n") // a|b|c
+}
+
+if (main()) {
+    Run()
+}

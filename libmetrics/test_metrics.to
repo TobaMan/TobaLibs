@@ -1,0 +1,22 @@
+/*
+    test_metrics.to - Smoke test for libmetrics (native DLL bridge)
+    Run : cd C:\Toba  &&  Toba.exe C:\Toba\modules\libmetrics\test_metrics.to editor
+
+    NOTE : libmetrics drives a native DLL (WebSocket server + process supervisor).
+    This test does NOT start the server ; it only checks that the module loads and
+    that a safe read-only call returns without error.
+*/
+
+import : libmetrics / metrics
+
+func: Run() {
+    print("NativePath()   = " $ metrics::NativePath() $ "\n")
+    print("IsRunning()    = " $ strnum(metrics::IsRunning()) $ "\n")   // 0 (not started)
+    print("ClientCount()  = " $ strnum(metrics::ClientCount()) $ "\n") // 0
+    print("ProcIsAlive()  = " $ strnum(metrics::ProcIsAlive()) $ "\n") // 0
+    print("module loaded OK\n")
+}
+
+if (main()) {
+    Run()
+}

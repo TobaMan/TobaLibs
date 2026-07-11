@@ -1,0 +1,222 @@
+/*
+    libstring - String utilities for Toba
+    Usage : import : libstring / string
+            n = string::Upper("hello")
+
+    Complements the natives (size, find, slice, freplace) with the common missing
+    string operations. Toba style : single return, constants kept local.
+
+    NB : find(s, pattern) returns the LIST of positions (empty if not found).
+*/
+
+// ===================================================================
+// CONSTANTS (accessor functions - always in scope, no import prefix needed)
+// ===================================================================
+
+func: Lowercase() {
+    return ("abcdefghijklmnopqrstuvwxyz")
+}
+
+func: Uppercase() {
+    return ("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+}
+
+func: Spaces() {
+    return (" \t\n\r")
+}
+
+// ===================================================================
+// BASIC TESTS
+// ===================================================================
+
+func: IsEmpty(s) {
+    res = 1
+    if (size(s) > 0) {
+        res = 0
+    }
+    return (res)
+}
+
+func: Contains(s, pattern) {
+    // 1 if 'pattern' is present in 's', else 0
+    res = 0
+    pos = find(s, pattern)
+    if (size(pos) > 0) {
+        res = 1
+    }
+    return (res)
+}
+
+func: StartsWith(s, prefix) {
+    // 1 if 's' starts with 'prefix'
+    res = 0
+    n = size(prefix)
+    if (size(s) >= n) {
+        if (slice(s, 0, n) == prefix) {
+            res = 1
+        }
+    }
+    return (res)
+}
+
+func: EndsWith(s, suffix) {
+    // 1 if 's' ends with 'suffix'
+    res = 0
+    n = size(suffix)
+    ls = size(s)
+    if (ls >= n) {
+        if (slice(s, ls - n, ls) == suffix) {
+            res = 1
+        }
+    }
+    return (res)
+}
+
+// ===================================================================
+// CASE
+// ===================================================================
+
+func: Upper(s) {
+    // Converts to uppercase
+    low = Lowercase()
+    up = Uppercase()
+    res = s
+    i = for (0, 26, 1) {
+        res = freplace(res, slice(low, i, i + 1), slice(up, i, i + 1))
+    }
+    return (res)
+}
+
+func: Lower(s) {
+    // Converts to lowercase
+    low = Lowercase()
+    up = Uppercase()
+    res = s
+    i = for (0, 26, 1) {
+        res = freplace(res, slice(up, i, i + 1), slice(low, i, i + 1))
+    }
+    return (res)
+}
+
+// ===================================================================
+// MANIPULATION
+// ===================================================================
+
+func: Repeat(s, times) {
+    // Repeats 's' 'times' times
+    res = ""
+    if (times > 0) {
+        i = for (0, times, 1) {
+            res = res $ s
+        }
+    }
+    return (res)
+}
+
+func: Reverse(s) {
+    // Reverses a string
+    res = ""
+    n = size(s)
+    i = for (0, n, 1) {
+        res = slice(s, i, i + 1) $ res
+    }
+    return (res)
+}
+
+func: Replace(s, target, replacement) {
+    // Replaces all occurrences of 'target' with 'replacement'
+    return (freplace(s, target, replacement))
+}
+
+// ===================================================================
+// TRIM (remove whitespace from the ends)
+// ===================================================================
+
+func: IsSpace(c) {
+    res = 0
+    if (Contains(Spaces(), c)) {
+        res = 1
+    }
+    return (res)
+}
+
+func: TrimLeft(s) {
+    // Removes whitespace at the start
+    res = s
+    if (!IsEmpty(s)) {
+        start = size(s)
+        i = for (0, size(s), 1) {
+            if (!IsSpace(slice(s, i, i + 1))) {
+                start = i
+                break
+            }
+        }
+        res = slice(s, start, size(s))
+    }
+    return (res)
+}
+
+func: TrimRight(s) {
+    // Removes whitespace at the end
+    res = s
+    if (!IsEmpty(s)) {
+        last = 0
+        i = for (size(s) - 1, -1, 1) {
+            if (!IsSpace(slice(s, i, i + 1))) {
+                last = i + 1
+                break
+            }
+        }
+        res = slice(s, 0, last)
+    }
+    return (res)
+}
+
+func: Trim(s) {
+    // Removes whitespace from both ends
+    return (TrimLeft(TrimRight(s)))
+}
+
+// ===================================================================
+// SPLIT / JOIN
+// ===================================================================
+// NB : to keep strings SEPARATE in a list, use a MAPTYPE (map(0,0) creates an
+// empty list, $ appends without merging). A plain string concat would merge them.
+
+func: Split(s, separator) {
+    // Splits 's' on 'separator', returns a list (MAPTYPE) of parts
+    res = map(0, 0)
+    if (size(s) > 0) {
+        positions = find(s, separator)
+        if (size(positions) == 0) {
+            res = res $ (s)
+        }
+        else {
+            lsep = size(separator)
+            start = 0
+            i = for (0, size(positions), 1) {
+                p = positions[i]
+                res = res $ (slice(s, start, p))
+                start = p + lsep
+            }
+            // last part (empty if the string ends with the separator)
+            if (start <= size(s)) {
+                res = res $ (slice(s, start, size(s)))
+            }
+        }
+    }
+    return (res)
+}
+
+func: Join(list, separator) {
+    // Concatenates the elements of 'list' with 'separator' between them
+    res = ""
+    n = size(list)
+    if (n > 0) {
+        res = list[0]
+        i = for (1, n, 1) {
+            res = res $ separator $ list[i]
+        }
+    }
+    return (res)
+}

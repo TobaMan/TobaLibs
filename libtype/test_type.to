@@ -1,0 +1,30 @@
+/*
+    test_type.to - Test suite for libtype
+    Run : cd C:\Toba  &&  Toba.exe C:\Toba\modules\libtype\test_type.to editor
+    OK  = no "error(" in the output and values match the expected comments.
+*/
+
+import : libtype / type
+
+func: Run() {
+    print("TypeName(42)        = " $ type::TypeName(42) $ "\n")           // number
+    print("TypeName(hi)        = " $ type::TypeName("hi") $ "\n")         // string
+    print("TypeName(map)       = " $ type::TypeName(map(0, 0)) $ "\n")    // map
+    print("IsScalar(1)         = " $ strnum(type::IsScalar(1)) $ "\n")    // 1
+    print("IsScalar(map)       = " $ strnum(type::IsScalar(map(0, 0))) $ "\n") // 0
+    print("IsContainer(hi)     = " $ strnum(type::IsContainer("hi")) $ "\n")   // 1
+    print("IsContainer(3)      = " $ strnum(type::IsContainer(3)) $ "\n") // 0
+    print("IsSameType(1,2)     = " $ strnum(type::IsSameType(1, 2)) $ "\n") // 1
+    print("IsSameType(1,hi)    = " $ strnum(type::IsSameType(1, "hi")) $ "\n") // 0
+    print("ToText(42)          = " $ type::ToText(42) $ "\n")            // 42
+    print("ToText(hi)          = " $ type::ToText("hi") $ "\n")          // hi
+    print("StringOr(1,def)     = " $ type::StringOr(1, "def") $ "\n")    // def
+    print("StringOr(ok,def)    = " $ type::StringOr("ok", "def") $ "\n") // ok
+    print("NumberOr(hi,7)      = " $ strnum(type::NumberOr("hi", 7)) $ "\n") // 7
+    print("IsBooleanNumber(1)  = " $ strnum(type::IsBooleanNumber(1)) $ "\n") // 1
+    print("IsBooleanNumber(5)  = " $ strnum(type::IsBooleanNumber(5)) $ "\n") // 0
+}
+
+if (main()) {
+    Run()
+}

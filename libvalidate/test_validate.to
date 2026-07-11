@@ -1,0 +1,27 @@
+/*
+    test_validate.to - Test suite for libvalidate
+    Run : cd C:\Toba  &&  Toba.exe C:\Toba\modules\libvalidate\test_validate.to editor
+    OK  = no "error(" in the output and values match the expected comments.
+*/
+
+import : libvalidate / validate
+
+func: Run() {
+    print("IsDigitChar(7)         = " $ strnum(validate::IsDigitChar("7")) $ "\n") // 1
+    print("IsDigitChar(a)         = " $ strnum(validate::IsDigitChar("a")) $ "\n") // 0
+    print("IsLetterChar(Z)        = " $ strnum(validate::IsLetterChar("Z")) $ "\n") // 1
+    print("IsIdentifierStart(_)   = " $ strnum(validate::IsIdentifierStart("_")) $ "\n") // 1
+    print("IsIdentifierStart(9)   = " $ strnum(validate::IsIdentifierStart("9")) $ "\n") // 0
+    print("IsIntegerText(-42)     = " $ strnum(validate::IsIntegerText("-42")) $ "\n") // 1
+    print("IsIntegerText(4a)      = " $ strnum(validate::IsIntegerText("4a")) $ "\n") // 0
+    print("IsIntegerText(-)       = " $ strnum(validate::IsIntegerText("-")) $ "\n") // 0
+    print("IsIdentifier(name_1)   = " $ strnum(validate::IsIdentifier("name_1")) $ "\n") // 1
+    print("IsIdentifier(1name)    = " $ strnum(validate::IsIdentifier("1name")) $ "\n") // 0
+    print("IsOneOf(b,[a,b,c])     = " $ strnum(validate::IsOneOf("b", ("a", "b", "c"))) $ "\n") // 1
+    print("IsInRange(5,0,9)       = " $ strnum(validate::IsInRange(5, 0, 9)) $ "\n") // 1
+    print("IsInRange(12,0,9)      = " $ strnum(validate::IsInRange(12, 0, 9)) $ "\n") // 0
+}
+
+if (main()) {
+    Run()
+}

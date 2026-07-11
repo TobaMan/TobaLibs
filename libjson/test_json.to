@@ -1,0 +1,29 @@
+/*
+    test_json.to - Test suite for libjson
+    Run : cd C:\Toba  &&  Toba.exe C:\Toba\modules\libjson\test_json.to editor
+    OK  = no "error(" in the output and values match the expected comments.
+*/
+
+import : libjson / json
+
+func: Run() {
+    js = "{\"name\":\"increment\",\"count\":42,\"ok\":true,\"args\":[\"inc\",\"x\"]}"
+
+    print("HasKey(name)        = " $ strnum(json::HasKey(js, "name")) $ "\n")   // 1
+    print("HasKey(missing)     = " $ strnum(json::HasKey(js, "zzz")) $ "\n")    // 0
+    print("GetString(name)     = " $ json::GetString(js, "name", "?") $ "\n")   // increment
+    print("GetNumber(count)    = " $ strnum(json::GetNumber(js, "count", -1)) $ "\n") // 42
+    print("GetBool(ok)         = " $ strnum(json::GetBool(js, "ok", -1)) $ "\n") // 1
+    print("GetString(missing)  = " $ json::GetString(js, "zzz", "def") $ "\n")  // def
+    print("Array args[0]       = " $ json::GetArrayString(js, "args", 0, "?") $ "\n") // inc
+    print("Array args[1]       = " $ json::GetArrayString(js, "args", 1, "?") $ "\n") // x
+
+    // Comma inside a string value must not truncate it
+    js2 = "{\"msg\":\"bien, merci\",\"n\":7}"
+    print("GetString(msg)      = " $ json::GetString(js2, "msg", "?") $ "\n")   // bien, merci
+    print("GetNumber(n)        = " $ strnum(json::GetNumber(js2, "n", -1)) $ "\n") // 7
+}
+
+if (main()) {
+    Run()
+}
