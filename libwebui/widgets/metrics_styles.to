@@ -1,0 +1,6 @@
+import : libwebui / widgets
+
+func: MetricsStyles() {
+    return (widgets::MetricsStyles())
+}
+

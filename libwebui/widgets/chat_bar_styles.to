@@ -1,0 +1,6 @@
+import : libwebui / widgets
+
+func: ChatBarStyles() {
+    return (widgets::ChatBarStyles())
+}
+

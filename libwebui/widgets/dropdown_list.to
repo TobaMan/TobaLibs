@@ -1,0 +1,55 @@
+import : libwebui / desktopui
+import : libwebui / widget_core
+
+func: DropdownList(id, label, options, values, events, activeValue, extraClass) {
+    safeId = desktopui::EscapeHtml(id)
+    safeLabel = desktopui::EscapeHtml(label)
+    cls = "tm-dropdown " $ desktopui::EscapeHtml(extraClass)
+    html = "<div id='" $ safeId $ "' class='" $ cls $ "'><button type='button' class='tm-drop-btn' onclick='tmDrop(this)'>" $ safeLabel $ "</button><div class='tm-drop-menu'>"
+    i = for (0, size(options), 1) {
+        text = widget_core::TextOrEmpty(options[i])
+        value = text
+        if (size(values) > i) {
+            value = widget_core::TextOrEmpty(values[i])
+        }
+        eventName = "dropdown_select"
+        if (size(events) > i) {
+            eventName = widget_core::TextOrEmpty(events[i])
+        }
+        itemCls = "tm-drop-option"
+        if (value == activeValue) {
+            itemCls = "tm-drop-option active"
+        }
+        js = "var d=this.closest('.tm-dropdown');if(d)d.classList.remove('open');webuiEvent('" $ desktopui::EscapeJs(eventName) $ "',{id:'" $ desktopui::EscapeJs(id) $ "',value:'" $ desktopui::EscapeJs(value) $ "',label:'" $ desktopui::EscapeJs(text) $ "'})"
+        html = html $ "<button type='button' class='" $ itemCls $ "' data-value='" $ desktopui::EscapeHtml(value) $ "' onclick=\"" $ js $ "\">" $ desktopui::EscapeHtml(text) $ "</button>"
+    }
+    html = html $ "</div></div>"
+    return (html)
+}
+
+obj:DropdownListWidget() {
+    self.html = " "
+    self.id = "dropdown"
+    self.label = "Dropdown"
+    self.options = ("One", "Two")
+    self.values = ("one", "two")
+    self.events = ("dropdown_one", "dropdown_two")
+    self.activeValue = "one"
+    self.extraClass = " "
+
+    func:Setup(self, id, label, options, values, events, activeValue, extraClass) {
+        self.id = id
+        self.label = label
+        self.options = options
+        self.values = values
+        self.events = events
+        self.activeValue = activeValue
+        self.extraClass = extraClass
+        return (self)
+    }
+
+    func:Close(self) {
+        self.html = DropdownList(self.id, self.label, self.options, self.values, self.events, self.activeValue, self.extraClass)
+        return (self)
+    }
+}

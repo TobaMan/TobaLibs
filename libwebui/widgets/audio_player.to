@@ -1,0 +1,128 @@
+import : libwebui / desktopui
+import : libwebui / widget_core
+
+func: HasText(source, pattern) {
+    pos = find(source, pattern)
+    res = 0
+    if (isnum(pos)) {
+        if (pos >= 0) {
+            res = 1
+        }
+    }
+    return (res)
+}
+
+func: AudioMime(source) {
+    s = widget_core::TextOrEmpty(source)
+    low = s
+    low = freplace(low, ".WAV", ".wav")
+    low = freplace(low, ".MP3", ".mp3")
+    low = freplace(low, ".OGG", ".ogg")
+    low = freplace(low, ".M4A", ".m4a")
+    res = "audio/mpeg"
+    if (HasText(low, ".wav") == 1) {
+        res = "audio/wav"
+    }
+    if (HasText(low, ".ogg") == 1) {
+        res = "audio/ogg"
+    }
+    if (HasText(low, ".m4a") == 1) {
+        res = "audio/mp4"
+    }
+    return (res)
+}
+
+func: AudioSourceUrl(source) {
+    s = widget_core::TextOrEmpty(source)
+    res = widget_core::MediaUrl(source)
+    b64Path = s $ ".b64"
+    if (size(s) > 0) {
+        if (fstype(b64Path) == 1) {
+            b64 = fsreadf(b64Path)
+            if (isstr(b64)) {
+                b64 = freplace(b64, "\n", "")
+                b64 = freplace(b64, "\r", "")
+                res = "data:" $ AudioMime(source) $ ";base64," $ b64
+            }
+        }
+    }
+    return (res)
+}
+
+func: AudioPlayerStyles() {
+    css = "<style data-libwebui-audio='1'>"
+    css = css $ ".lw-audio-slider{width:100%;height:22px;margin:0;background:transparent!important;appearance:none;-webkit-appearance:none;cursor:pointer;--lw-range-percent:0%}"
+    css = css $ ".lw-audio-slider:focus{outline:none}"
+    css = css $ ".lw-audio-slider::-webkit-slider-runnable-track{height:6px;border-radius:999px;background:linear-gradient(90deg,var(--accent) 0%,var(--accent) var(--lw-range-percent),color-mix(in srgb,var(--border) 72%,transparent) var(--lw-range-percent),color-mix(in srgb,var(--border) 72%,transparent) 100%)}"
+    css = css $ ".lw-audio-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:18px;height:18px;margin-top:-6px;border:2px solid var(--bg-card);border-radius:999px;background:var(--accent);box-shadow:0 1px 9px color-mix(in srgb,var(--accent) 34%,transparent)}"
+    css = css $ ".lw-audio-slider::-moz-range-track{height:6px;border-radius:999px;background:color-mix(in srgb,var(--border) 72%,transparent)}"
+    css = css $ ".lw-audio-slider::-moz-range-progress{height:6px;border-radius:999px;background:var(--accent)}"
+    css = css $ ".lw-audio-slider::-moz-range-thumb{width:18px;height:18px;border:2px solid var(--bg-card);border-radius:999px;background:var(--accent);box-shadow:0 1px 9px color-mix(in srgb,var(--accent) 34%,transparent)}"
+    css = css $ ".lw-audio-slider:disabled{opacity:.55;cursor:not-allowed}"
+    css = css $ "</style>"
+    return (css)
+}
+
+func: AudioPlayerScript() {
+    js = "<script>"
+    js = js $ "window.webuiAudioTime=function(t){t=Number(t||0);if(!isFinite(t))t=0;var m=Math.floor(t/60),s=Math.floor(t%60);return m+':'+(s<10?'0'+s:String(s))};"
+    js = js $ "window.webuiAudioSetRange=function(r){if(!r)return;var min=Number(r.min||0),max=Number(r.max||100),val=Number(r.value||0),p=max>min?((val-min)/(max-min))*100:0;r.style.setProperty('--lw-range-percent',Math.max(0,Math.min(100,p))+'%')};"
+    js = js $ "window.webuiAudioSync=function(id){var a=document.getElementById(id);if(!a)return;var root=a.closest('.lw-audio-player');if(!root)return;var cur=root.querySelector('.lw-audio-time');var total=root.querySelector('.lw-audio-duration');var progress=root.querySelector('.lw-audio-progress');var volume=root.querySelector('.lw-audio-volume');var play=root.querySelector('[data-audio-play]');var pause=root.querySelector('[data-audio-pause]');var dur=a.duration&&isFinite(a.duration)?a.duration:0;if(progress){progress.max=dur>0?Math.floor(dur):100;progress.value=Math.floor(a.currentTime||0);webuiAudioSetRange(progress)}if(volume){webuiAudioSetRange(volume)}if(cur){cur.textContent=webuiAudioTime(a.currentTime)}if(total){total.textContent=dur>0?webuiAudioTime(dur):'--:--'}if(play)play.style.display=a.paused?'inline-flex':'none';if(pause)pause.style.display=a.paused?'none':'inline-flex'};"
+    js = js $ "window.webuiAudioPlay=function(id){var a=document.getElementById(id);if(!a)return;webuiEvent('audio_play_request',{id:id});var p=a.play();if(p&&p.catch){p.catch(function(e){var msg=e&&e.message?e.message:String(e);webuiEvent('audio_play_error',{id:id,value:msg})})}webuiAudioSync(id)};"
+    js = js $ "window.webuiAudioPause=function(id){var a=document.getElementById(id);if(!a)return;a.pause();webuiAudioSync(id);webuiEvent('audio_pause_request',{id:id,value:a.currentTime})};"
+    js = js $ "window.webuiAudioStop=function(id){var a=document.getElementById(id);if(!a)return;a.pause();a.currentTime=0;webuiAudioSync(id);webuiEvent('audio_stop',{id:id,value:0})};"
+    js = js $ "window.webuiAudioSeek=function(id,val){var a=document.getElementById(id);if(!a)return;a.currentTime=Number(val||0);webuiAudioSync(id);webuiEvent('audio_seek',{id:id,value:a.currentTime})};"
+    js = js $ "window.webuiAudioVolume=function(id,val){var a=document.getElementById(id);if(!a)return;a.volume=Math.max(0,Math.min(1,Number(val||0)/100));var root=a.closest('.lw-audio-player');if(root)webuiAudioSetRange(root.querySelector('.lw-audio-volume'));webuiEvent('audio_volume',{id:id,value:a.volume})};"
+    js = js $ "</script>"
+    return (js)
+}
+
+func: RenderAudioPlayer(id, title, source, note) {
+    safeId = desktopui::EscapeHtml(id)
+    eid = desktopui::EscapeJs(id)
+    mediaSource = AudioSourceUrl(source)
+    src = desktopui::EscapeHtml(mediaSource)
+    mime = AudioMime(source)
+    empty = ""
+    if (size(widget_core::TextOrEmpty(source)) == 0) {
+        empty = "<div class='lw-audio-empty'>Aucun fichier audio selectionne.<br>Utilise AudioPlayer.Setup(..., chemin_audio, ...).</div>"
+    }
+    audio = "<audio id='" $ safeId $ "' preload='metadata' onplay=\"webuiEvent('audio_play',{id:this.id,value:this.currentTime});webuiAudioSync(this.id)\" onpause=\"webuiEvent('audio_pause',{id:this.id,value:this.currentTime});webuiAudioSync(this.id)\" onended=\"webuiEvent('audio_ended',{id:this.id,state:'ended'});webuiAudioSync(this.id)\" onloadedmetadata=\"webuiEvent('audio_loaded',{id:this.id,value:this.duration});webuiAudioSync(this.id)\" onerror=\"webuiEvent('audio_error',{id:this.id,value:this.error?this.error.code:'error'})\" ontimeupdate=\"webuiAudioSync(this.id)\"><source src='" $ src $ "' type='" $ mime $ "'></audio>"
+    btnStyle = "width:34px;height:34px;border:0;border-radius:8px;background:transparent;color:var(--text-2);display:inline-flex;align-items:center;justify-content:center;cursor:pointer"
+    timeStyle = "font-family:var(--mono);font-size:13px;font-weight:700;color:var(--text-2);white-space:nowrap;text-align:center"
+    shellStyle = "display:grid;grid-template-columns:40px 48px minmax(160px,1fr) 48px 28px 82px;gap:12px;align-items:center;width:100%;min-height:46px;padding:8px 12px;border:1px solid var(--border);border-radius:calc(var(--lw-radius) + 2px);background:color-mix(in srgb,var(--bg-card) 92%,var(--bg) 8%);box-shadow:0 1px 0 rgba(255,255,255,.04)"
+    controls = "<div class='lw-audio-shell' style='" $ shellStyle $ "'><button type='button' style='" $ btnStyle $ "' data-audio-play='1' title='Play' onclick=\"webuiAudioPlay('" $ eid $ "')\"><span data-icon='play'></span></button><button type='button' style='" $ btnStyle $ ";display:none' data-audio-pause='1' title='Pause' onclick=\"webuiAudioPause('" $ eid $ "')\"><span data-icon='pause'></span></button><div class='lw-audio-time' style='" $ timeStyle $ "'>0:00</div><input class='lw-audio-progress lw-audio-slider' type='range' min='0' max='100' value='0' oninput=\"webuiAudioSeek('" $ eid $ "',this.value)\"><div class='lw-audio-duration' style='" $ timeStyle $ "'>--:--</div><div class='lw-audio-volume-icon' style='color:var(--text-2);display:flex;align-items:center;justify-content:center'><span data-icon='volume'></span></div><input class='lw-audio-volume lw-audio-slider' type='range' min='0' max='100' value='100' title='Volume' oninput=\"webuiAudioVolume('" $ eid $ "',this.value)\"></div>"
+    html = AudioPlayerStyles() $ AudioPlayerScript()
+    html = html $ "<section class='ui-card lw-audio-player'><div class='ui-card-head'><div class='ui-card-title'>" $ desktopui::EscapeHtml(title) $ "</div><div class='ui-card-sub'>" $ desktopui::EscapeHtml(note) $ "</div></div><div class='ui-card-body'>" $ audio $ controls $ empty $ "<div class='lw-audio-meta' title='" $ desktopui::EscapeHtml(source) $ "'>" $ desktopui::EscapeHtml(source) $ "</div></div></section>"
+    return (html)
+}
+
+obj:AudioPlayer() {
+    self.html = " "
+    self.id = "audio_player"
+    self.title = "Audio player"
+    self.source = " "
+    self.note = "Lecteur audio avec sliders webui"
+    self.disabled = 0
+
+    func:Setup(self, id, title, source, note) {
+        self.id = id
+        self.title = title
+        self.source = source
+        self.note = note
+        return (self)
+    }
+
+    func:SetDisabled(self, disabled) {
+        self.disabled = disabled
+        return (self)
+    }
+
+    func:Close(self) {
+        self.html = widget_core::Styles() $ RenderAudioPlayer(self.id, self.title, self.source, self.note)
+        if (self.disabled == 1) {
+            self.html = widget_core::DisableHtml(self.html)
+        }
+        return (self)
+    }
+}

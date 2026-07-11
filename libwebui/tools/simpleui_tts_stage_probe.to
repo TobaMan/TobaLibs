@@ -1,0 +1,20 @@
+import : libwebui / simpleui
+import : libtts / clone
+import : libtts / tts
+
+if (main()) {
+    print("stage 1 imports\n")
+    app = simpleui::Window()
+    print("stage 2 window\n")
+    app.Setup("Probe")
+    print("stage 3 setup\n")
+    app.SetPort(19234)
+    app.SetWindow(640, 260, 220, 140)
+    print("stage 4 window config\n")
+    app.TextEvent("voice_name", "Nom", "webui_clone", "name_changed")
+    print("stage 5 text\n")
+    app.ButtonEvent("test_play", "Tester", "play", "test_play", " ")
+    print("stage 6 button\n")
+    app.ShowAsync()
+    print("stage 7 show\n")
+}

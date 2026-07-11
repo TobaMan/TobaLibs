@@ -1,0 +1,602 @@
+import : libwebui / desktopui
+
+import : libwebui / widget_core
+import : libwebui / widgets / theme_dropdown
+import : libwebui / widgets / action_dropdown
+import : libwebui / widgets / window_titlebar
+
+func: __module_ready() {
+    return (1)
+}
+
+func: GpuMetricRow(gpuName, usedMb, totalMb, percent, tempC) {
+    row = "<tr><td>" $ desktopui::EscapeHtml(gpuName) $ "</td>"
+    row = row $ "<td>" $ strnum(usedMb) $ " MB</td>"
+    row = row $ "<td>" $ strnum(totalMb) $ " MB</td>"
+    row = row $ "<td>" $ strnum(percent) $ "%</td>"
+    row = row $ "<td>" $ strnum(tempC) $ " C</td></tr>"
+    return (row)
+}
+
+func: EmptyGpuMetricRow() {
+    row = "<tr><td colspan='5'>No GPU data available</td></tr>"
+    return (row)
+}
+
+func: Kpi(kpiId, label, value, note) {
+    kid = desktopui::EscapeHtml(kpiId)
+    html = "<div class='tm-kpi'>"
+    html = html $ "<div class='tm-kpi-label'>" $ desktopui::EscapeHtml(label) $ "</div>"
+    html = html $ "<div id='" $ kid $ "' class='tm-kpi-value'>" $ desktopui::EscapeHtml(value) $ "</div>"
+    html = html $ "<div id='" $ kid $ "_note' class='tm-kpi-note'>" $ desktopui::EscapeHtml(note) $ "</div>"
+    html = html $ "</div>"
+    return (html)
+}
+
+func: KpiGrid(items) {
+    html = "<div class='tm-kpi-grid'>" $ items $ "</div>"
+    return (html)
+}
+
+func: ChartLibraryScript() {
+    code = fsreadf("C:/Toba/modules/libwebui/vendor/chart.umd.min.js")
+    html = " "
+    if (isstr(code)) {
+        if (size(code) > 1000) {
+            html = "<script>" $ code $ "</script>"
+        }
+    }
+    return (html)
+}
+
+func: ThemeDropdown() {
+    return (theme_dropdown::ThemeDropdown())
+}
+
+func: ActionDropdown() {
+    return (action_dropdown::ActionDropdown())
+}
+
+func: WindowTitleBar(title, iconText) {
+    return (window_titlebar::WindowTitleBar(title, iconText))
+}
+
+func: ActionScript() {
+    script = "<script>"
+    script = script $ "window.webuiEvent=window.webuiEvent||function(name,data){data=data||{};var args=[];if(data.id)args.push(data.id);if(data.value!==undefined)args.push(data.value);try{window.dispatchEvent(new CustomEvent('toba:event',{detail:{name:name,widgetId:data.id||name,args:args,data:data,timestamp:Date.now()}}))}catch(x){}return data};"
+    script = script $ "window.lwActClose=window.lwActClose||function(){var all=document.querySelectorAll('.tm-dropdown.open');for(var i=0;i<all.length;i++){all[i].classList.remove('open')}};"
+    script = script $ "window.lwActReload=window.lwActReload||function(){lwActClose();if(window.webuiEvent)webuiEvent('action_reload');location.reload()};"
+    script = script $ "window.lwActFullscreen=window.lwActFullscreen||function(){lwActClose();var e=document.documentElement;var done=function(){if(window.webuiEvent)webuiEvent('action_fullscreen')};var fail=function(x){if(window.webuiEvent)webuiEvent('action_fullscreen_error',{id:'fullscreen',value:(x&&x.message)?x.message:String(x)});if(window.webuiToast)webuiToast('Plein ecran',((x&&x.message)?x.message:String(x)))};try{if(document.fullscreenElement){var p=document.exitFullscreen?document.exitFullscreen():0;if(p&&p.then)p.then(done).catch(fail);else done()}else{var r=e.requestFullscreen||e.webkitRequestFullscreen||e.msRequestFullscreen;if(r){var q=r.call(e);if(q&&q.then)q.then(done).catch(fail);else done()}else{fail('Fullscreen API indisponible')}}}catch(ex){fail(ex)}};"
+    script = script $ "window.lwActCopyHtml=window.lwActCopyHtml||function(){lwActClose();var h=document.documentElement.outerHTML;try{if(navigator.clipboard){navigator.clipboard.writeText(h)}}catch(e){}if(window.webuiToast)webuiToast('HTML copie',(h.length)+' caracteres');if(window.webuiEvent)webuiEvent('action_copy_html')};"
+    script = script $ "window.lwActRequestClose=window.lwActRequestClose||function(){lwActClose();if(window.webuiRequestClose){webuiRequestClose({source:'action_menu'})}else if(window.webuiEvent){webuiEvent('window_close_request',{id:'window',state:'request',source:'action_menu'})}};"
+    script = script $ "window.lwNativeWindowAction=window.lwNativeWindowAction||function(action){if(window.webuiEvent)webuiEvent('native_window_action',{id:'window',value:action,action:action});};"
+    script = script $ "window.lwActDebug=window.lwActDebug||function(){lwActClose();var box=document.getElementById('lw-debug-box');if(box){box.parentNode.removeChild(box);return}box=document.createElement('div');box.id='lw-debug-box';box.className='lw-debug-box';box.innerHTML='<div class=\"lw-debug-head\">Debug JS<button onclick=\"this.closest(\\'.lw-debug-box\\').remove()\">X</button></div><pre class=\"lw-debug-body\"></pre>';document.body.appendChild(box);var body=box.querySelector('pre');body.textContent='URL: '+location.href+'\\nTheme: '+(document.body.getAttribute('data-theme')||'?')+'\\nFullscreen: '+(document.fullscreenElement?'on':'off')+'\\nScripts: '+document.scripts.length+'\\nElements: '+document.getElementsByTagName('*').length;if(window.webuiEvent)webuiEvent('action_debug')};"
+    script = script $ "window.lwActToggleEvents=window.lwActToggleEvents||function(){lwActClose();var log=document.getElementById('lw-events-log');if(log){log.parentNode.removeChild(log);window.lwEventsOn=0;return}log=document.createElement('div');log.id='lw-events-log';log.className='lw-debug-box lw-events-log';log.innerHTML='<div class=\"lw-debug-head\">Journal des events</div><pre class=\"lw-debug-body\" id=\"lw-events-body\">Journal actif. En attente des events...</pre>';document.body.appendChild(log);window.lwEventsOn=1;if(window.webuiEvent)webuiEvent('action_events',{id:'actions',state:'open'})};"
+    script = script $ "if(!window.__lwActionEvents){window.__lwActionEvents=1;window.addEventListener('toba:event',function(e){if(!window.lwEventsOn)return;var b=document.getElementById('lw-events-body');if(!b)return;var d=e.detail||{};b.textContent=(new Date().toLocaleTimeString()+' '+(d.name||'?')+' '+JSON.stringify(d.data||d.args||{})+'\\n'+b.textContent).slice(0,4000)})};"
+    script = script $ "</script>"
+    return (script)
+}
+
+func: GpuTable(rows) {
+    html = "<div class='tm-table-wrap'><table class='tm-table'><thead><tr><th>GPU</th><th>VRAM</th><th>Total</th><th>%</th><th>Temp</th></tr></thead><tbody>" $ rows $ "</tbody></table></div>"
+    return (html)
+}
+
+func: PillField(label, contentHtml) {
+    html = "<div class='lw-pill-field'><span class='lw-pill-label'>" $ desktopui::EscapeHtml(label) $ "</span><span class='lw-pill-sep'></span>" $ contentHtml $ "</div>"
+    return (html)
+}
+
+func: PillInput(inputId, label, value, onInputJs) {
+    iid = desktopui::EscapeHtml(inputId)
+    val = desktopui::EscapeHtml(value)
+    js = desktopui::EscapeHtml(onInputJs)
+    html = PillField(label, "<input id='" $ iid $ "' class='lw-pill-input' value='" $ val $ "' oninput='" $ js $ "'>")
+    return (html)
+}
+
+func: PillSelect(selectId, label, optionsHtml, onChangeJs) {
+    sid = desktopui::EscapeHtml(selectId)
+    js = desktopui::EscapeHtml(onChangeJs)
+    html = PillField(label, "<select id='" $ sid $ "' class='lw-pill-select' onchange='" $ js $ "'>" $ optionsHtml $ "</select>")
+    return (html)
+}
+
+func: PillButton(buttonId, text, onClickJs, kind) {
+    bid = desktopui::EscapeHtml(buttonId)
+    txt = desktopui::EscapeHtml(text)
+    js = desktopui::EscapeHtml(onClickJs)
+    cls = "lw-pill-button " $ desktopui::EscapeHtml(kind)
+    html = "<button id='" $ bid $ "' type='button' class='" $ cls $ "' onclick='" $ js $ "'>" $ txt $ "</button>"
+    return (html)
+}
+
+func: PillButtonRow(contentHtml) {
+    html = "<div class='lw-pill-buttons'>" $ contentHtml $ "</div>"
+    return (html)
+}
+
+func: FilePicker(pickerId, label, value, accept, eventName) {
+    pid = desktopui::EscapeHtml(pickerId)
+    eid = desktopui::EscapeJs(pickerId)
+    ev = desktopui::EscapeJs(eventName)
+    val = desktopui::EscapeHtml(value)
+    acc = desktopui::EscapeHtml(accept)
+    content = "<span id='" $ pid $ "_value' class='lw-pill-input' title='" $ val $ "' data-accept='" $ acc $ "'>" $ val $ "</span>"
+    content = content $ "<button id='" $ pid $ "_button' type='button' class='lw-pill-button primary' onclick=\"webuiEvent('" $ ev $ "',{id:'" $ eid $ "',value:document.getElementById('" $ eid $ "_value').textContent,accept:'" $ desktopui::EscapeJs(accept) $ "'})\">Choisir</button>"
+    html = PillField(label, content)
+    return (html)
+}
+
+func: ChatMessage(role, text) {
+    html = "<div class='lw-chat-msg " $ desktopui::EscapeHtml(role) $ "'>" $ desktopui::EscapeHtml(text) $ "</div>"
+    return (html)
+}
+
+func: ChatComposer(textareaId, buttonText, onClickJs) {
+    tid = desktopui::EscapeHtml(textareaId)
+    txt = desktopui::EscapeHtml(buttonText)
+    js = desktopui::EscapeHtml(onClickJs)
+    html = "<div class='lw-chat-composer'><div class='lw-chat-input-row'><textarea id='" $ tid $ "' class='lw-chat-input' placeholder='Message...'></textarea><button type='button' class='lw-chat-send' onclick='" $ js $ "'>" $ txt $ "</button></div></div>"
+    return (html)
+}
+
+func: DockPage(title, sidebarHtml, mainHtml, footer, actionsHtml) {
+    html = "<div class='tm-page lw-dock-page'>"
+    html = html $ "<header class='tm-header'><div class='tm-brand'>" $ desktopui::EscapeHtml(title) $ "</div><div class='tm-actions pill-row'>" $ actionsHtml $ "</div></header>"
+    html = html $ "<main class='tm-page-main'><div class='tm-shell lw-dock-shell'><aside class='tm-sidebar lw-dock-sidebar'><div class='lw-dock-grip' title='Resize / dock panel'></div>" $ sidebarHtml $ "</aside><section class='tm-main lw-dock-main'>" $ mainHtml $ "</section></div></main>"
+    html = html $ "<footer class='tm-footer'>" $ desktopui::EscapeHtml(footer) $ "</footer></div>"
+    return (html)
+}
+
+func: DockScript() {
+    script = "<script>"
+    script = script $ "function lwDockIsInteractive(t){return !!(t&&t.closest&&t.closest('input,button,select,textarea,a,[data-nodrag],.ui-dropdown,.gallery-slider-card,.lw-pill-field,.lw-chat-input-row'))}function lwDockInit(){var shell=document.querySelector('.lw-dock-shell');if(!shell)return;var side=shell.querySelector('.lw-dock-sidebar');var grip=shell.querySelector('.lw-dock-grip');if(side&&grip&&!grip.getAttribute('data-ready')){grip.setAttribute('data-ready','1');grip.onmousedown=function(e){if(lwDockIsInteractive(e.target))return;e.preventDefault();var sx=e.clientX;var sw=side.getBoundingClientRect().width;function mv(ev){var w=Math.max(220,Math.min(560,sw+(ev.clientX-sx)));shell.style.gridTemplateColumns=w+'px minmax(0,1fr)'}function up(){document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up)}document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up)}}var panels=document.querySelectorAll('.lw-dock-panel,.tm-panel');for(var i=0;i<panels.length;i++){var p=panels[i];if(!p.getAttribute('data-dock-ready')){p.setAttribute('data-dock-ready','1');p.removeAttribute('draggable');var h=p.querySelector('.tm-title');if(h){h.setAttribute('draggable','true');h.style.cursor='grab';h.ondragstart=(function(panel){return function(e){if(lwDockIsInteractive(e.target)){e.preventDefault();return false}e.dataTransfer.setData('text/plain',panel.id||String())}})(p)}p.ondragover=function(e){e.preventDefault()};p.ondrop=function(e){e.preventDefault();var id=e.dataTransfer.getData('text/plain');var src=document.getElementById(id);if(src&&src!==this&&this.parentNode){this.parentNode.insertBefore(src,this)}}}}}window.addEventListener('load',lwDockInit);"
+    script = script $ "</script>"
+    return (script)
+}
+
+func: MetricsScript(port, firstMetrics) {
+    p = strnum(port)
+    script = "<script>"
+    script = script $ "function tmEvent(name,data){if(window.webuiEvent)webuiEvent(name,data||{})}function tmShow(id){var ps=document.querySelectorAll('.tm-panel');var ms=document.querySelectorAll('.tm-menu-item');for(var i=0;i<ps.length;i++){ps[i].classList.remove('active')}for(var j=0;j<ms.length;j++){ms[j].classList.remove('active')}var p=document.getElementById('panel_'+id);var m=document.getElementById('menu_'+id);if(p){p.classList.add('active')}if(m){m.classList.add('active')}tmEvent('panel_show',{id:id,value:id})}"
+    script = script $ "function tmSetTheme(v){var val=v||'light_modern';document.body.setAttribute('data-theme',val);var opts=document.querySelectorAll('.tm-drop-option[data-theme]');for(var i=0;i<opts.length;i++){var on=opts[i].getAttribute('data-theme')==val;opts[i].classList.toggle('active',on);if(on){var d=opts[i].closest('.tm-dropdown');if(d){var b=d.querySelector('.tm-drop-btn');if(b)b.textContent=opts[i].textContent}}}tmEvent('theme_change',{id:'theme',value:val})}"
+    script = script $ "function tmDrop(btn){var d=btn.closest('.tm-dropdown');var was=d.classList.contains('open');var id=d?(d.id||btn.textContent.trim()||'dropdown'):'dropdown';var all=document.querySelectorAll('.tm-dropdown.open');for(var i=0;i<all.length;i++){if(all[i]!==d){all[i].classList.remove('open');tmEvent('dropdown_close',{id:all[i].id||'dropdown',state:'closed'})}}if(d&&!was){d.classList.add('open');tmEvent('dropdown_open',{id:id,state:'open'})}else if(d){d.classList.remove('open');tmEvent('dropdown_close',{id:id,state:'closed'})}}function tmPickTheme(btn,v){tmSetTheme(v);var d=btn.closest('.tm-dropdown');if(d)d.classList.remove('open')}function tmPickAction(btn,v){tmEvent('action_'+v,{id:'actions',value:v});var d=btn.closest('.tm-dropdown');if(d)d.classList.remove('open')}document.addEventListener('click',function(e){if(!e.target.closest('.tm-dropdown')){var all=document.querySelectorAll('.tm-dropdown.open');for(var i=0;i<all.length;i++){all[i].classList.remove('open');tmEvent('dropdown_close',{id:all[i].id||'dropdown',state:'closed'})}}});"
+    script = script $ "function tmTableValue(t){var s=String(t||String());var n=parseFloat(s.replace(/[^0-9.-]/g,String()));if(!isNaN(n))return n;return s.toLowerCase()}function tmApplySort(table){var col=Number(table.getAttribute('data-sort-col'));if(isNaN(col))return;var dir=table.getAttribute('data-sort-dir')||'asc';var tb=table.tBodies[0];if(!tb)return;var rows=Array.prototype.slice.call(tb.rows);rows.sort(function(a,b){var av=tmTableValue(a.cells[col]?a.cells[col].textContent:String());var bv=tmTableValue(b.cells[col]?b.cells[col].textContent:String());if(av<bv)return dir=='asc'?-1:1;if(av>bv)return dir=='asc'?1:-1;return 0});for(var i=0;i<rows.length;i++){tb.appendChild(rows[i])}var ths=table.tHead?table.tHead.rows[0].cells:[];for(var j=0;j<ths.length;j++){ths[j].classList.toggle('sorted',j==col);ths[j].setAttribute('data-dir',j==col?(dir=='asc'?'up':'down'):String())}}"
+    script = script $ "function tmSortTable(th){var table=th.closest('table');var cells=Array.prototype.slice.call(th.parentNode.cells);var col=cells.indexOf(th);var old=table.getAttribute('data-sort-col');var dir=table.getAttribute('data-sort-dir')||'asc';if(String(col)==String(old)){dir=dir=='asc'?'desc':'asc'}else{dir='asc'}table.setAttribute('data-sort-col',String(col));table.setAttribute('data-sort-dir',dir);tmApplySort(table)}function tmStartResize(e,th){e.preventDefault();e.stopPropagation();var sx=e.clientX;var sw=th.offsetWidth;function mv(ev){var w=Math.max(54,sw+(ev.clientX-sx));th.style.width=w+'px';th.style.minWidth=w+'px'}function up(){document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up)}document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up)}"
+    script = script $ "function tmEnhanceTables(){var tables=document.querySelectorAll('.tm-table');for(var i=0;i<tables.length;i++){var table=tables[i];var ths=table.tHead?table.tHead.querySelectorAll('th'):[];for(var j=0;j<ths.length;j++){var th=ths[j];if(!th.getAttribute('data-ready')){th.setAttribute('data-ready','1');th.classList.add('tm-sortable');th.onclick=function(){tmSortTable(this)};var r=document.createElement('span');r.className='tm-col-resizer';r.onmousedown=(function(x){return function(e){tmStartResize(e,x)}})(th);th.appendChild(r)}}tmApplySort(table)}}"
+    script = script $ "function T(id,v){var e=document.getElementById(id);if(e){e.textContent=v}}function C(v,max){v=Number(v||0);if(v<0)v=0;if(v>max)v=max;return v}"
+    script = script $ "var S={cpu:[],ram:[],vram:[],gput:[],cput:[]};var M=120;function P(a,v,max){a.push(C(v,max));while(a.length>M){a.shift()}}"
+    script = script $ "var TMCH={};function tmCss(n,f){var v=getComputedStyle(document.body).getPropertyValue(n);return v&&v.trim?v.trim():f}function tmChartLabel(id){if(id.indexOf('cpu')==0)return 'CPU';if(id.indexOf('ram')==0)return 'RAM';if(id.indexOf('vram')==0)return 'VRAM';if(id.indexOf('gputemp')==0)return 'GPU temp';if(id.indexOf('cputemp')==0)return 'CPU temp';return id}"
+    script = script $ "function tmChart(id,a,col,max){if(!window.Chart)return 0;var cv=document.getElementById(id);if(!cv)return 1;var box=cv.parentNode;if(!box||box.clientWidth<20||box.clientHeight<20)return 1;var labels=[];for(var i=0;i<a.length;i++){labels.push(String(i-M+1))}var grid=tmCss('--border','#273142');var text=tmCss('--text-3','#7c8fa6');var accent=tmCss('--accent',col);if(!TMCH[id]){var ds={label:tmChartLabel(id),data:a,borderColor:col,backgroundColor:'rgba(0,0,0,0.04)',pointRadius:0,pointHitRadius:10,borderWidth:2,tension:.32,fill:true};var cfg={type:'line'};cfg.data={labels:labels,datasets:[ds]};cfg.options={responsive:true,maintainAspectRatio:false,resizeDelay:80,animation:false,normalized:true};cfg.options.interaction={mode:'index',intersect:false};cfg.options.plugins={legend:{display:false},tooltip:{enabled:true,backgroundColor:tmCss('--bg-card','#111827'),titleColor:tmCss('--text-1','#fff'),bodyColor:tmCss('--text-2','#ccd'),borderColor:accent,borderWidth:1,displayColors:false}};cfg.options.scales={x:{display:false,grid:{display:false}},y:{min:0,max:max,border:{display:false},grid:{color:grid},ticks:{color:text,font:{size:11,family:'Consolas'}}}};TMCH[id]=new Chart(cv,cfg)}else{var ch=TMCH[id];ch.data.labels=labels;ch.data.datasets[0].data=a;ch.data.datasets[0].borderColor=col;ch.options.scales.y.max=max;ch.options.scales.y.grid.color=grid;ch.options.scales.y.ticks.color=text;ch.options.plugins.tooltip.borderColor=accent;ch.update('none')}return 1}"
+    script = script $ "function D(id,a,col,max){if(tmChart(id,a,col,max))return;var cv=document.getElementById(id);if(!cv)return;var r=cv.getBoundingClientRect();var d=window.devicePixelRatio||1;var w=Math.max(320,Math.floor(r.width));var h=Math.max(220,Math.floor(r.height));if(cv.width!=Math.floor(w*d)||cv.height!=Math.floor(h*d)){cv.width=Math.floor(w*d);cv.height=Math.floor(h*d)}var x=cv.getContext('2d');x.setTransform(d,0,0,d,0,0);x.clearRect(0,0,w,h);var cs=getComputedStyle(document.body);x.strokeStyle=cs.getPropertyValue('--border')||'#e5e7eb';x.lineWidth=1;for(var i=0;i<=4;i++){var y=i*h/4;x.beginPath();x.moveTo(0,y);x.lineTo(w,y);x.stroke()}var grad=x.createLinearGradient(0,0,w,0);grad.addColorStop(0,col);grad.addColorStop(1,cs.getPropertyValue('--accent')||col);x.strokeStyle=grad;x.lineWidth=2.4;x.beginPath();for(var j=0;j<a.length;j++){var xx=j*(w/(M-1)),yy=h-(a[j]/max*h);if(j==0)x.moveTo(xx,yy);else x.lineTo(xx,yy)}x.stroke()}"
+    script = script $ "function G(g){var r=[];for(var i=0;i<g.length;i++){r.push('<tr><td>'+String(g[i].name||'GPU')+'</td><td>'+String(g[i].vramUsedMb||0)+' MB</td><td>'+String(g[i].vramTotalMb||0)+' MB</td><td>'+String(g[i].vramPercent||0)+'%</td><td>'+String(g[i].tempC||0)+' C</td></tr>')}return r.join(String())}"
+    script = script $ "function gpuCards(g){var menu=document.getElementById('gpu_dynamic_menu');var panels=document.getElementById('gpu_dynamic_panels');if(!menu||!panels)return;for(var i=0;i<g.length;i++){var id='gpu'+i;if(!document.getElementById('menu_'+id)){var b=document.createElement('button');b.id='menu_'+id;b.className='tm-menu-item';b.onclick=(function(x){return function(){tmShow(x)}})(id);b.innerHTML='<div class=\"tm-menu-title\"><span>'+String(g[i].name||id)+'</span><span id=\"'+id+'_preview\" class=\"tm-value\">'+String(g[i].vramPercent||0)+'%</span></div><div class=\"tm-menu-note\">'+String(g[i].tempC||0)+' C</div>';menu.appendChild(b)}if(!document.getElementById('panel_'+id)){var s=document.createElement('section');s.id='panel_'+id;s.className='tm-panel table';s.innerHTML='<div class=\"tm-title\"><span>'+String(g[i].name||id)+'</span><span id=\"'+id+'_value\" class=\"tm-value\">'+String(g[i].vramPercent||0)+'%</span></div><div class=\"tm-table-wrap\"><table class=\"tm-table\"><thead><tr><th>GPU</th><th>VRAM</th><th>Total</th><th>%</th><th>Temp</th></tr></thead><tbody id=\"'+id+'_rows\"></tbody></table></div><div id=\"'+id+'_detail\" class=\"tm-note\"></div>';panels.appendChild(s)}}}"
+    script = script $ "function U(m){var ct=m.cpuTempAvailable?m.cpuTempC:0;P(S.cpu,m.cpu,100);P(S.ram,m.ramPercent,100);P(S.vram,m.vramPercent,100);P(S.gput,m.gpuTempC,120);P(S.cput,ct,120);D('cpu_chart',S.cpu,'#2563eb',100);D('ram_chart',S.ram,'#16a34a',100);D('vram_chart',S.vram,'#9333ea',100);D('gputemp_chart',S.gput,'#dc2626',120);D('cputemp_chart',S.cput,'#ea580c',120);T('cpu_value',C(m.cpu,100).toFixed(1)+'%');T('cpu_preview',C(m.cpu,100).toFixed(1)+'%');T('ram_value',C(m.ramPercent,100).toFixed(1)+'%');T('ram_preview',C(m.ramPercent,100).toFixed(1)+'%');T('vram_value',C(m.vramPercent,100).toFixed(1)+'%');T('vram_preview',C(m.vramPercent,100).toFixed(1)+'%');T('gputemp_value',String(m.gpuTempC||0)+' C');T('gputemp_preview',String(m.gpuTempC||0)+' C');T('cputemp_value',m.cpuTempAvailable?String(m.cpuTempC)+' C':'N/A');T('cputemp_preview',m.cpuTempAvailable?String(m.cpuTempC)+' C':'N/A');T('ram_detail',(m.ramUsedMb||0)+' MB / '+(m.ramTotalMb||0)+' MB');T('vram_detail',(m.vramUsedMb||0)+' MB / '+(m.vramTotalMb||0)+' MB');T('kpi_cpu',C(m.cpu,100).toFixed(1)+'%');T('kpi_ram',C(m.ramPercent,100).toFixed(1)+'%');T('kpi_vram',C(m.vramPercent,100).toFixed(1)+'%');T('kpi_gputemp',String(m.gpuTempC||0)+' C');T('kpi_ram_note',(m.ramUsedMb||0)+' MB / '+(m.ramTotalMb||0)+' MB');T('kpi_vram_note',(m.vramUsedMb||0)+' MB / '+(m.vramTotalMb||0)+' MB');var g=m.gpus||[];gpuCards(g);T('gpu_value',String(g.length));T('gpu_preview',String(g.length));T('kpi_gpu_count',String(g.length));var gr=document.getElementById('gpu_rows');if(gr)gr.innerHTML=G(g);for(var i=0;i<g.length;i++){var id='gpu'+i;T(id+'_value',String(g[i].vramPercent||0)+'%');T(id+'_preview',String(g[i].vramPercent||0)+'%');T(id+'_detail',String(g[i].vramUsedMb||0)+' MB / '+String(g[i].vramTotalMb||0)+' MB - '+String(g[i].tempC||0)+' C');var rr=document.getElementById(id+'_rows');if(rr)rr.innerHTML=G([g[i]])}tmEnhanceTables()}"
+    script = script $ "try{U(JSON.parse('" $ desktopui::EscapeJs(firstMetrics) $ "'))}catch(e){}tmSetTheme('light_modern');tmShow('overview');"
+    script = script $ "function W(){try{var ws=new WebSocket('ws://127.0.0.1:" $ p $ "');ws.onmessage=function(e){try{var m=JSON.parse(e.data);U(m);if(window.lwEventsOn&&window.webuiEvent)webuiEvent('metrics_update',{id:'metrics',value:String(m.cpu||0)+'%',cpu:m.cpu,ram:m.ramPercent,vram:m.vramPercent})}catch(x){if(window.webuiEvent)webuiEvent('metrics_parse_error',{id:'metrics',value:String(x)})}};ws.onopen=function(){if(window.webuiEvent)webuiEvent('metrics_socket_open',{id:'metrics',state:'open'})};ws.onclose=function(){if(window.webuiEvent)webuiEvent('metrics_socket_close',{id:'metrics',state:'closed'});setTimeout(W,1000)}}catch(ex){if(window.webuiEvent)webuiEvent('metrics_socket_error',{id:'metrics',value:String(ex)});setTimeout(W,1000)}}W();"
+    script = script $ "</script>"
+    return (script)
+}
+
+func: Styles() {
+    style = "<style>"
+    style = style $ ":root{--sans:'Outfit','Segoe UI',Arial,sans-serif;--mono:'JetBrains Mono','Consolas',monospace;--bg-deep:#06060c;--bg-surface:#0c0c15;--bg-card:#11111c;--bg-hover:#191930;--border:#1a1a30;--border-glow:#2a2a48;--text-1:#e4e4f0;--text-2:#8888a8;--text-3:#4a4a65;--accent:#00d4aa;--accent-dim:#00a080;--accent-glow:rgba(0,212,170,0.12);--user:#6c8aff;--user-bg:rgba(108,138,255,0.07);--warn:#ffaa33;--error:#ff4466}"
+    style = style $ "body[data-theme='ocean_dark']{--bg-deep:#050913;--bg-surface:#0b1524;--bg-card:#111f32;--bg-hover:#172941;--border:#20314a;--border-glow:#2d4768;--text-1:#e4edf8;--text-2:#9bb0c9;--text-3:#6f84a0;--accent:#36c8ff;--accent-dim:#259ac5;--accent-glow:rgba(54,200,255,0.14);--user:#8aa8ff;--user-bg:rgba(138,168,255,0.10)}"
+    style = style $ "body[data-theme='ember_dark']{--bg-deep:#0f0a08;--bg-surface:#17100d;--bg-card:#201612;--bg-hover:#2b1d17;--border:#3a261d;--border-glow:#553528;--text-1:#f4e8e2;--text-2:#c7aaa0;--text-3:#9b7b70;--accent:#ff8b3d;--accent-dim:#d06a29;--accent-glow:rgba(255,139,61,0.16);--user:#ffb07a;--user-bg:rgba(255,176,122,0.10)}"
+    style = style $ "body[data-theme='light_modern']{--bg-deep:#f4f7fb;--bg-surface:#ffffff;--bg-card:#ffffff;--bg-hover:#eef3fb;--border:#d8e1ef;--border-glow:#c2d1e6;--text-1:#1c2b3f;--text-2:#4d617b;--text-3:#7c8fa6;--accent:#0c9c7e;--accent-dim:#0a7d65;--accent-glow:rgba(12,156,126,0.16);--user:#3563e9;--user-bg:rgba(53,99,233,0.09)}"
+    style = style $ "body[data-theme='forest_dark']{--bg-deep:#07100a;--bg-surface:#0d1a12;--bg-card:#13231a;--bg-hover:#1b2e23;--border:#254031;--border-glow:#346047;--text-1:#e3f2e8;--text-2:#a8c4b2;--text-3:#7a9a87;--accent:#39d98a;--accent-dim:#2db571;--accent-glow:rgba(57,217,138,0.14);--user:#78a8ff;--user-bg:rgba(120,168,255,0.09)}"
+    style = style $ "body[data-theme='rose_light']{--bg-deep:#fff6fa;--bg-surface:#ffffff;--bg-card:#ffffff;--bg-hover:#fff0f6;--border:#f0d6e2;--border-glow:#e7bfd1;--text-1:#3b2431;--text-2:#6f4f61;--text-3:#9a7a8a;--accent:#d64f8c;--accent-dim:#b53f75;--accent-glow:rgba(214,79,140,0.16);--user:#5d6ee6;--user-bg:rgba(93,110,230,0.08)}"
+    style = style $ "body[data-theme='dracula_dark']{--bg-deep:#1e1f29;--bg-surface:#232534;--bg-card:#2a2d3e;--bg-hover:#32364a;--border:#43485f;--border-glow:#59617d;--text-1:#f8f8f2;--text-2:#bdc2d9;--text-3:#8d93ad;--accent:#bd93f9;--accent-dim:#9f75df;--accent-glow:rgba(189,147,249,0.16);--user:#8be9fd;--user-bg:rgba(139,233,253,0.10)}"
+    style = style $ "body[data-theme='nord_light']{--bg-deep:#eef2f7;--bg-surface:#f7f9fc;--bg-card:#ffffff;--bg-hover:#e8edf5;--border:#d6deea;--border-glow:#c5d0e0;--text-1:#273449;--text-2:#55647c;--text-3:#7f8ea6;--accent:#3b82a6;--accent-dim:#2f6e90;--accent-glow:rgba(59,130,166,0.16);--user:#4f6fdc;--user-bg:rgba(79,111,220,0.09)}"
+    style = style $ "body[data-theme='graphite_dark']{--bg-deep:#0b0d12;--bg-surface:#12161e;--bg-card:#181d27;--bg-hover:#202737;--border:#2a3345;--border-glow:#3a4962;--text-1:#edf2fb;--text-2:#aab6cd;--text-3:#77829a;--accent:#7dd3fc;--accent-dim:#4fb6e6;--accent-glow:rgba(125,211,252,0.14);--user:#d9925b;--user-bg:rgba(217,146,91,0.07)}"
+    style = style $ "body[data-theme='shadcn_light']{--bg-deep:#fafafa;--bg-surface:#ffffff;--bg-card:#ffffff;--bg-hover:#f4f4f5;--border:#e4e4e7;--border-glow:#d4d4d8;--text-1:#09090b;--text-2:#52525b;--text-3:#71717a;--accent:#18181b;--accent-dim:#27272a;--accent-glow:rgba(24,24,27,0.10);--user:#2563eb;--user-bg:rgba(37,99,235,0.08)}"
+    style = style $ "body[data-theme='shadcn_dark']{--bg-deep:#09090b;--bg-surface:#0f0f12;--bg-card:#111113;--bg-hover:#1f1f23;--border:#27272a;--border-glow:#3f3f46;--text-1:#fafafa;--text-2:#a1a1aa;--text-3:#71717a;--accent:#fafafa;--accent-dim:#d4d4d8;--accent-glow:rgba(250,250,250,0.10);--user:#38bdf8;--user-bg:rgba(56,189,248,0.10)}"
+    style = style $ "*{box-sizing:border-box}body{margin:0;background:var(--bg-deep);color:var(--text-1);font-family:var(--sans);font-size:14px;-webkit-font-smoothing:antialiased}*::-webkit-scrollbar{width:4px;height:4px}*::-webkit-scrollbar-track{background:transparent}*::-webkit-scrollbar-thumb{background:var(--border);border-radius:10px}*::-webkit-scrollbar-thumb:hover{background:var(--border-glow)}"
+    style = style $ ".tm-page{height:100vh;min-height:100vh;display:grid;grid-template-rows:56px 1fr 34px;background:var(--bg-deep);color:var(--text-1);overflow:hidden}.tm-header{height:56px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 18px;background:var(--bg-surface);color:var(--text-1);border-bottom:1px solid var(--border)}.tm-brand{font-weight:700;letter-spacing:-.01em}.tm-footer{height:34px;display:flex;align-items:center;padding:0 18px;border-top:1px solid var(--border);background:var(--bg-surface);color:var(--text-2);font-size:12px}"
+    style = style $ ".tm-page-main{padding:16px;background:var(--bg-deep);overflow:hidden}.tm-shell{height:100%;min-height:0;display:grid;grid-template-columns:minmax(240px,260px) minmax(0,1fr);gap:14px;overflow:hidden}.tm-sidebar{min-width:220px;max-width:420px;resize:horizontal;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:10px;background:color-mix(in srgb,var(--bg-card) 82%,transparent)}.tm-sidebar-title{font-family:var(--mono);font-weight:600;margin:2px 0 10px 2px;color:var(--text-3);font-size:11px;text-transform:uppercase;letter-spacing:.08em}.tm-main{min-width:0;display:flex;flex-direction:column;overflow:hidden}"
+    style = style $ ".component-head-actions{display:flex;align-items:center;gap:8px}.tm-actions{display:flex;align-items:center;gap:8px}.tm-actions.pill-row{width:auto;gap:2px;padding:3px;background:var(--bg-card);border-color:var(--border);overflow:visible}.tm-select{height:34px;min-width:140px;border:1px solid var(--border);background:var(--bg-card);color:var(--text-1);border-radius:999px;padding:0 30px 0 12px;font-family:var(--mono);font-size:12px;outline:none}.tm-actions.pill-row .tm-select{height:28px;border-color:transparent;background:transparent;border-radius:999px}.tm-select:hover,.tm-select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}.tm-actions.pill-row .tm-select:hover,.tm-actions.pill-row .tm-select:focus{border-color:transparent;box-shadow:none;color:var(--accent)}"
+    style = style $ ".tm-dropdown{position:relative;min-width:150px}.tm-drop-btn{height:28px;width:100%;border:0;background:transparent;color:var(--text-1);border-radius:999px;padding:0 28px 0 10px;font-family:var(--mono);font-size:12px;text-align:left;cursor:pointer;position:relative}.tm-drop-btn:after{content:' ';position:absolute;right:10px;top:50%;width:7px;height:7px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:translateY(-65%) rotate(45deg);opacity:.7}.tm-dropdown.open .tm-drop-btn,.tm-drop-btn:hover{color:var(--accent);background:var(--accent-glow)}.tm-drop-menu{position:absolute;right:0;top:calc(100% + 8px);z-index:50;min-width:210px;padding:6px;border:1px solid var(--border-glow);border-radius:var(--lw-radius);background:color-mix(in srgb,var(--bg-card) 98%,transparent);box-shadow:0 18px 50px rgba(0,0,0,.35);display:none}.tm-dropdown.open .tm-drop-menu{display:block}.tm-drop-option{width:100%;border:0;background:transparent;color:var(--text-2);border-radius:var(--lw-radius);padding:8px 10px;text-align:left;font-family:var(--mono);font-size:12px;cursor:pointer}.tm-drop-option:hover{background:var(--bg-hover);color:var(--text-1)}.tm-drop-option.active{background:var(--accent-glow);color:var(--accent)}"
+    style = style $ ".tm-menu-item{width:100%;border:1px solid var(--border);background:var(--bg-card);color:var(--text-1);border-radius:8px;padding:10px;margin-bottom:8px;text-align:left;cursor:pointer;transition:border-color .16s ease,background .16s ease,box-shadow .16s ease,transform .16s ease}.tm-menu-item:hover{border-color:var(--border-glow);background:var(--bg-hover);transform:translateY(-1px)}.tm-menu-item.active{border-color:color-mix(in srgb,var(--accent) 62%,var(--border));background:linear-gradient(135deg,color-mix(in srgb,var(--accent-glow) 92%,transparent),color-mix(in srgb,var(--user-bg) 82%,transparent)),var(--bg-card);box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 24%,transparent) inset}.tm-menu-title{font-weight:700;display:flex;justify-content:space-between;gap:8px;line-height:1.15}.tm-menu-note{color:var(--text-2);font-size:12px;margin-top:5px;line-height:1.25}.tm-value{color:var(--accent);font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}"
+    style = style $ ".tm-stage{height:100%;min-height:0;overflow:auto;display:block}.tm-panel{display:none;min-height:100%;min-width:0;overflow:hidden;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:16px;width:100%;box-shadow:0 20px 70px rgba(0,0,0,.10)}.tm-panel.active{display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:12px}.tm-title{font-weight:700;display:flex;justify-content:space-between;gap:8px;align-items:center}.tm-chart-box{position:relative;min-width:0;width:100%;height:100%;min-height:320px;overflow:hidden;background:var(--bg-surface);border:1px solid var(--border);border-radius:8px}.tm-canvas{position:absolute;inset:0;width:100%!important;height:100%!important;max-width:100%;max-height:100%;display:block}.tm-table-wrap{overflow:auto;min-height:0;border:1px solid var(--border);border-radius:8px;background:color-mix(in srgb,var(--bg-surface) 84%,transparent)}"
+    style = style $ ".tm-table{width:100%;border-collapse:collapse;font-size:13px;table-layout:auto}.tm-table td,.tm-table th{border-bottom:1px solid var(--border);padding:9px 10px;text-align:left;white-space:nowrap}.tm-table th{font-family:var(--mono);font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em;font-weight:600;position:relative;user-select:none}.tm-table th.tm-sortable{cursor:pointer}.tm-table th.tm-sortable:hover,.tm-table th.sorted{color:var(--accent);background:var(--accent-glow)}.tm-table th.sorted:after{content:attr(data-dir);font-size:9px;margin-left:6px;color:var(--accent)}.tm-col-resizer{position:absolute;right:-3px;top:0;width:7px;height:100%;cursor:col-resize;z-index:2}.tm-col-resizer:hover{background:var(--accent-glow)}.tm-table tr:last-child td{border-bottom:none}.tm-note{color:var(--text-2);font-size:12px;min-height:18px}.tm-html{display:block;min-height:0;height:100%;min-width:0}.tm-panel .tm-html{align-self:stretch}.tm-kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}.tm-kpi{border:1px solid var(--border);border-radius:8px;padding:14px;background:linear-gradient(180deg,var(--bg-card),color-mix(in srgb,var(--bg-hover) 70%,var(--bg-card)));min-height:96px}.tm-kpi-label{color:var(--text-3);font-family:var(--mono);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em}.tm-kpi-value{font-size:26px;font-weight:800;color:var(--accent);margin-top:8px;font-variant-numeric:tabular-nums}.tm-kpi-note{color:var(--text-2);font-size:12px;margin-top:8px}.tm-empty{border:1px dashed var(--border);border-radius:8px;padding:18px;color:var(--text-3);background:var(--bg-surface)}"
+    style = style $ ".pill-row{display:flex!important;align-items:center;gap:0;width:100%;border:1px solid var(--border);border-radius:999px;background:var(--bg-card);padding:3px}.pill-row.joined>*{border-radius:0!important;margin-left:-1px}.pill-row.joined>*:first-child{margin-left:0;border-top-left-radius:999px!important;border-bottom-left-radius:999px!important}.pill-row.joined>*:last-child{border-top-right-radius:999px!important;border-bottom-right-radius:999px!important}.pill-row.joined .pill-sep{margin-left:0}.pill-label{font-family:var(--mono);font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em;padding:0 10px;white-space:nowrap}.pill-sep{width:1px;height:16px;background:var(--border);flex-shrink:0}.segmented-pill-group{display:inline-flex;align-items:center;gap:0;border:1px solid var(--border);border-radius:999px;background:var(--bg-card);padding:2px;overflow:hidden}.segmented-pill{border:none;background:transparent;color:var(--text-2);border-radius:0;padding:5px 10px;font-family:var(--mono);font-size:11px;cursor:pointer}.segmented-pill:first-child{border-top-left-radius:999px;border-bottom-left-radius:999px}.segmented-pill:last-child{border-top-right-radius:999px;border-bottom-right-radius:999px}.segmented-pill.active{color:var(--accent);background:var(--accent-glow)}"
+    style = style $ ".lw-pill-field{display:flex!important;align-items:center;width:100%;min-height:36px;border:1px solid color-mix(in srgb,var(--border) 92%,transparent);border-radius:var(--lw-radius);background:color-mix(in srgb,var(--bg-hover) 28%,var(--bg-card));padding:3px;overflow:hidden}.lw-pill-field:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}.lw-pill-label{font-family:var(--mono);font-size:9px;color:var(--text-3);text-transform:uppercase;letter-spacing:.12em;padding:0 10px;white-space:nowrap}.lw-pill-sep{width:1px;height:18px;background:var(--border);flex-shrink:0}.lw-pill-input,.lw-pill-select{min-width:0;flex:1;height:28px;border:0;outline:none;background:transparent;color:var(--text-1);font-family:var(--sans);font-size:12.5px;padding:0 10px;text-overflow:ellipsis}.lw-pill-field span.lw-pill-input{display:flex;align-items:center;white-space:nowrap;overflow:hidden}.lw-pill-select{appearance:none;-webkit-appearance:none;padding-right:28px;background-image:linear-gradient(45deg,transparent 50%,var(--text-3) 50%),linear-gradient(135deg,var(--text-3) 50%,transparent 50%);background-position:calc(100% - 14px) 12px,calc(100% - 9px) 12px;background-size:5px 5px,5px 5px;background-repeat:no-repeat}.lw-pill-select option{background:var(--bg-card);color:var(--text-1)}.lw-pill-buttons{display:inline-flex;align-items:center;gap:0;border:1px solid var(--border);border-radius:var(--lw-pill-radius);background:color-mix(in srgb,var(--bg-hover) 24%,var(--bg-card));padding:3px;width:max-content;max-width:100%;overflow:hidden}.lw-pill-button{border:0;border-radius:0;background:transparent;color:var(--text-2);height:30px;padding:0 13px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;line-height:1}.lw-pill-button:first-child{border-top-left-radius:var(--lw-pill-radius);border-bottom-left-radius:var(--lw-pill-radius)}.lw-pill-button:last-child{border-top-right-radius:var(--lw-pill-radius);border-bottom-right-radius:var(--lw-pill-radius)}.lw-pill-button:hover{background:var(--accent-glow);color:var(--accent)}.lw-pill-button.primary{background:var(--accent);color:var(--bg-deep)}.lw-pill-button.warn{color:var(--error)}.lw-pill-range{flex:1;min-width:90px;height:28px;padding:0 8px;background:transparent}.lw-pill-rangeval{font-family:var(--mono);font-size:11px;color:var(--accent);min-width:34px;text-align:right;padding:0 10px 0 4px}.lw-pill-field.lw-pill-slider{min-width:200px;max-width:280px}"
+    style = style $ ".lw-chat{height:100%;min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr) auto;background:linear-gradient(180deg,color-mix(in srgb,var(--bg-card) 98%,var(--bg-hover)),var(--bg-card));border:1px solid var(--border);border-radius:8px;overflow:hidden}.lw-chat-head{height:58px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 16px;border-bottom:1px solid var(--border);background:color-mix(in srgb,var(--bg-surface) 64%,transparent)}.lw-chat-messages{min-height:0;overflow:auto;padding:26px clamp(22px,5vw,76px);display:flex;flex-direction:column;gap:12px;background:radial-gradient(circle at 50% 0,color-mix(in srgb,var(--accent-glow) 38%,transparent),transparent 42%),linear-gradient(180deg,color-mix(in srgb,var(--bg-card) 96%,var(--bg-hover)),var(--bg-card))}.lw-chat-messages:before{content:' ';margin-top:auto}.lw-chat-msg{max-width:min(840px,76%);padding:10px 13px;border-radius:15px;border:1px solid var(--border);white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;line-height:1.48;font-size:13px;box-shadow:0 10px 26px rgba(0,0,0,.08)}.lw-chat-msg.user{align-self:flex-end;background:linear-gradient(135deg,color-mix(in srgb,var(--user-bg) 88%,var(--bg-card)),color-mix(in srgb,var(--user-bg) 58%,var(--bg-card)));border-color:color-mix(in srgb,var(--user) 42%,var(--border));border-bottom-right-radius:6px}.lw-chat-msg.assistant{align-self:flex-start;background:linear-gradient(135deg,color-mix(in srgb,var(--accent-glow) 88%,var(--bg-card)),color-mix(in srgb,var(--accent-glow) 48%,var(--bg-card)));border-color:color-mix(in srgb,var(--accent) 34%,var(--border));border-bottom-left-radius:6px}.lw-chat-msg.system{align-self:center;width:min(860px,100%);max-width:min(860px,100%);background:transparent;border:0;border-left:2px solid var(--border);box-shadow:none;border-radius:0;color:var(--text-2);padding:6px 12px}.lw-chat-composer{padding:10px 14px 12px;border-top:1px solid var(--border);background:color-mix(in srgb,var(--bg-surface) 82%,var(--bg-card))}.lw-chat-input-row{display:flex;align-items:center;gap:4px;width:100%;min-height:48px;border:1px solid var(--border);border-radius:999px;background:color-mix(in srgb,var(--bg-hover) 24%,var(--bg-card));padding:5px 5px 5px 13px;overflow:hidden}.lw-chat-input-row:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}.lw-chat-input{flex:1;min-width:0;min-height:34px;max-height:110px;border:0;outline:none;resize:none;background:transparent;color:var(--text-1);font-family:var(--sans);font-size:13.5px;line-height:1.35;padding:8px 12px}.lw-chat-send{align-self:center;border:0;border-radius:999px;background:var(--accent);color:var(--bg-deep);min-width:72px;height:36px;padding:0 17px;font-weight:900;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;line-height:1}.lw-chat-send:hover{filter:brightness(1.06)}.lw-dock-shell{position:relative}.lw-dock-sidebar{position:relative}.lw-dock-grip{position:absolute;right:-5px;top:0;bottom:0;width:10px;cursor:col-resize;z-index:4}.lw-dock-grip:hover{background:var(--accent-glow)}.lw-dock-panel{min-height:0}"
+    style = style $ "body{--lw-radius:5px;--lw-pill-radius:5px;--lw-gap:14px}body[data-radius='square']{--lw-radius:0px;--lw-pill-radius:0px}body[data-radius='subtle']{--lw-radius:5px;--lw-pill-radius:5px}body[data-radius='soft']{--lw-radius:5px;--lw-pill-radius:10px}body[data-radius='round']{--lw-radius:12px;--lw-pill-radius:999px}body[data-spacing='compact']{--lw-gap:8px}body[data-spacing='normal']{--lw-gap:14px}body[data-spacing='wide']{--lw-gap:22px}.tm-page-main{padding:var(--lw-gap)}.tm-shell,.tm-actions,.component-head-actions,.tm-kpi-grid,.ui-pro,.ui-card-body,.ui-grid,.gallery-grid,.gallery-stack,.gallery-row,.gallery-nav-grid{gap:var(--lw-gap)}.tm-sidebar,.tm-panel,.tm-chart-box,.tm-table-wrap,.tm-kpi,.tm-menu-item,.tm-drop-btn,.tm-drop-menu,.tm-drop-option,.tm-empty,.lw-chat,.gallery-card,.gallery-code,.gallery-layout-demo div,.gallery-basic,.gallery-chart-wrap,.gallery-tab-panel,.gallery-modal,.gallery-profile-trigger,.gallery-profile-menu,.gallery-menu-item,.gallery-tree,.gallery-accordion,.gallery-tree-row,.gallery-collapse,.gallery-slider-card,.gallery-toast,.ui-card,.ui-input,.ui-dropdown-menu,.ui-option,.ui-stat,.ui-list,.tb-panel,.tb-input,.tb-area,.lw-pill-field,.ui-btn,.tb-button,.lw-windowbar-icon,.lw-windowbar-btn{border-radius:var(--lw-radius)!important}.tm-panel.active{gap:var(--lw-gap)}.tm-sidebar,.tm-panel,.tm-kpi,.ui-card-body,.gallery-card,.gallery-basic{padding:var(--lw-gap)}.pill-row,.segmented-pill-group,.lw-pill-buttons,.lw-chat-input-row,.lw-chat-send,.ui-toolbar,.ui-dropdown>.ui-btn,.gallery-tabs,.gallery-tab:first-child,.gallery-tab:last-child,.gallery-basic .tb-toolbar,.gallery-basic .tb-button:first-child,.gallery-basic .tb-button:last-child{border-radius:var(--lw-pill-radius)!important}.segmented-pill:first-child,.lw-pill-button:first-child,.pill-row.joined>*:first-child,.ui-btn:first-child{border-top-left-radius:var(--lw-pill-radius)!important;border-bottom-left-radius:var(--lw-pill-radius)!important}.segmented-pill:last-child,.lw-pill-button:last-child,.pill-row.joined>*:last-child,.ui-btn:last-child{border-top-right-radius:var(--lw-pill-radius)!important;border-bottom-right-radius:var(--lw-pill-radius)!important}.lw-chat-msg{border-radius:var(--lw-radius)!important}.lw-chat-msg.user{border-bottom-right-radius:6px!important}.lw-chat-msg.assistant{border-bottom-left-radius:6px!important}.lw-actions{display:flex;align-items:center;gap:8px}.lw-actions.right{justify-content:flex-end;margin-left:auto}.lw-cell-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px}.lw-align-right{margin-left:auto;text-align:right}.lw-fill{flex:1;min-width:0}.lw-row{display:flex;align-items:center;gap:var(--lw-gap)}.lw-debug-box{position:fixed;right:18px;bottom:18px;z-index:2000;width:min(460px,90vw);max-height:60vh;display:flex;flex-direction:column;border:1px solid var(--accent);border-radius:var(--lw-radius);background:color-mix(in srgb,var(--bg-card) 97%,transparent);box-shadow:0 18px 60px rgba(0,0,0,.4);backdrop-filter:blur(10px)}.lw-events-log{right:18px;bottom:18px;left:auto;width:min(420px,90vw)}.lw-debug-head{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--border);font-weight:700;font-size:12px;color:var(--accent);font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em}.lw-debug-head button{border:0;background:transparent;color:var(--text-3);font-weight:800;cursor:pointer;font-size:13px}.lw-debug-head button:hover{color:var(--error)}.lw-debug-body{margin:0;padding:12px;overflow:auto;font-family:var(--mono);font-size:11px;line-height:1.5;color:var(--text-2);white-space:pre-wrap;word-break:break-word}.tm-select{border-radius:var(--lw-radius)!important}"
+    style = style $ ".lw-windowbar{height:46px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);background:linear-gradient(180deg,color-mix(in srgb,var(--bg-surface) 92%,var(--bg-card)),var(--bg-surface));color:var(--text-1);user-select:none;position:relative;z-index:5000;pointer-events:auto;-webkit-app-region:drag}.lw-windowbar *{pointer-events:auto}.lw-windowbar-drag{min-width:0;flex:1;height:100%;display:flex;align-items:center;gap:11px;padding:0 14px;cursor:move;-webkit-app-region:drag}.lw-windowbar-icon{width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;background:linear-gradient(135deg,var(--accent),color-mix(in srgb,var(--accent) 70%,#000));color:var(--bg-deep);font-size:13px;font-weight:900;box-shadow:0 2px 8px var(--accent-glow);flex:none}.lw-windowbar-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13.5px;font-weight:800;letter-spacing:.01em}.lw-windowbar-actions{height:100%;display:flex;align-items:center;gap:4px;padding:0 8px 0 4px;position:relative;z-index:5001;-webkit-app-region:no-drag}.lw-windowbar-btn{width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:8px;background:transparent;color:var(--text-2);cursor:pointer;transition:background .12s,color .12s;position:relative;z-index:5002;-webkit-app-region:no-drag}.lw-windowbar-btn svg{width:15px;height:15px;display:block}.lw-windowbar-btn:hover{background:var(--bg-hover);color:var(--text-1)}.lw-windowbar-btn.danger:hover{background:var(--error);color:#fff}.lw-native-chrome .tm-page{height:calc(100vh - 46px);min-height:calc(100vh - 46px)}.lw-native-chrome .lw-compact-page{min-height:calc(100vh - 46px)}"
+    style = style $ "@media(max-width:900px){.tm-page{height:auto;min-height:100vh;grid-template-rows:auto 1fr auto;overflow:auto}.tm-header{height:auto;min-height:56px;align-items:flex-start;flex-direction:column;padding:12px 18px}.tm-page-main{padding:10px;overflow:visible}.tm-shell{height:auto;grid-template-columns:1fr}.tm-sidebar{width:auto;max-width:none;resize:none}.tm-panel{min-height:420px}.tm-chart-box{height:300px;min-height:260px}.tm-actions{width:100%;flex-wrap:wrap}.tm-select{flex:1;min-width:150px}}"
+    style = style $ "</style>"
+    return (style)
+}
+
+func: MetricsStyles() {
+    return (Styles())
+}
+
+
+obj:MetricsDashboard() {
+    self.menu = " "
+    self.panels = " "
+
+    func:AddChart(self, chartId, title, value, detail) {
+        cid = desktopui::EscapeHtml(chartId)
+        ttl = desktopui::EscapeHtml(title)
+        val = desktopui::EscapeHtml(value)
+        det = desktopui::EscapeHtml(detail)
+        self.menu = self.menu $ "<button id='menu_" $ cid $ "' class='tm-menu-item' onclick=\"tmShow('" $ cid $ "')\"><div class='tm-menu-title'><span>" $ ttl $ "</span><span id='" $ cid $ "_preview' class='tm-value'>" $ val $ "</span></div><div class='tm-menu-note'>" $ det $ "</div></button>"
+        self.panels = self.panels $ "<section id='panel_" $ cid $ "' class='tm-panel'><div class='tm-title'><span>" $ ttl $ "</span><span id='" $ cid $ "_value' class='tm-value'>" $ val $ "</span></div><div class='tm-chart-box'><canvas id='" $ cid $ "_chart' class='tm-canvas'></canvas></div><div id='" $ cid $ "_detail' class='tm-note'>" $ det $ "</div></section>"
+        return (self)
+    }
+
+    func:AddGpuTable(self, rows) {
+        self.menu = self.menu $ "<button id='menu_gpu' class='tm-menu-item' onclick=\"tmShow('gpu')\"><div class='tm-menu-title'><span>GPU par carte</span><span id='gpu_preview' class='tm-value'>snapshot</span></div><div class='tm-menu-note'>Toutes les cartes graphiques</div></button>"
+        table = "<div class='tm-table-wrap'><table class='tm-table'><thead><tr><th>GPU</th><th>VRAM</th><th>Total</th><th>%</th><th>Temp</th></tr></thead><tbody id='gpu_rows'>" $ rows $ "</tbody></table></div>"
+        self.panels = self.panels $ "<section id='panel_gpu' class='tm-panel'><div class='tm-title'><span>GPU par carte</span><span id='gpu_value' class='tm-value'>snapshot</span></div>" $ table $ "<div id='gpu_detail' class='tm-note'>Snapshot loaded, connecting live metrics...</div></section>"
+        return (self)
+    }
+
+    func:Render(self) {
+        topbar = "<div class='tm-topbar'><strong>Dashboard</strong><div class='tm-actions pill-row'>" $ ThemeDropdown() $ "<span class='pill-sep'></span>" $ ActionDropdown() $ "</div></div>"
+        html = ChartLibraryScript() $ Styles() $ DockScript() $ ActionScript()
+        html = html $ "<div class='tm-shell lw-dock-shell'><aside class='tm-sidebar lw-dock-sidebar'><div class='lw-dock-grip'></div>" $ self.menu $ "<div id='gpu_dynamic_menu'></div></aside><main class='tm-main lw-dock-main'>" $ topbar $ "<div class='tm-stage'>" $ self.panels $ "<div id='gpu_dynamic_panels'></div></div></main></div>"
+        return (html)
+    }
+}
+
+obj:DesktopLayout() {
+    self.title = "Toba WebUI"
+    self.footer = "libwebui"
+    self.menu = " "
+    self.panels = " "
+    self.theme = 1
+    self.actions = 1
+
+    func:SetTitle(self, title) {
+        self.title = title
+        return (self)
+    }
+
+    func:SetFooter(self, footer) {
+        self.footer = footer
+        return (self)
+    }
+
+    func:AddThemeSelector(self) {
+        self.theme = 1
+        return (self)
+    }
+
+    func:AddActionMenu(self) {
+        self.actions = 1
+        return (self)
+    }
+
+    func:AddChartPanel(self, panelId, title, value, note) {
+        pid = desktopui::EscapeHtml(panelId)
+        ttl = desktopui::EscapeHtml(title)
+        val = desktopui::EscapeHtml(value)
+        nt = desktopui::EscapeHtml(note)
+        self.menu = self.menu $ "<button id='menu_" $ pid $ "' class='tm-menu-item' onclick=\"tmShow('" $ pid $ "')\"><div class='tm-menu-title'><span>" $ ttl $ "</span><span id='" $ pid $ "_preview' class='tm-value'>" $ val $ "</span></div><div class='tm-menu-note'>" $ nt $ "</div></button>"
+        self.panels = self.panels $ "<section id='panel_" $ pid $ "' class='tm-panel chart'><div class='tm-title'><span>" $ ttl $ "</span><span id='" $ pid $ "_value' class='tm-value'>" $ val $ "</span></div><div class='tm-chart-box'><canvas id='" $ pid $ "_chart' class='tm-canvas'></canvas></div><div id='" $ pid $ "_detail' class='tm-note'>" $ nt $ "</div></section>"
+        return (self)
+    }
+
+    func:AddTablePanel(self, panelId, title, value, note, rows) {
+        pid = desktopui::EscapeHtml(panelId)
+        ttl = desktopui::EscapeHtml(title)
+        val = desktopui::EscapeHtml(value)
+        nt = desktopui::EscapeHtml(note)
+        self.menu = self.menu $ "<button id='menu_" $ pid $ "' class='tm-menu-item' onclick=\"tmShow('" $ pid $ "')\"><div class='tm-menu-title'><span>" $ ttl $ "</span><span id='" $ pid $ "_preview' class='tm-value'>" $ val $ "</span></div><div class='tm-menu-note'>" $ nt $ "</div></button>"
+        table = "<div class='tm-table-wrap'><table class='tm-table'><thead><tr><th>GPU</th><th>VRAM</th><th>Total</th><th>%</th><th>Temp</th></tr></thead><tbody id='" $ pid $ "_rows'>" $ rows $ "</tbody></table></div>"
+        self.panels = self.panels $ "<section id='panel_" $ pid $ "' class='tm-panel table'><div class='tm-title'><span>" $ ttl $ "</span><span id='" $ pid $ "_value' class='tm-value'>" $ val $ "</span></div>" $ table $ "<div id='" $ pid $ "_detail' class='tm-note'>" $ nt $ "</div></section>"
+        return (self)
+    }
+
+    func:AddHtmlPanel(self, panelId, title, value, note, contentHtml) {
+        pid = desktopui::EscapeHtml(panelId)
+        ttl = desktopui::EscapeHtml(title)
+        val = desktopui::EscapeHtml(value)
+        nt = desktopui::EscapeHtml(note)
+        self.menu = self.menu $ "<button id='menu_" $ pid $ "' class='tm-menu-item' onclick=\"tmShow('" $ pid $ "')\"><div class='tm-menu-title'><span>" $ ttl $ "</span><span id='" $ pid $ "_preview' class='tm-value'>" $ val $ "</span></div><div class='tm-menu-note'>" $ nt $ "</div></button>"
+        self.panels = self.panels $ "<section id='panel_" $ pid $ "' class='tm-panel table'><div class='tm-title'><span>" $ ttl $ "</span><span id='" $ pid $ "_value' class='tm-value'>" $ val $ "</span></div><div class='tm-html'>" $ contentHtml $ "</div><div id='" $ pid $ "_detail' class='tm-note'>" $ nt $ "</div></section>"
+        return (self)
+    }
+
+    func:AddKpiPanel(self, panelId, title, value, note, kpiItems) {
+        pid = desktopui::EscapeHtml(panelId)
+        ttl = desktopui::EscapeHtml(title)
+        val = desktopui::EscapeHtml(value)
+        nt = desktopui::EscapeHtml(note)
+        contentHtml = KpiGrid(kpiItems)
+        self.menu = self.menu $ "<button id='menu_" $ pid $ "' class='tm-menu-item' onclick=\"tmShow('" $ pid $ "')\"><div class='tm-menu-title'><span>" $ ttl $ "</span><span id='" $ pid $ "_preview' class='tm-value'>" $ val $ "</span></div><div class='tm-menu-note'>" $ nt $ "</div></button>"
+        self.panels = self.panels $ "<section id='panel_" $ pid $ "' class='tm-panel table'><div class='tm-title'><span>" $ ttl $ "</span><span id='" $ pid $ "_value' class='tm-value'>" $ val $ "</span></div><div class='tm-html'>" $ contentHtml $ "</div><div id='" $ pid $ "_detail' class='tm-note'>" $ nt $ "</div></section>"
+        return (self)
+    }
+
+    func:Render(self) {
+        actions = " "
+        if (self.theme == 1) {
+            actions = actions $ ThemeDropdown()
+        }
+        if (self.actions == 1) {
+            actions = actions $ "<span class='pill-sep'></span>" $ ActionDropdown()
+        }
+        html = ChartLibraryScript() $ Styles() $ DockScript() $ ActionScript()
+        html = html $ "<div class='tm-page'>"
+        html = html $ "<header class='tm-header'><div class='tm-brand'>" $ desktopui::EscapeHtml(self.title) $ "</div><div class='tm-actions pill-row'>" $ actions $ "</div></header>"
+        html = html $ "<main class='tm-page-main'><div class='tm-shell lw-dock-shell'><aside class='tm-sidebar lw-dock-sidebar'><div class='lw-dock-grip'></div><div class='tm-sidebar-title'>Components</div>" $ self.menu $ "<div id='gpu_dynamic_menu'></div></aside><section class='tm-main lw-dock-main'><div class='tm-stage'>" $ self.panels $ "<div id='gpu_dynamic_panels'></div></div></section></div></main>"
+        html = html $ "<footer class='tm-footer'>" $ desktopui::EscapeHtml(self.footer) $ "</footer>"
+        html = html $ "</div>"
+        return (html)
+    }
+}
+
+obj:Dashboard() {
+    self.title = "Toba WebUI"
+    self.footer = "libwebui"
+    self.menu = " "
+    self.panels = " "
+    self.kpis = " "
+    self.theme = 1
+    self.actions = 1
+
+    func:SetTitle(self, title) {
+        self.title = title
+        return (self)
+    }
+
+    func:SetFooter(self, footer) {
+        self.footer = footer
+        return (self)
+    }
+
+    func:AddThemeSelector(self) {
+        self.theme = 1
+        return (self)
+    }
+
+    func:AddActionMenu(self) {
+        self.actions = 1
+        return (self)
+    }
+
+    func:AddKpi(self, kpiId, title, value, note) {
+        self.kpis = self.kpis $ Kpi("kpi_" $ kpiId, title, value, note)
+        return (self)
+    }
+
+    func:AddMetric(self, metricId, title, value, note) {
+        self.AddKpi(metricId, title, value, note)
+        pid = desktopui::EscapeHtml(metricId)
+        ttl = desktopui::EscapeHtml(title)
+        val = desktopui::EscapeHtml(value)
+        nt = desktopui::EscapeHtml(note)
+        self.menu = self.menu $ "<button id='menu_" $ pid $ "' class='tm-menu-item' onclick=\"tmShow('" $ pid $ "')\"><div class='tm-menu-title'><span>" $ ttl $ "</span><span id='" $ pid $ "_preview' class='tm-value'>" $ val $ "</span></div><div class='tm-menu-note'>" $ nt $ "</div></button>"
+        self.panels = self.panels $ "<section id='panel_" $ pid $ "' class='tm-panel chart'><div class='tm-title'><span>" $ ttl $ "</span><span id='" $ pid $ "_value' class='tm-value'>" $ val $ "</span></div><div class='tm-chart-box'><canvas id='" $ pid $ "_chart' class='tm-canvas'></canvas></div><div id='" $ pid $ "_detail' class='tm-note'>" $ nt $ "</div></section>"
+        return (self)
+    }
+
+    func:AddTable(self, panelId, title, value, note, rows) {
+        pid = desktopui::EscapeHtml(panelId)
+        ttl = desktopui::EscapeHtml(title)
+        val = desktopui::EscapeHtml(value)
+        nt = desktopui::EscapeHtml(note)
+        self.menu = self.menu $ "<button id='menu_" $ pid $ "' class='tm-menu-item' onclick=\"tmShow('" $ pid $ "')\"><div class='tm-menu-title'><span>" $ ttl $ "</span><span id='" $ pid $ "_preview' class='tm-value'>" $ val $ "</span></div><div class='tm-menu-note'>" $ nt $ "</div></button>"
+        table = "<div class='tm-table-wrap'><table class='tm-table'><thead><tr><th>GPU</th><th>VRAM</th><th>Total</th><th>%</th><th>Temp</th></tr></thead><tbody id='" $ pid $ "_rows'>" $ rows $ "</tbody></table></div>"
+        self.panels = self.panels $ "<section id='panel_" $ pid $ "' class='tm-panel table'><div class='tm-title'><span>" $ ttl $ "</span><span id='" $ pid $ "_value' class='tm-value'>" $ val $ "</span></div>" $ table $ "<div id='" $ pid $ "_detail' class='tm-note'>" $ nt $ "</div></section>"
+        return (self)
+    }
+
+    func:AddHtml(self, panelId, title, value, note, contentHtml) {
+        pid = desktopui::EscapeHtml(panelId)
+        ttl = desktopui::EscapeHtml(title)
+        val = desktopui::EscapeHtml(value)
+        nt = desktopui::EscapeHtml(note)
+        self.menu = self.menu $ "<button id='menu_" $ pid $ "' class='tm-menu-item' onclick=\"tmShow('" $ pid $ "')\"><div class='tm-menu-title'><span>" $ ttl $ "</span><span id='" $ pid $ "_preview' class='tm-value'>" $ val $ "</span></div><div class='tm-menu-note'>" $ nt $ "</div></button>"
+        self.panels = self.panels $ "<section id='panel_" $ pid $ "' class='tm-panel table'><div class='tm-title'><span>" $ ttl $ "</span><span id='" $ pid $ "_value' class='tm-value'>" $ val $ "</span></div><div class='tm-html'>" $ contentHtml $ "</div><div id='" $ pid $ "_detail' class='tm-note'>" $ nt $ "</div></section>"
+        return (self)
+    }
+
+    func:Render(self) {
+        actions = " "
+        if (self.theme == 1) {
+            actions = actions $ ThemeDropdown()
+        }
+        if (self.actions == 1) {
+            actions = actions $ "<span class='pill-sep'></span>" $ ActionDropdown()
+        }
+        overviewMenu = " "
+        overviewPanel = " "
+        if (size(self.kpis) > 1) {
+            overviewMenu = "<button id='menu_overview' class='tm-menu-item' onclick=\"tmShow('overview')\"><div class='tm-menu-title'><span>Overview</span><span id='overview_preview' class='tm-value'>live</span></div><div class='tm-menu-note'>Resume des metriques principales</div></button>"
+            overviewPanel = "<section id='panel_overview' class='tm-panel table'><div class='tm-title'><span>Overview</span><span id='overview_value' class='tm-value'>live</span></div><div class='tm-html'>" $ KpiGrid(self.kpis) $ "</div><div id='overview_detail' class='tm-note'>Resume des metriques principales</div></section>"
+        }
+        html = ChartLibraryScript() $ Styles() $ DockScript() $ ActionScript()
+        html = html $ "<div class='tm-page'>"
+        html = html $ "<header class='tm-header'><div class='tm-brand'>" $ desktopui::EscapeHtml(self.title) $ "</div><div class='tm-actions pill-row'>" $ actions $ "</div></header>"
+        html = html $ "<main class='tm-page-main'><div class='tm-shell lw-dock-shell'><aside class='tm-sidebar lw-dock-sidebar'><div class='lw-dock-grip'></div><div class='tm-sidebar-title'>Components</div>" $ overviewMenu $ self.menu $ "<div id='gpu_dynamic_menu'></div></aside><section class='tm-main lw-dock-main'><div class='tm-stage'>" $ overviewPanel $ self.panels $ "<div id='gpu_dynamic_panels'></div></div></section></div></main>"
+        html = html $ "<footer class='tm-footer'>" $ desktopui::EscapeHtml(self.footer) $ "</footer>"
+        html = html $ "</div>"
+        return (html)
+    }
+}
+
+obj:DataPanel() {
+    self.id = "datapanel"
+    self.tools = " "
+    self.tree = " "
+    self.columns = " "
+    self.rows = " "
+    self.search = "Search..."
+    self.inTree = 0
+
+    func:Setup(self, id) {
+        self.id = id
+        return (self)
+    }
+
+    func:AddToolButton(self, label, icon, onClickJs) {
+        self.tools = self.tools $ "<button type='button' class='ui-btn' onclick=\"" $ onClickJs $ "\"><span data-icon='" $ desktopui::EscapeHtml(icon) $ "'></span>" $ desktopui::EscapeHtml(label) $ "</button>"
+        return (self)
+    }
+
+    func:SetSearchBox(self, placeholder) {
+        self.search = placeholder
+        return (self)
+    }
+
+    func:TreeNode(self, label, badge, open) {
+        cls = "lw-dp-group"
+        if (open == 1) {
+            cls = "lw-dp-group open"
+        }
+        self.tree = self.tree $ "<div class='" $ cls $ "'><button type='button' class='lw-dp-node' onclick='this.parentNode.classList.toggle(\"open\");webuiEvent(\"datapanel_tree_toggle\",{id:\"" $ desktopui::EscapeJs(label) $ "\",label:\"" $ desktopui::EscapeJs(label) $ "\"})'><span>" $ desktopui::EscapeHtml(label) $ "</span><span class='lw-dp-badge'>" $ desktopui::EscapeHtml(badge) $ "</span></button><div class='lw-dp-kids'>"
+        self.inTree = 1
+        return (self)
+    }
+
+    func:TreeLeaf(self, label, onClickJs) {
+        self.tree = self.tree $ "<button type='button' class='lw-dp-leaf' onclick=\"" $ onClickJs $ ";webuiEvent('datapanel_tree_leaf',{id:'" $ desktopui::EscapeJs(label) $ "',label:'" $ desktopui::EscapeJs(label) $ "'})\">" $ desktopui::EscapeHtml(label) $ "</button>"
+        return (self)
+    }
+
+    func:TreeEnd(self) {
+        if (self.inTree == 1) {
+            self.tree = self.tree $ "</div></div>"
+            self.inTree = 0
+        }
+        return (self)
+    }
+
+    func:SetColumns(self, cols) {
+        self.columns = "<th class='lw-dp-grip-head'></th>"
+        i = for (0, size(cols), 1) {
+            self.columns = self.columns $ "<th>" $ desktopui::EscapeHtml(cols[i]) $ "</th>"
+        }
+        self.columns = self.columns $ "<th></th>"
+        return (self)
+    }
+
+    func:AddRow(self, cells, onClickJs) {
+        rowId = desktopui::EscapeJs(cells[0])
+        // Ligne draggable pour reordonner par drag'n'drop (poignee ::).
+        self.rows = self.rows $ "<tr class='lw-dp-row' draggable='true' data-row-id='" $ desktopui::EscapeHtml(cells[0]) $ "'>"
+        self.rows = self.rows $ "<td class='lw-dp-grip' title='Glisser pour reordonner'>::</td>"
+        i = for (0, size(cells), 1) {
+            self.rows = self.rows $ "<td>" $ desktopui::EscapeHtml(cells[i]) $ "</td>"
+        }
+        self.rows = self.rows $ "<td><div class='lw-cell-actions'><button type='button' class='ui-btn' onclick=\"" $ onClickJs $ ";webuiEvent('datapanel_row_action',{id:'" $ rowId $ "',value:'" $ rowId $ "'})\">Edit</button></div></td></tr>"
+        return (self)
+    }
+
+    // Meme chose mais chaque cellule est du HTML de widget (NON echappe) : permet
+    // d'imbriquer badges, boutons colores, sliders... dans les cellules. rowKey
+    // sert d'identifiant (car cells[0] est du HTML). Pas de colonne d'action.
+    func:AddRowHtml(self, rowKey, cells) {
+        rid = desktopui::EscapeJs(rowKey)
+        self.rows = self.rows $ "<tr class='lw-dp-row' draggable='true' data-row-id='" $ desktopui::EscapeHtml(rowKey) $ "'>"
+        self.rows = self.rows $ "<td class='lw-dp-grip' title='Glisser pour reordonner'>::</td>"
+        i = for (0, size(cells), 1) {
+            self.rows = self.rows $ "<td>" $ cells[i] $ "</td>"
+        }
+        // cellule de fin (colonne action de SetColumns) pour garder l'alignement.
+        self.rows = self.rows $ "<td></td></tr>"
+        return (self)
+    }
+
+    func:Render(self) {
+        if (self.inTree == 1) {
+            self.TreeEnd()
+        }
+        return ("<div id='" $ desktopui::EscapeHtml(self.id) $ "' class='lw-datapanel'><div class='lw-dp-toolbar'><div class='lw-dp-tools'>" $ self.tools $ "</div><input class='lw-dp-search' placeholder='" $ desktopui::EscapeHtml(self.search) $ "' oninput=\"webuiEvent('datapanel_search',{id:'" $ desktopui::EscapeJs(self.id) $ "',value:this.value})\"></div><div class='lw-dp-body'><aside class='lw-dp-tree'>" $ self.tree $ "</aside><main class='lw-dp-table'><table><thead><tr>" $ self.columns $ "</tr></thead><tbody>" $ self.rows $ "</tbody></table></main></div></div>")
+    }
+}
+
+func:DataPanelStyles() {
+    css = "<style>.lw-datapanel{height:100%;min-height:420px;display:grid;grid-template-rows:auto minmax(0,1fr);border:1px solid var(--border);border-radius:var(--lw-radius);background:linear-gradient(180deg,color-mix(in srgb,var(--bg-card) 98%,var(--bg-hover)),var(--bg-card));box-shadow:0 12px 34px rgba(0,0,0,.08);overflow:hidden}.lw-dp-toolbar{min-height:52px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border);background:color-mix(in srgb,var(--bg-surface) 72%,var(--bg-card))}.lw-dp-tools{display:flex;align-items:center;gap:0;flex-wrap:wrap;border:1px solid var(--border);border-radius:var(--lw-pill-radius);padding:3px;background:color-mix(in srgb,var(--bg-card) 88%,transparent);overflow:hidden}.lw-dp-tools .ui-btn{height:30px;border-radius:0}.lw-dp-tools .ui-btn:first-child{border-top-left-radius:var(--lw-pill-radius);border-bottom-left-radius:var(--lw-pill-radius)}.lw-dp-tools .ui-btn:last-child{border-top-right-radius:var(--lw-pill-radius);border-bottom-right-radius:var(--lw-pill-radius)}.lw-dp-search{height:34px;min-width:260px;border:1px solid var(--border);border-radius:var(--lw-pill-radius);background:color-mix(in srgb,var(--bg-card) 92%,var(--bg-surface));color:var(--text-1);padding:0 13px;outline:none}.lw-dp-search:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}.lw-dp-body{min-height:0;display:grid;grid-template-columns:minmax(210px,260px) minmax(0,1fr)}.lw-dp-tree{min-height:0;overflow:auto;border-right:1px solid var(--border);padding:12px;background:color-mix(in srgb,var(--bg-surface) 50%,var(--bg-card))}.lw-dp-node{width:100%;height:34px;border:0;border-radius:var(--lw-radius);background:transparent;color:var(--text-1);display:flex;align-items:center;justify-content:space-between;padding:0 10px;font-weight:800;cursor:pointer}.lw-dp-node:hover{background:var(--bg-hover)}.lw-dp-badge{font-family:var(--mono);font-size:11px;color:var(--accent);background:var(--accent-glow);border-radius:var(--lw-pill-radius);padding:2px 7px}.lw-dp-kids{display:none;padding:4px 0 7px 9px;border-left:1px solid var(--border);margin-left:9px}.lw-dp-group.open .lw-dp-kids{display:block}.lw-dp-leaf{width:100%;height:30px;border:0;border-radius:var(--lw-radius);background:transparent;color:var(--text-2);text-align:left;padding:0 9px;cursor:pointer}.lw-dp-leaf:hover{background:var(--bg-hover);color:var(--accent)}.lw-dp-table{min-width:0;overflow:auto;padding:12px}.lw-dp-table table{width:100%;border-collapse:separate;border-spacing:0}.lw-dp-table th,.lw-dp-table td{height:42px;border-bottom:1px solid var(--border);padding:0 12px;text-align:left;white-space:nowrap}.lw-dp-table th{position:sticky;top:0;z-index:1;background:var(--bg-hover);font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);font-weight:800}.lw-dp-table tbody tr:hover td{background:color-mix(in srgb,var(--bg-hover) 50%,transparent)}.lw-cell-actions{display:flex;justify-content:flex-end}.lw-dp-grip-head{width:34px}.lw-dp-grip{width:34px;text-align:center;color:var(--text-3);cursor:grab;user-select:none;letter-spacing:2px;font-weight:900}.lw-dp-row.lw-dp-dragging{opacity:.45}.lw-dp-row.lw-dp-over td{border-top:2px solid var(--accent)}</style>"
+    // Script de reordonnancement des lignes par drag'n'drop (poignee ::).
+    css = css $ "<script>window.lwDpInit=window.lwDpInit||function(){document.querySelectorAll('.lw-dp-table table tbody').forEach(function(tb){if(tb.getAttribute('data-dp-ready'))return;tb.setAttribute('data-dp-ready','1');var dragRow=null;tb.addEventListener('dragstart',function(e){var tr=e.target.closest('.lw-dp-row');if(!tr)return;dragRow=tr;tr.classList.add('lw-dp-dragging');e.dataTransfer.effectAllowed='move'});tb.addEventListener('dragend',function(){if(dragRow){dragRow.classList.remove('lw-dp-dragging')}tb.querySelectorAll('.lw-dp-over').forEach(function(r){r.classList.remove('lw-dp-over')});dragRow=null});tb.addEventListener('dragover',function(e){e.preventDefault();var tr=e.target.closest('.lw-dp-row');if(!tr||tr===dragRow)return;tb.querySelectorAll('.lw-dp-over').forEach(function(r){r.classList.remove('lw-dp-over')});tr.classList.add('lw-dp-over')});tb.addEventListener('drop',function(e){e.preventDefault();var tr=e.target.closest('.lw-dp-row');if(!tr||!dragRow||tr===dragRow)return;var rows=Array.prototype.slice.call(tb.querySelectorAll('.lw-dp-row'));var from=rows.indexOf(dragRow),to=rows.indexOf(tr);tb.insertBefore(dragRow,from<to?tr.nextSibling:tr);tr.classList.remove('lw-dp-over');if(window.webuiEvent)webuiEvent('datapanel_row_reorder',{id:dragRow.getAttribute('data-row-id')||String(),value:String(to),from:String(from),to:String(to)})})})};if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',lwDpInit)}else{lwDpInit()}</script>"
+    return (css)
+}
+
+obj:ChatBar() {
+    self.id = "chatbar"
+    self.placeholder = "Message..."
+    self.sendJs = "webuiEvent('chatbar_send')"
+    self.pills = " "
+    self.panels = " "
+
+    func:Setup(self, id, placeholder, sendJs) {
+        self.id = id
+        self.placeholder = placeholder
+        self.sendJs = sendJs
+        return (self)
+    }
+
+    func:AddPill(self, key, icon, label) {
+        self.pills = self.pills $ "<button type='button' class='lw-cbpill' data-key='" $ desktopui::EscapeHtml(key) $ "' title='" $ desktopui::EscapeHtml(label) $ "' onclick=\"lwCbToggle('" $ desktopui::EscapeJs(self.id) $ "','" $ desktopui::EscapeJs(key) $ "')\"><span data-icon='" $ desktopui::EscapeHtml(icon) $ "'></span><span>" $ desktopui::EscapeHtml(label) $ "</span></button>"
+        return (self)
+    }
+
+    func:AddPillBadge(self, key, icon, label, badge) {
+        self.pills = self.pills $ "<button type='button' class='lw-cbpill' data-key='" $ desktopui::EscapeHtml(key) $ "' title='" $ desktopui::EscapeHtml(label) $ "' onclick=\"lwCbToggle('" $ desktopui::EscapeJs(self.id) $ "','" $ desktopui::EscapeJs(key) $ "')\"><span data-icon='" $ desktopui::EscapeHtml(icon) $ "'></span><span>" $ desktopui::EscapeHtml(label) $ "</span><span class='lw-cbpill-count'>" $ desktopui::EscapeHtml(badge) $ "</span></button>"
+        return (self)
+    }
+
+    func:AddPanel(self, key, title, html) {
+        self.panels = self.panels $ "<div class='lw-cbpanel' data-key='" $ desktopui::EscapeHtml(key) $ "'><div class='lw-cbpanel-title'>" $ desktopui::EscapeHtml(title) $ "</div>" $ html $ "</div>"
+        return (self)
+    }
+
+    func:Render(self) {
+        return ("<div class='lw-chatbar-wrap' id='" $ desktopui::EscapeHtml(self.id) $ "'><div class='lw-cbpanels'>" $ self.panels $ "</div><div class='lw-chatbar'><div class='lw-chatbar-pills'>" $ self.pills $ "</div><textarea class='lw-chatbar-input' id='" $ desktopui::EscapeHtml(self.id) $ "_input' rows='1' placeholder='" $ desktopui::EscapeHtml(self.placeholder) $ "'></textarea><button type='button' class='lw-chatbar-send' onclick=\"" $ self.sendJs $ "\">Send</button></div></div>")
+    }
+}
+
+func:ChatBarStyles() {
+    css = "<style>"
+    css = css $ ".lw-chatbar-wrap{position:relative;width:100%}"
+    css = css $ ".lw-chatbar{display:flex;align-items:center;gap:8px;width:100%;min-height:52px;border:1px solid var(--border);border-radius:var(--lw-radius);background:color-mix(in srgb,var(--bg-hover) 22%,var(--bg-card));padding:7px 8px 7px 10px}"
+    css = css $ ".lw-chatbar:focus-within{border-color:color-mix(in srgb,var(--accent) 45%,var(--border))}"
+    css = css $ ".lw-chatbar-pills{display:flex;align-items:center;gap:4px;flex-shrink:0}"
+    css = css $ ".lw-cbpill{display:inline-flex;align-items:center;justify-content:center;gap:5px;height:36px;min-width:36px;padding:0 9px;border:1px solid transparent;border-radius:var(--lw-radius);background:transparent;color:var(--text-2);cursor:pointer;transition:background .12s,color .12s,border-color .12s;position:relative}"
+    css = css $ ".lw-cbpill:hover{background:color-mix(in srgb,var(--bg-hover) 60%,var(--bg-card));color:var(--text-1)}"
+    css = css $ ".lw-cbpill.active{background:var(--accent-glow);color:var(--accent);border-color:color-mix(in srgb,var(--accent) 35%,var(--border))}"
+    css = css $ ".lw-cbpill svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}"
+    css = css $ ".lw-cbpill-count{position:absolute;top:-3px;right:-3px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:var(--accent);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center}"
+    css = css $ ".lw-chatbar-input{flex:1;min-width:0;border:0;outline:none;resize:none;background:transparent;color:var(--text-1);font-family:var(--sans);font-size:14px;line-height:1.4;padding:8px 6px;max-height:120px}"
+    css = css $ ".lw-chatbar-send{flex-shrink:0;border:0;border-radius:var(--lw-radius);background:var(--accent);color:var(--bg-deep);height:38px;padding:0 18px;font-weight:700;font-size:13px;cursor:pointer;transition:filter .12s}"
+    css = css $ ".lw-chatbar-send:hover{filter:brightness(1.07)}"
+    css = css $ ".lw-cbpanels{position:absolute;left:0;right:0;bottom:100%;z-index:40}"
+    css = css $ ".lw-cbpanel{display:none;border:1px solid color-mix(in srgb,var(--accent) 40%,var(--border));border-bottom:none;border-radius:16px 16px 0 0;background:color-mix(in srgb,var(--bg-card) 97%,transparent);backdrop-filter:blur(12px);padding:16px;max-height:60vh;min-height:90px;overflow:auto;flex-direction:column;gap:10px;animation:lwcbpop .14s ease}"
+    css = css $ ".lw-cbpanel.active{display:flex}"
+    css = css $ "@keyframes lwcbpop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}"
+    css = css $ ".lw-chatbar-wrap.panel-open .lw-chatbar{border-top-left-radius:0;border-top-right-radius:0;border-color:color-mix(in srgb,var(--accent) 40%,var(--border))}"
+    css = css $ ".lw-cbpanel-title{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--text-1);padding-bottom:8px;border-bottom:1px solid var(--border);margin:0}"
+    css = css $ ".lw-cbpanel-list{display:flex;flex-wrap:wrap;gap:8px}"
+    css = css $ ".lw-cbdemo{display:flex;flex-direction:column;justify-content:flex-end;min-height:360px;height:100%;gap:14px}"
+    css = css $ "</style>"
+    return (css)
+}
+
+func:ChatBarScript() {
+    js = "<script>window.lwCbToggle=function(id,key){var root=document.getElementById(id);if(!root)return;var ps=root.querySelectorAll('.lw-cbpanel');var bs=root.querySelectorAll('.lw-cbpill');var opened=false;for(var i=0;i<ps.length;i++){var hit=ps[i].getAttribute('data-key')==key;var next=hit&&!ps[i].classList.contains('active');ps[i].classList.toggle('active',next);if(next)opened=true}for(var j=0;j<bs.length;j++){bs[j].classList.toggle('active',bs[j].getAttribute('data-key')==key&&opened)}root.classList.toggle('panel-open',opened);if(window.webuiEvent)webuiEvent(opened?'chatbar_panel_open':'chatbar_panel_close',{id:id,value:key,state:opened?'open':'closed'})};</script>"
+    return (js)
+}
+
+func: TaskManagerPage(content, script) {
+    body = "<div class='tm-page'>"
+    body = body $ "<header class='tb-title'>Toba WebUI Task Manager</header>"
+    body = body $ "<main class='tm-page-main'>" $ content $ script $ "</main>"
+    body = body $ "<footer class='tb-footer'>libwebui + libmetrics live CPU / RAM / VRAM</footer>"
+    body = body $ "</div>"
+    html = desktopui::Page("Toba WebUI Task Manager", body)
+    return (html)
+}
+
+
+
+
+
+

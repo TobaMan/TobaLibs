@@ -1,0 +1,84 @@
+/*
+    libwebui / effects / gridcraft
+
+    Pont vers les moteurs GridCraft (overlay canvas WebGL2 par-dessus le DOM) :
+    - Radiance Cascade : eclairage global diffus autour des widgets
+    - Raytracer 2D (RTX) : path tracing avec materiaux (diffuse/mirror/glass/glossy/emissive)
+
+    Les gros JS sont charges par <script src> depuis vendor/gridcraft (pas inlines :
+    evite les pieges de strings Toba et le poids de compilation). L'overlay cible
+    des selecteurs CSS de widgets libwebui existants.
+
+    Usage cote page :
+      panel.AddHtml(gridcraft::Scripts())            // charge les moteurs
+      panel.AddHtml(gridcraft::InitRadiance(targets))  // ou InitRtx(...)
+*/
+
+import : libwebui / desktopui
+
+func: __module_ready() {
+    return (1)
+}
+
+// Chemins ABSOLUS (file:///) : la page host (gallery) peut etre ecrite dans
+// examples/ pour le debug, ou servie depuis libwebui/ dans la vraie fenetre.
+// Un chemin relatif 'vendor/...' resout differemment selon le cas -> FILE_NOT_FOUND.
+// Les exemples V3 qui marchent utilisent aussi ces chemins absolus.
+func: Scripts() {
+    // Les 2 path tracers (realtime SVGF + non-realtime) + radiance + wrapper.
+    // Realtime expose window.RTX_Realtime ; non-realtime window.RTX_Quality +
+    // window.Raytracer2D (compat). Ordre : realtime avant non-realtime pour que
+    // window.Raytracer2D pointe sur le non-realtime (comportement historique).
+    base = "file:///C:/Toba/modules/libwebui/vendor/gridcraft/"
+    res = "<script src=\"" $ base $ "Raytracer_Engine_Realtime.js\"></script>"
+    res = res $ "<script src=\"" $ base $ "Radiance_Cascade_Engine.js\"></script>"
+    res = res $ "<script src=\"" $ base $ "Raytracer_Engine.js\"></script>"
+    res = res $ "<script src=\"" $ base $ "GridCraftHtmlEffects.js\"></script>"
+    return (res)
+}
+
+// Construit un tableau JS de selecteurs a partir d'une chaine "a,b,c".
+// Le split est fait cote JS (au runtime) pour rester simple cote Toba.
+func: JsTargets(targetsCsv) {
+    res = "('" $ desktopui::EscapeJs(targetsCsv) $ "').split(',').map(function(s){return s.trim()}).filter(function(s){return s.length>0})"
+    return (res)
+}
+
+// Init generique. mode = "radiance" ou "rtx". targetsCsv = "sel1,sel2" (chaine
+// de selecteurs separes par des virgules). renderScale/opacity reglables.
+// A APPELER UNE SEULE FOIS par page (definit les fonctions gc* globales).
+// gcStart(mode) prend le mode ('radiance'|'rtx') au clic -> pas de doublon.
+func: Runtime(targetsCsv, renderScale, opacity) {
+    js = "<script>"
+    js = js $ "window.__gcTargets=" $ JsTargets(targetsCsv) $ ";"
+    js = js $ "window.gcStart=function(m){"
+    js = js $ "  if(window.__gc){window.__gc.destroy();window.__gc=null}"
+    js = js $ "  window.__gc=new GridCraftHtmlEffects({mode:m||'radiance',targets:window.__gcTargets,autoStart:true,"
+    // Overlay transparent par-dessus les widgets (comme la demo test3) : RTX en
+    // 'multiply' (reflets/lumiere superposes), radiance en 'screen' (additif).
+    js = js $ "    overlay:{opacity:" $ strnum(opacity) $ ",blendMode:(m==='rtx'?'multiply':'screen')},"
+    js = js $ "    performance:{maxFPS:30,qualityScale:" $ strnum(renderScale) $ ",maxElements:180,observeDom:true}});"
+    js = js $ "};"
+    js = js $ "window.gcStop=function(){if(window.__gc){window.__gc.stop();window.__gc.destroy();window.__gc=null}};"
+    js = js $ "window.gcSetMode=function(m){if(window.__gc){window.__gc.setMode(m)}else{gcStart(m)}};"
+    js = js $ "window.gcSetScale=function(s){if(window.__gc){window.__gc.setOptions({performance:{qualityScale:Number(s)}})}};"
+    js = js $ "window.gcSetOpacity=function(o){if(window.__gc){window.__gc.setOptions({overlay:{opacity:Number(o)}})}};"
+    js = js $ "window.gcSetMaxAlpha=function(a){if(window.__gc){window.__gc.setOptions({radiance:{maxAlpha:Number(a)}})}};"
+    js = js $ "window.gcSetLineStep=function(n){if(window.__gc){window.__gc.setOptions({radiance:{lineStep:Number(n)}})}};"
+    js = js $ "window.gcSetBounces=function(b){if(window.__gc){window.__gc.setOptions({rtx:{maxBounces:Number(b)}})}};"
+    // Radiance : soleil directionnel (angle en radians ; enableSun suit l'angle,
+    // <0 = eteint) et correction gamma sRGB.
+    js = js $ "window.gcSetSun=function(on){if(window.__gc){window.__gc.setOptions({radiance:{enableSun:!!on}})}};"
+    js = js $ "window.gcSetSunAngle=function(a){if(window.__gc){window.__gc.setOptions({radiance:{sunAngle:Number(a)}})}};"
+    js = js $ "window.gcSetSrgb=function(on){if(window.__gc){window.__gc.setOptions({radiance:{srgb:!!on}})}};"
+    js = js $ "window.gcRefresh=function(){if(window.__gc){window.__gc.refresh()}};"
+    // Materiau d'UN objet (par id ou element) en mode RTX : delegue au moteur
+    // via updateObjectProperty (methode test3, effet immediat).
+    js = js $ "window.gcSetObjectMaterial=function(elOrId,mat,opts){if(!window.__gc)return;var el=(typeof elOrId==='string')?document.getElementById(elOrId):elOrId;if(el)window.__gc.setObjectMaterial(el,mat,opts||null)};"
+    // Pont uniforme : les widgets (Toolbar.Button) emettent webuiEvent(name).
+    // On mappe ces events standard vers les fonctions gc* -> pas d'onclick JS
+    // custom, tout passe par le bridge comme les autres widgets.
+    js = js $ "window.addEventListener('toba:event',function(e){var d=e.detail||{};var n=d.name;if(!n)return;if(n==='gc_start_radiance')gcSetMode('radiance');else if(n==='gc_start_rtx')gcSetMode('rtx');else if(n==='gc_stop')gcStop();else if(n==='gc_refresh')gcRefresh()});"
+    js = js $ "</script>"
+    return (js)
+}

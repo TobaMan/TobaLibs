@@ -1,0 +1,30 @@
+import : libwebui / widgets
+
+obj:ChatBar() {
+    self.core = widgets::ChatBar()
+
+    func:Setup(self, id, placeholder, sendJs) {
+        self.core.Setup(id, placeholder, sendJs)
+        return (self)
+    }
+
+    func:AddPill(self, key, icon, label) {
+        self.core.AddPill(key, icon, label)
+        return (self)
+    }
+
+    func:AddPillBadge(self, key, icon, label, badge) {
+        self.core.AddPillBadge(key, icon, label, badge)
+        return (self)
+    }
+
+    func:AddPanel(self, key, title, html) {
+        self.core.AddPanel(key, title, html)
+        return (self)
+    }
+
+    func:Render(self) {
+        return (self.core.Render())
+    }
+}
+

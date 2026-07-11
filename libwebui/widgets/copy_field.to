@@ -1,0 +1,31 @@
+import : libwebui / widget_core
+
+obj:CopyField() {
+    self.html = " "
+    self.id = "copy_field"
+    self.label = "Copy"
+    self.value = "value"
+    self.eventName = "copy_value"
+    self.disabled = 0
+
+    func:Setup(self, id, label, value, eventName) {
+        self.id = id
+        self.label = label
+        self.value = value
+        self.eventName = eventName
+        return (self)
+    }
+
+    func:SetDisabled(self, disabled) {
+        self.disabled = disabled
+        return (self)
+    }
+
+    func:Close(self) {
+        self.html = widget_core::Styles() $ widget_core::CopyField(self.id, self.label, self.value, self.eventName)
+        if (self.disabled == 1) {
+            self.html = widget_core::DisableHtml(self.html)
+        }
+        return (self)
+    }
+}

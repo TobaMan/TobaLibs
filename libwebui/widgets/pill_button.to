@@ -1,0 +1,6 @@
+import : libwebui / widgets
+
+func: PillButton(buttonId, text, onClickJs, kind) {
+    return (widgets::PillButton(buttonId, text, onClickJs, kind))
+}
+

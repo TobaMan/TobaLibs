@@ -1,0 +1,45 @@
+import : libwebui / widget_core
+
+obj:MonacoEditor() {
+    self.html = " "
+    self.id = "monaco_editor"
+    self.title = "Monaco Editor"
+    self.lang = "toba"
+    self.code = "func: Hello() {\n    print(\"hello\")\n}"
+    self.eventName = "monaco_change"
+    self.loaderUrl = "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs/loader.min.js"
+    self.readOnly = 0
+    self.disabled = 0
+
+    func:Setup(self, id, title, lang, code, eventName) {
+        self.id = id
+        self.title = title
+        self.lang = lang
+        self.code = code
+        self.eventName = eventName
+        return (self)
+    }
+
+    func:SetLoaderUrl(self, loaderUrl) {
+        self.loaderUrl = loaderUrl
+        return (self)
+    }
+
+    func:SetReadOnly(self, readOnly) {
+        self.readOnly = readOnly
+        return (self)
+    }
+
+    func:SetDisabled(self, disabled) {
+        self.disabled = disabled
+        return (self)
+    }
+
+    func:Close(self) {
+        self.html = widget_core::Styles() $ widget_core::MonacoEditor(self.id, self.title, self.lang, self.code, self.eventName, self.loaderUrl, self.readOnly)
+        if (self.disabled == 1) {
+            self.html = widget_core::DisableHtml(self.html)
+        }
+        return (self)
+    }
+}

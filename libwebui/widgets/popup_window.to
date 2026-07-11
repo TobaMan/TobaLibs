@@ -1,0 +1,47 @@
+import : libwebui / widget_core
+
+obj:PopupWindow() {
+    self.html = " "
+    self.id = "popup_window"
+    self.title = "Popup Window"
+    self.subtitle = "Fenetre modale themable."
+    self.body = "<p>Contenu libre genere par Toba.</p>"
+    self.primaryText = "Valider"
+    self.primaryEvent = "popup_confirm"
+    self.secondaryText = "Annuler"
+    self.secondaryEvent = "popup_cancel"
+    self.disabled = 0
+
+    func:Setup(self, id, title, subtitle, bodyHtml) {
+        self.id = id
+        self.title = title
+        self.subtitle = subtitle
+        self.body = bodyHtml
+        return (self)
+    }
+
+    func:SetPrimary(self, text, eventName) {
+        self.primaryText = text
+        self.primaryEvent = eventName
+        return (self)
+    }
+
+    func:SetSecondary(self, text, eventName) {
+        self.secondaryText = text
+        self.secondaryEvent = eventName
+        return (self)
+    }
+
+    func:SetDisabled(self, disabled) {
+        self.disabled = disabled
+        return (self)
+    }
+
+    func:Close(self) {
+        self.html = widget_core::Styles() $ widget_core::PopupWindow(self.id, self.title, self.subtitle, self.body, self.primaryText, self.primaryEvent, self.secondaryText, self.secondaryEvent)
+        if (self.disabled == 1) {
+            self.html = widget_core::DisableHtml(self.html)
+        }
+        return (self)
+    }
+}

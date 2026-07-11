@@ -1,0 +1,3 @@
+status=ok
+path=C:/Toba/tmp_tts_simpleui_clone_test.wav
+message=played

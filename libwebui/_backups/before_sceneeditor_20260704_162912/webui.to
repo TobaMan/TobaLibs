@@ -1,0 +1,1152 @@
+import : libwebui / desktopui
+import : libwebui / widgets
+import : libwebui / widget_core
+import : libwebui / runtime
+import : libjson / json
+
+func: __module_ready() {
+    return (1)
+}
+
+func: EventName(raw) {
+    res = json::GetString(raw, "name", "")
+    return (res)
+}
+
+func: EventData(raw) {
+    res = json::GetRaw(raw, "data", "{}")
+    return (res)
+}
+
+func: EventValue(raw) {
+    data = EventData(raw)
+    res = json::GetString(data, "value", "")
+    return (res)
+}
+
+func: EventAction(raw) {
+    data = EventData(raw)
+    res = json::GetString(data, "action", "")
+    if (size(res) == 0) {
+        res = EventValue(raw)
+    }
+    return (res)
+}
+
+func: HandleNativeWindowEventHandle(raw, handle) {
+    handled = 0
+    name = EventName(raw)
+    if (name == "native_window_action") {
+        action = EventAction(raw)
+        if (size(action) > 0) {
+            if (handle != 0) {
+                desktopui::NativeWindowActionHandle(handle, action)
+                handled = 1
+            }
+        }
+    }
+    return (handled)
+}
+
+func: HandleNativeWindowEvent(raw, title) {
+    handled = 0
+    name = EventName(raw)
+    if (name == "native_window_action") {
+        action = EventAction(raw)
+        if (size(action) > 0) {
+            desktopui::NativeWindowAction(title, action)
+            handled = 1
+        }
+    }
+    return (handled)
+}
+
+// Backend WebView2 (https://github.com/webview/webview) : ecrit le HTML deja
+// genere (avec bridge) dans un fichier et lance webview_host.exe en frameless.
+// Remplace l'affichage via webui-2.dll uniquement pour le mode custom chrome.
+// runproc est un builtin : aucun import supplementaire (le compilateur Toba
+// plante si on ajoute des imports/modules ici).
+func: ShowWebViewHost(html, title, width, height, x, y) {
+    path = "C:/Toba/modules/libwebui/webview_host_page.html"
+    fswritef(path, html)
+    cmd = "\"C:/Toba/modules/libwebui/webview_host.exe\""
+    cmd = cmd $ " --html=\"" $ path $ "\""
+    cmd = cmd $ " --title=\"" $ title $ "\""
+    cmd = cmd $ " --width=" $ strnum(width)
+    cmd = cmd $ " --height=" $ strnum(height)
+    cmd = cmd $ " --x=" $ strnum(x)
+    cmd = cmd $ " --y=" $ strnum(y)
+    cmd = cmd $ " --frameless=1 --debug=0"
+    // RunDetached (DLL toba_window_bridge) lance le host sans pipes stdout/stderr
+    // et rend la main tout de suite. runproc bloquerait : il attend le flux de
+    // sortie du process GUI persistant -> la boucle BridgePoll ne tournerait pas.
+    desktopui::RunDetached(cmd)
+    return (1)
+}
+
+// Generateur commun d'un slider theme (.gallery-slider-card). L'oninput met a
+// jour la valeur affichee EN LIVE (le bug d'origine) puis appelle funcName si
+// fourni. unit = suffixe affiche (ex " px", "" ...).
+func: SliderHtml(id, label, value, minValue, maxValue, step, funcName, valueId, unit) {
+    safeId = desktopui::EscapeHtml(id)
+    safeVal = desktopui::EscapeHtml(valueId)
+    safeUnit = desktopui::EscapeJs(unit)
+    call = ""
+    if (size(funcName) > 0) {
+        call = desktopui::EscapeHtml(funcName) $ "(this.value);"
+    }
+    oninput = call $ "var s=document.getElementById('" $ desktopui::EscapeJs(valueId) $ "');if(s)s.textContent=this.value+'" $ safeUnit $ "'"
+    res = "<div class='gallery-slider-card'><label for='" $ safeId $ "'>" $ desktopui::EscapeHtml(label) $ "</label>"
+    res = res $ "<input id='" $ safeId $ "' type='range' min='" $ strnum(minValue) $ "' max='" $ strnum(maxValue) $ "' step='" $ strnum(step) $ "' value='" $ strnum(value) $ "' oninput=\"" $ oninput $ "\">"
+    res = res $ "<span id='" $ safeVal $ "' class='gallery-slider-value'>" $ strnum(value) $ desktopui::EscapeHtml(unit) $ "</span></div>"
+    return (res)
+}
+
+// Slider compact loge dans un pill (widgets::PillField) : label + range + valeur
+// sur une seule ligne. Plusieurs pills s'alignent en flex (rangee compacte).
+func: SliderPillHtml(id, label, value, minValue, maxValue, step, funcName, valueId) {
+    safeId = desktopui::EscapeHtml(id)
+    call = ""
+    if (size(funcName) > 0) {
+        call = desktopui::EscapeHtml(funcName) $ "(this.value);"
+    }
+    oninput = call $ "var s=document.getElementById('" $ desktopui::EscapeJs(valueId) $ "');if(s)s.textContent=this.value"
+    res = "<div class='lw-pill-field lw-pill-slider'><span class='lw-pill-label'>" $ desktopui::EscapeHtml(label) $ "</span><span class='lw-pill-sep'></span>"
+    res = res $ "<input id='" $ safeId $ "' class='lw-pill-range' type='range' min='" $ strnum(minValue) $ "' max='" $ strnum(maxValue) $ "' step='" $ strnum(step) $ "' value='" $ strnum(value) $ "' oninput=\"" $ oninput $ "\">"
+    res = res $ "<span id='" $ desktopui::EscapeHtml(valueId) $ "' class='lw-pill-rangeval'>" $ strnum(value) $ "</span></div>"
+    return (res)
+}
+
+obj:Page() {
+    self.title = "Toba WebUI Component Gallery"
+    self.footer = "libwebui component gallery"
+    self.port = 19165
+    self.width = 1240
+    self.height = 820
+    self.x = 90
+    self.y = 60
+    self.windowMode = "normal"
+    self.customChrome = 1
+    self.nativeHandle = 0
+    self.layout = widgets::DesktopLayout()
+    self.layout.SetTitle(self.title)
+    self.layout.SetFooter(self.footer)
+    self.layout.AddThemeSelector()
+    self.layout.AddActionMenu()
+
+    func:SetTitle(self, title) {
+        self.title = title
+        self.layout.SetTitle(title)
+        return (self)
+    }
+
+    func:SetFooter(self, footer) {
+        self.footer = footer
+        self.layout.SetFooter(footer)
+        return (self)
+    }
+
+    func:SetPort(self, port) {
+        self.port = port
+        return (self)
+    }
+
+    func:SetWindow(self, width, height, x, y) {
+        self.width = width
+        self.height = height
+        self.x = x
+        self.y = y
+        self.windowMode = "normal"
+        return (self)
+    }
+
+    func:SetSize(self, width, height) {
+        self.width = width
+        self.height = height
+        self.windowMode = "normal"
+        return (self)
+    }
+
+    func:SetPosition(self, x, y) {
+        self.x = x
+        self.y = y
+        return (self)
+    }
+
+    func:Normal(self) {
+        self.windowMode = "normal"
+        return (self)
+    }
+
+    func:Maximized(self) {
+        self.windowMode = "maximized"
+        self.width = 1480
+        self.height = 900
+        self.x = 20
+        self.y = 20
+        return (self)
+    }
+
+    func:CustomChrome(self) {
+        self.customChrome = 1
+        return (self)
+    }
+
+    func:NativeChrome(self) {
+        self.customChrome = 0
+        return (self)
+    }
+
+    func:NativeHandle(self) {
+        return (self.nativeHandle)
+    }
+
+    func:AddPanel(self, panel) {
+        self.layout.AddHtmlPanel(panel.id, panel.title, panel.value, panel.note, panel.body)
+        return (self)
+    }
+
+    func:Render(self) {
+        modal = "<div id='gallery_modal' class='gallery-modal-backdrop' onclick='if(event.target==this)webuiModal(0)'><div class='gallery-modal'><div class='gallery-modal-head'><div><div class='gallery-modal-title'>Custom popup</div><div class='gallery-modal-sub'>Compatibilite webuiModal(1)</div></div><button type='button' class='gallery-modal-close' onclick='webuiModal(0)'>x</button></div><div class='gallery-modal-body'><div>This modal is rendered by libwebui styles and can contain any Toba-generated widget.</div><div class='lw-actions right'><button type='button' class='ui-btn' onclick=\"webuiEvent('popup_cancel');webuiModal(0)\">Cancel</button><button type='button' class='ui-btn primary' onclick=\"webuiEvent('popup_confirm');webuiModal(0)\"><span data-icon='save'></span>Confirm</button></div></div></div></div>"
+        toast = "<div id='gallery_toast_root' class='gallery-toast-root'></div>"
+        bodyClass = " "
+        titlebar = " "
+        if (self.customChrome == 1) {
+            bodyClass = " class='lw-native-chrome'"
+            titlebar = widgets::WindowTitleBar(self.title, "T")
+        }
+        html = "<!doctype html><html><head><meta charset='utf-8'><title>" $ desktopui::EscapeHtml(self.title) $ "</title>" $ widgets::Styles() $ runtime::ProStyles() $ runtime::Styles() $ widget_core::RichTextScript(" ") $ "</head><body data-theme='light_modern'" $ bodyClass $ ">" $ titlebar $ self.layout.Render() $ modal $ toast $ runtime::Script() $ "</body></html>"
+        html = desktopui::WithBridge(html, self.port)
+        return (html)
+    }
+
+    func:Show(self) {
+        selectedPort = desktopui::BridgeStartReliable(self.port, 40)
+        if (selectedPort != 0) {
+            self.port = selectedPort
+        }
+        bridgeInit = selectedPort
+        print("bridge init=")
+        print(bridgeInit)
+        print(" error=")
+        print(desktopui::BridgeLastError())
+        print("\n")
+        html = self.Render()
+        fswritef("C:/Toba/modules/libwebui/examples/webui_components_gallery_debug.html", html)
+        if (self.customChrome == 1) {
+            ShowWebViewHost(html, self.title, self.width, self.height, self.x, self.y)
+            win = 0
+        }
+        else {
+            win = desktopui::ShowBrowser(html, 1)
+            desktopui::SetWindow(win, self.width, self.height, self.x, self.y)
+        }
+        return (win)
+    }
+
+    func:ShowReliable(self, debugPath) {
+        selectedPort = desktopui::BridgeStartReliable(self.port, 40)
+        if (selectedPort != 0) {
+            self.port = selectedPort
+        }
+        bridgeInit = selectedPort
+        print("bridge init=")
+        print(bridgeInit)
+        print(" error=")
+        print(desktopui::BridgeLastError())
+        print("\n")
+        html = self.Render()
+        if (size(debugPath) > 0) {
+            fswritef(debugPath, html)
+        }
+        if (self.customChrome == 1) {
+            ShowWebViewHost(html, self.title, self.width, self.height, self.x, self.y)
+            win = 0
+        }
+        else {
+            win = desktopui::ShowBrowser(html, 1)
+            desktopui::SetWindow(win, self.width, self.height, self.x, self.y)
+        }
+        return (win)
+    }
+
+    func:Run(self) {
+        self.Show()
+        print("TOBA WEBUI COMPONENT GALLERY STARTED\n")
+        print("This gallery is assembled with Toba widget objects.\n")
+        done = 0
+        loop {
+            if (done == 1) {
+                break
+            }
+            evt = desktopui::BridgePoll(50)
+            if (size(evt) > 0) {
+                HandleNativeWindowEvent(evt, self.title)
+                name = EventName(evt)
+                // Fermeture de la fenetre -> on sort et on libere le port bridge,
+                // sinon le process Toba reste vivant et bloque le port (Bind failed).
+                if (name == "window_closed") {
+                    done = 1
+                }
+                print("component event = ")
+                print(evt)
+                print("\n")
+            }
+            sleep(0.05)
+        }
+        desktopui::BridgeStop()
+        print("GALLERY CLOSED, bridge stopped\n")
+        return (1)
+    }
+}
+
+obj:Panel() {
+    self.id = "panel"
+    self.title = "Panel"
+    self.value = "demo"
+    self.note = " "
+    self.body = "<div class='ui-pro'>"
+    self.closed = 0
+
+    func:Setup(self, id, title, value, note) {
+        self.id = id
+        self.title = title
+        self.value = value
+        self.note = note
+        return (self)
+    }
+
+    func:Fill(self) {
+        if (self.body == "<div class='ui-pro'>") {
+            self.body = "<div class='ui-pro lw-fill-panel'>"
+        }
+        return (self)
+    }
+
+    func:Add(self, widget) {
+        self.body = self.body $ widget.html
+        return (self)
+    }
+
+    func:AddHtml(self, html) {
+        self.body = self.body $ html
+        return (self)
+    }
+
+    func:AddText(self, text) {
+        self.body = self.body $ "<div class='gallery-note'>" $ desktopui::EscapeHtml(text) $ "</div>"
+        return (self)
+    }
+
+    func:Close(self) {
+        if (self.closed == 0) {
+            self.body = self.body $ "</div>"
+            self.closed = 1
+        }
+        return (self)
+    }
+}
+
+obj:Stats() {
+    self.html = "<div class='ui-grid'>"
+    self.closed = 0
+
+    func:Add(self, label, value, note) {
+        self.html = self.html $ "<div class='ui-stat'><div class='ui-stat-label'>" $ desktopui::EscapeHtml(label) $ "</div><div class='ui-stat-value'>" $ desktopui::EscapeHtml(value) $ "</div><div class='ui-stat-note'>" $ desktopui::EscapeHtml(note) $ "</div></div>"
+        return (self)
+    }
+
+    func:Close(self) {
+        if (self.closed == 0) {
+            self.html = self.html $ "</div>"
+            self.closed = 1
+        }
+        return (self)
+    }
+}
+
+obj:CardGrid() {
+    self.html = "<div class='gallery-grid'>"
+    self.closed = 0
+
+    func:AddCard(self, title, sub, text) {
+        self.html = self.html $ "<section class='ui-card'><div class='ui-card-head'><div class='ui-card-title'>" $ desktopui::EscapeHtml(title) $ "</div><div class='ui-card-sub'>" $ desktopui::EscapeHtml(sub) $ "</div></div><div class='ui-card-body'><div class='gallery-note'>" $ desktopui::EscapeHtml(text) $ "</div></div></section>"
+        return (self)
+    }
+
+    // Carte avec un corps HTML additionnel (widgets deja rendus) SOUS le texte.
+    // bodyHtml n'est PAS echappe : on y met du HTML de widgets libwebui.
+    func:AddCardHtml(self, title, sub, text, bodyHtml) {
+        self.html = self.html $ "<section class='ui-card'><div class='ui-card-head'><div class='ui-card-title'>" $ desktopui::EscapeHtml(title) $ "</div><div class='ui-card-sub'>" $ desktopui::EscapeHtml(sub) $ "</div></div><div class='ui-card-body'><div class='gallery-note'>" $ desktopui::EscapeHtml(text) $ "</div>" $ bodyHtml $ "</div></section>"
+        return (self)
+    }
+
+    // Meme carte mais avec une (ou plusieurs) classe(s) d'effet appliquee(s).
+    // ex: cards.AddCardFx("Tilt", "hover", "...", "lwfx-tilt lwfx-spotlight")
+    // title n'est pas echappe pour permettre du HTML d'effet (ex: GradientText).
+    func:AddCardFx(self, title, sub, text, effect) {
+        cls = "ui-card"
+        if (size(effect) > 0) {
+            cls = cls $ " " $ effect
+        }
+        self.html = self.html $ "<section class='" $ desktopui::EscapeHtml(cls) $ "'><div class='ui-card-head'><div class='ui-card-title'>" $ title $ "</div><div class='ui-card-sub'>" $ desktopui::EscapeHtml(sub) $ "</div></div><div class='ui-card-body'><div class='gallery-note'>" $ desktopui::EscapeHtml(text) $ "</div></div></section>"
+        return (self)
+    }
+
+    // Carte NEUTRE (pas d'effet sur la carte elle-meme) contenant 2-3 boutons
+    // colores, chacun portant sa propre classe d'effet (ex: materiau RTX). Sert
+    // a comparer plusieurs variantes d'effet cote a cote dans une seule carte.
+    // buttons = tuple de tuples (label, eventName, effectClass, kind).
+    func:AddCardButtons(self, title, sub, text, buttons) {
+        btnsHtml = "<div class='lw-cell-actions' style='margin-top:10px'>"
+        i = for (0, size(buttons), 1) {
+            b = buttons[i]
+            cls = "ui-btn " $ desktopui::EscapeHtml(b[3]) $ " " $ desktopui::EscapeHtml(b[2])
+            btnsHtml = btnsHtml $ "<button type='button' class='" $ cls $ "' onclick=\"webuiEvent('" $ desktopui::EscapeJs(b[1]) $ "')\">" $ desktopui::EscapeHtml(b[0]) $ "</button>"
+        }
+        btnsHtml = btnsHtml $ "</div>"
+        self.html = self.html $ "<section class='ui-card'><div class='ui-card-head'><div class='ui-card-title'>" $ desktopui::EscapeHtml(title) $ "</div><div class='ui-card-sub'>" $ desktopui::EscapeHtml(sub) $ "</div></div><div class='ui-card-body'><div class='gallery-note'>" $ desktopui::EscapeHtml(text) $ "</div>" $ btnsHtml $ "</div></section>"
+        return (self)
+    }
+
+    func:Close(self) {
+        if (self.closed == 0) {
+            self.html = self.html $ "</div>"
+            self.closed = 1
+        }
+        return (self)
+    }
+}
+
+// Scene d'objets colores : un vrai widget conteneur. Chaque objet (AddObject)
+// est une forme coloree pleine, distincte, disposee proche des autres -> concu
+// pour visualiser l'eclairage/raytracing (reflets, refraction, emission) entre
+// objets. Chaque objet porte un id stable pour piloter son etat/materiau.
+obj:Scene() {
+    self.html = "<div class='lw-scene'>"
+    self.closed = 0
+
+    // color = couleur CSS de l'objet (ex "#ef4444"). shape = "square"|"circle".
+    // material = materiau RTX par defaut ("diffuse"|"emissive"|"mirror"|"glass"|
+    // "glossy") pose en data-rtx-material -> rendu correct des le demarrage.
+    func:AddObject(self, id, title, color, shape, material) {
+        cls = "lw-scene-obj"
+        if (shape == "circle") {
+            cls = "lw-scene-obj lw-scene-circle"
+        }
+        mat = ""
+        if (size(material) > 0) {
+            if (material != " ") {
+                mat = " data-rtx-material='" $ desktopui::EscapeHtml(material) $ "'"
+            }
+        }
+        self.html = self.html $ "<div class='" $ cls $ "' id='" $ desktopui::EscapeHtml(id) $ "'" $ mat $ " style='background:" $ desktopui::EscapeHtml(color) $ "'><span class='lw-scene-label'>" $ desktopui::EscapeHtml(title) $ "</span></div>"
+        return (self)
+    }
+
+    func:Close(self) {
+        if (self.closed == 0) {
+            self.html = self.html $ "</div>"
+            self.closed = 1
+        }
+        return (self)
+    }
+
+    // Script de drag LIBRE : chaque objet devient deplacable a la souris dans la
+    // scene (position absolue). Apres deplacement, rappelle gcRefresh() pour que
+    // l'overlay (radiance/rtx) suive la nouvelle position. A inclure une fois.
+    func:Script(self) {
+        js = "<script>"
+        js = js $ "(function(){if(window.__lwSceneDragReady)return;window.__lwSceneDragReady=1;"
+        js = js $ "document.querySelectorAll('.lw-scene').forEach(function(scene){"
+        js = js $ "scene.querySelectorAll('.lw-scene-obj').forEach(function(obj){"
+        js = js $ "obj.addEventListener('pointerdown',function(e){e.preventDefault();var sr=scene.getBoundingClientRect();var or=obj.getBoundingClientRect();"
+        js = js $ "obj.style.position='absolute';obj.style.margin='0';obj.style.left=(or.left-sr.left)+'px';obj.style.top=(or.top-sr.top)+'px';"
+        js = js $ "obj.classList.add('lw-dragging');obj.setPointerCapture(e.pointerId);"
+        js = js $ "var ox=e.clientX-or.left,oy=e.clientY-or.top;"
+        js = js $ "function move(ev){var x=ev.clientX-sr.left-ox,y=ev.clientY-sr.top-oy;x=Math.max(0,Math.min(x,scene.clientWidth-obj.offsetWidth));y=Math.max(0,Math.min(y,scene.clientHeight-obj.offsetHeight));obj.style.left=x+'px';obj.style.top=y+'px';if(window.gcRefresh)gcRefresh()}"
+        js = js $ "function up(ev){obj.classList.remove('lw-dragging');obj.releasePointerCapture(e.pointerId);obj.removeEventListener('pointermove',move);obj.removeEventListener('pointerup',up);if(window.gcRefresh)gcRefresh();if(window.webuiEvent)webuiEvent('scene_object_moved',{id:obj.id})}"
+        js = js $ "obj.addEventListener('pointermove',move);obj.addEventListener('pointerup',up)})})});"
+        js = js $ "})();"
+        js = js $ "</script>"
+        return (js)
+    }
+}
+
+// Toolbar VERTICALE generique et INDEPENDANTE (aucun lien avec un effet).
+// Colonne de boutons a icone + label. Chaque bouton emet son event au clic et
+// porte data-vtb-value (payload optionnel). Reutilisable partout.
+//   vt = webui::VToolbar()
+//   vt.Setup("mon_id", "Titre")
+//   vt.AddButton("b1", "Bouton", "plus", "vtb_click", "button")
+//   vt.Close()  -> vt.html
+obj:VToolbar() {
+    self.id = "vtoolbar"
+    self.title = " "
+    self.items = " "
+    self.closed = 0
+    self.html = " "
+
+    func:Setup(self, id, title) {
+        self.id = id
+        self.title = title
+        return (self)
+    }
+
+    // label = texte sous l'icone, icon = data-icon libwebui, eventName = event
+    // emis au clic, value = payload optionnel (data-vtb-value).
+    func:AddButton(self, id, label, icon, eventName, value) {
+        val = ""
+        if (size(value) > 0) {
+            if (value != " ") {
+                val = " data-vtb-value='" $ desktopui::EscapeHtml(value) $ "'"
+            }
+        }
+        js = "webuiEvent('" $ desktopui::EscapeJs(eventName) $ "',{id:'" $ desktopui::EscapeJs(id) $ "',value:this.getAttribute('data-vtb-value')||String()})"
+        self.items = self.items $ "<button type='button' class='lw-vtb-btn' id='" $ desktopui::EscapeHtml(id) $ "'" $ val $ " onclick=\"" $ js $ "\"><span data-icon='" $ desktopui::EscapeHtml(icon) $ "'></span><span class='lw-vtb-lbl'>" $ desktopui::EscapeHtml(label) $ "</span></button>"
+        return (self)
+    }
+
+    func:Close(self) {
+        head = ""
+        if (size(self.title) > 0) {
+            if (self.title != " ") {
+                head = "<div class='lw-vtb-title'>" $ desktopui::EscapeHtml(self.title) $ "</div>"
+            }
+        }
+        self.html = "<div class='lw-vtb' id='" $ desktopui::EscapeHtml(self.id) $ "'>" $ head $ self.items $ "</div>"
+        return (self)
+    }
+}
+
+obj:Toolbar() {
+    self.html = "<div class='ui-toolbar'>"
+    self.closed = 0
+
+    func:Right(self) {
+        if (self.html == "<div class='ui-toolbar'>") {
+            self.html = "<div class='ui-toolbar right'>"
+        }
+        return (self)
+    }
+
+    func:Button(self, id, text, icon, eventName, kind) {
+        cls = "ui-btn " $ desktopui::EscapeHtml(kind)
+        self.html = self.html $ "<button id='" $ desktopui::EscapeHtml(id) $ "' type='button' class='" $ cls $ "' onclick=\"webuiEvent('" $ desktopui::EscapeJs(eventName) $ "',{id:this.id,label:'" $ desktopui::EscapeJs(text) $ "'})\"><span data-icon='" $ desktopui::EscapeHtml(icon) $ "'></span>" $ desktopui::EscapeHtml(text) $ "</button>"
+        return (self)
+    }
+
+    func:IconButton(self, id, icon, eventName) {
+        self.html = self.html $ "<button id='" $ desktopui::EscapeHtml(id) $ "' type='button' class='ui-btn ui-icon-btn ghost' onclick=\"webuiEvent('" $ desktopui::EscapeJs(eventName) $ "',{id:this.id,icon:'" $ desktopui::EscapeJs(icon) $ "'})\"><span data-icon='" $ desktopui::EscapeHtml(icon) $ "'></span></button>"
+        return (self)
+    }
+
+    func:Separator(self) {
+        self.html = self.html $ "<span class='ui-sep'></span>"
+        return (self)
+    }
+
+    func:Close(self) {
+        if (self.closed == 0) {
+            self.html = self.html $ "</div>"
+            self.closed = 1
+        }
+        return (self)
+    }
+}
+
+obj:Dropdown() {
+    self.html = " "
+    self.items = " "
+    self.id = "dropdown"
+    self.label = "Options"
+
+    func:Setup(self, id, label) {
+        self.id = id
+        self.label = label
+        return (self)
+    }
+
+    func:Option(self, text, eventName, active) {
+        cls = "ui-option"
+        if (active == 1) {
+            cls = "ui-option active"
+        }
+        self.items = self.items $ "<button type='button' class='" $ cls $ "' onclick=\"webuiEvent('" $ desktopui::EscapeJs(eventName) $ "',{id:'" $ desktopui::EscapeJs(self.id) $ "',value:'" $ desktopui::EscapeJs(text) $ "',label:'" $ desktopui::EscapeJs(text) $ "'})\">" $ desktopui::EscapeHtml(text) $ "</button>"
+        return (self)
+    }
+
+    func:Close(self) {
+        self.html = "<div id='" $ desktopui::EscapeHtml(self.id) $ "' class='tm-dropdown ui-dropdown webui-dropdown'><button type='button' class='ui-btn' onclick='tmDrop(this)'>" $ desktopui::EscapeHtml(self.label) $ "</button><div class='ui-dropdown-menu tm-drop-menu'>" $ self.items $ "</div></div>"
+        return (self)
+    }
+}
+
+obj:Fields() {
+    self.html = "<div class='gallery-stack'>"
+    self.closed = 0
+
+    func:PillInput(self, id, label, value, eventName) {
+        js = "webuiEvent('" $ desktopui::EscapeJs(eventName) $ "',{id:this.id,value:this.value})"
+        self.html = self.html $ widgets::PillInput(id, label, value, js)
+        return (self)
+    }
+
+    func:PillSelect(self, id, label, options, eventName) {
+        opts = " "
+        i = for (0, size(options), 1) {
+            opt = desktopui::EscapeHtml(options[i])
+            opts = opts $ "<option value='" $ opt $ "'>" $ opt $ "</option>"
+        }
+        js = "webuiEvent('" $ desktopui::EscapeJs(eventName) $ "',{id:this.id,value:this.value})"
+        self.html = self.html $ widgets::PillSelect(id, label, opts, js)
+        return (self)
+    }
+
+    func:FilePicker(self, id, label, value, accept, eventName) {
+        self.html = self.html $ widgets::FilePicker(id, label, value, accept, eventName)
+        return (self)
+    }
+
+    func:Slider(self, id, label, value, minValue, maxValue, funcName, valueId) {
+        self.html = self.html $ SliderHtml(id, label, value, minValue, maxValue, 1, funcName, valueId, " px")
+        return (self)
+    }
+
+    // Slider generique : step + unite reglables. funcName peut etre "" (alors
+    // seul l'affichage de la valeur est mis a jour, pas d'appel JS).
+    func:SliderUnit(self, id, label, value, minValue, maxValue, step, funcName, valueId, unit) {
+        self.html = self.html $ SliderHtml(id, label, value, minValue, maxValue, step, funcName, valueId, unit)
+        return (self)
+    }
+
+    // Slider COMPACT en pill (label + range + valeur inline). S'aligne en flex
+    // (mets plusieurs SliderPill dans un .gallery-row pour une barre compacte).
+    func:SliderPill(self, id, label, value, minValue, maxValue, step, funcName, valueId) {
+        self.html = self.html $ SliderPillHtml(id, label, value, minValue, maxValue, step, funcName, valueId)
+        return (self)
+    }
+
+    func:EventLog(self) {
+        self.html = self.html $ "<div id='gallery_event_log' class='gallery-code gallery-event-log'>No event yet.</div>"
+        return (self)
+    }
+
+    func:Close(self) {
+        if (self.closed == 0) {
+            self.html = self.html $ "</div>"
+            self.closed = 1
+        }
+        return (self)
+    }
+}
+
+obj:Tabs() {
+    self.html = "<div class='gallery-tabs'>"
+    self.closed = 0
+
+    func:Tab(self, id, text, count, active) {
+        cls = "gallery-tab"
+        if (active == 1) {
+            cls = "gallery-tab active"
+        }
+        badge = " "
+        if (size(count) > 0) {
+            if (count != " ") {
+                badge = "<span class='gallery-count'>" $ desktopui::EscapeHtml(count) $ "</span>"
+            }
+        }
+        self.html = self.html $ "<button type='button' class='" $ cls $ "' data-table-tab='" $ desktopui::EscapeHtml(id) $ "' onclick=\"webuiEvent('table_tab_" $ desktopui::EscapeJs(id) $ "')\"><span>" $ desktopui::EscapeHtml(text) $ "</span>" $ badge $ "</button>"
+        return (self)
+    }
+
+    func:TabCount(self, id, text, count, active) {
+        cls = "gallery-tab"
+        if (active == 1) {
+            cls = "gallery-tab active"
+        }
+        badge = " "
+        if (size(count) > 0) {
+            badge = "<span class='gallery-count'>" $ desktopui::EscapeHtml(count) $ "</span>"
+        }
+        self.html = self.html $ "<button type='button' class='" $ cls $ "' data-table-tab='" $ desktopui::EscapeHtml(id) $ "' onclick=\"webuiEvent('table_tab_" $ desktopui::EscapeJs(id) $ "')\"><span>" $ desktopui::EscapeHtml(text) $ "</span>" $ badge $ "</button>"
+        return (self)
+    }
+
+    func:Close(self) {
+        if (self.closed == 0) {
+            self.html = self.html $ "</div>"
+            self.closed = 1
+        }
+        return (self)
+    }
+}
+
+obj:TabView() {
+    self.tabs = "<div class='gallery-tabs'>"
+    self.panels = " "
+    self.html = " "
+    self.closed = 0
+
+    func:Add(self, id, text, count, active, widget) {
+        cls = "gallery-tab"
+        panelCls = "gallery-tab-panel"
+        if (active == 1) {
+            cls = "gallery-tab active"
+            panelCls = "gallery-tab-panel active"
+        }
+        badge = " "
+        if (size(count) > 0) {
+            if (count != " ") {
+                badge = "<span class='gallery-count'>" $ desktopui::EscapeHtml(count) $ "</span>"
+            }
+        }
+        self.tabs = self.tabs $ "<button type='button' class='" $ cls $ "' data-tab='" $ desktopui::EscapeHtml(id) $ "' onclick=\"galleryTab('" $ desktopui::EscapeJs(id) $ "',this)\"><span>" $ desktopui::EscapeHtml(text) $ "</span>" $ badge $ "</button>"
+        self.panels = self.panels $ "<div id='tab_" $ desktopui::EscapeHtml(id) $ "' class='" $ panelCls $ "'>" $ widget.html $ "</div>"
+        return (self)
+    }
+
+    func:AddHtml(self, id, text, count, active, html) {
+        cls = "gallery-tab"
+        panelCls = "gallery-tab-panel"
+        if (active == 1) {
+            cls = "gallery-tab active"
+            panelCls = "gallery-tab-panel active"
+        }
+        badge = " "
+        if (size(count) > 0) {
+            if (count != " ") {
+                badge = "<span class='gallery-count'>" $ desktopui::EscapeHtml(count) $ "</span>"
+            }
+        }
+        self.tabs = self.tabs $ "<button type='button' class='" $ cls $ "' data-tab='" $ desktopui::EscapeHtml(id) $ "' onclick=\"galleryTab('" $ desktopui::EscapeJs(id) $ "',this)\"><span>" $ desktopui::EscapeHtml(text) $ "</span>" $ badge $ "</button>"
+        self.panels = self.panels $ "<div id='tab_" $ desktopui::EscapeHtml(id) $ "' class='" $ panelCls $ "'>" $ html $ "</div>"
+        return (self)
+    }
+
+    func:Close(self) {
+        if (self.closed == 0) {
+            self.html = "<div class='gallery-tabview ui-pro'>" $ self.tabs $ "</div><div class='gallery-tab-panels gallery-stack'>" $ self.panels $ "</div></div>"
+            self.closed = 1
+        }
+        return (self)
+    }
+}
+
+obj:Table() {
+    self.html = " "
+    self.rows = " "
+
+    func:AddSection(self, header, sectionType, status, statusKind, target, limit, reviewer, eventName) {
+        review = desktopui::EscapeHtml(reviewer)
+        if (reviewer == "Assign reviewer") {
+            review = "<div class='tm-dropdown gallery-reviewer'><button type='button' class='ui-btn' onclick='tmDrop(this)'>Assign reviewer</button><div class='ui-dropdown-menu tm-drop-menu'><button type='button' class='ui-option' onclick=\"webuiEvent('assign_eddie')\">Eddie Lake</button><button type='button' class='ui-option' onclick=\"webuiEvent('assign_jamik')\">Jamik Tashpulatov</button><button type='button' class='ui-option' onclick=\"webuiEvent('assign_marie')\">Marie Curie</button></div></div>"
+        }
+        actions = "<div class='tm-dropdown gallery-row-menu'><button type='button' class='ui-btn ui-icon-btn' onclick='tmDrop(this)' title='Row actions'><span data-icon='settings'></span></button><div class='ui-dropdown-menu tm-drop-menu'><button type='button' class='ui-option' onclick=\"webuiEvent('" $ desktopui::EscapeJs(eventName) $ "_open')\">Open</button><button type='button' class='ui-option' onclick=\"webuiEvent('" $ desktopui::EscapeJs(eventName) $ "_duplicate')\">Duplicate</button><button type='button' class='ui-option' onclick=\"webuiToast('Table','Row action sent to Toba')\">Notify</button></div></div>"
+        self.rows = self.rows $ "<tr><td><span class='gallery-grip'>::</span></td><td><input class='gallery-check gallery-row-check' type='checkbox' onchange=\"webuiEvent('table_select')\"></td><td><span class='gallery-table-title'>" $ desktopui::EscapeHtml(header) $ "</span></td><td><span class='gallery-badge'>" $ desktopui::EscapeHtml(sectionType) $ "</span></td><td><span class='gallery-badge " $ desktopui::EscapeHtml(statusKind) $ "'>" $ desktopui::EscapeHtml(status) $ "</span></td><td><strong>" $ desktopui::EscapeHtml(target) $ "</strong></td><td><strong>" $ desktopui::EscapeHtml(limit) $ "</strong></td><td>" $ review $ "</td><td><div class='lw-cell-actions'>" $ actions $ "</div></td></tr>"
+        return (self)
+    }
+
+    func:Close(self) {
+        self.html = "<div class='gallery-table-card'><div class='gallery-table-scroll'><table class='gallery-table'><thead><tr><th></th><th><input class='gallery-check' type='checkbox' onchange=\"webuiEvent('table_select_all')\"></th><th>Header</th><th>Section Type</th><th>Status</th><th>Target</th><th>Limit</th><th>Reviewer</th><th></th></tr></thead><tbody>" $ self.rows $ "</tbody></table></div></div>"
+        return (self)
+    }
+}
+
+// Tableau GENERIQUE : colonnes libres, cellules = widgets deja rendus (badges,
+// boutons, avatars...). Reutilise la classe .gallery-table -> style au theme +
+// drag des lignes (galleryTableDragInit) gratuits. Les cellules ne sont PAS
+// re-echappees : on y met du HTML de widgets construits via les helpers ci-dessous.
+obj:GridTable() {
+    self.html = " "
+    self.rows = " "
+    self.head = " "
+
+    // cols = tuple d'intitules de colonnes (texte simple, echappe).
+    func:SetColumns(self, cols) {
+        th = "<th class='gallery-grip-head'></th>"
+        i = for (0, size(cols), 1) {
+            th = th $ "<th>" $ desktopui::EscapeHtml(cols[i]) $ "</th>"
+        }
+        self.head = th
+        return (self)
+    }
+
+    // cells = tuple de cellules DEJA rendues (HTML de widgets, non re-echappe).
+    // La premiere colonne recoit la poignee de drag ::.
+    func:AddRow(self, cells) {
+        tds = "<td><span class='gallery-grip'>::</span></td>"
+        i = for (0, size(cells), 1) {
+            tds = tds $ "<td>" $ cells[i] $ "</td>"
+        }
+        self.rows = self.rows $ "<tr>" $ tds $ "</tr>"
+        return (self)
+    }
+
+    func:Close(self) {
+        self.html = "<div class='gallery-table-card'><div class='gallery-table-scroll'><table class='gallery-table'><thead><tr>" $ self.head $ "</tr></thead><tbody>" $ self.rows $ "</tbody></table></div></div>"
+        return (self)
+    }
+}
+
+// --- Helpers de cellule (widgets imbriquables dans GridTable) ---------------
+
+// Badge de statut plein, au theme. kind = "" | "done" | "busy" | "danger".
+func:Badge(text, kind) {
+    cls = "gallery-badge"
+    if (size(kind) > 1) {
+        cls = "gallery-badge " $ desktopui::EscapeHtml(kind)
+    }
+    return ("<span class='" $ cls $ "'>" $ desktopui::EscapeHtml(text) $ "</span>")
+}
+
+// Bouton d'action qui emet un event bridge. kind = "" | "primary" | "danger".
+func:ActionBtn(text, kind, eventName) {
+    cls = "ui-btn"
+    if (size(kind) > 1) {
+        cls = "ui-btn " $ desktopui::EscapeHtml(kind)
+    }
+    return ("<button type='button' class='" $ cls $ "' onclick=\"webuiEvent('" $ desktopui::EscapeJs(eventName) $ "')\">" $ desktopui::EscapeHtml(text) $ "</button>")
+}
+
+// Avatar (initiale) + nom, en ligne. initial = 1-2 caracteres (ex "EL").
+func:Avatar(initial, name) {
+    return ("<span class='gallery-avatar-cell'><span class='gallery-avatar'>" $ desktopui::EscapeHtml(initial) $ "</span><span class='gallery-avatar-name'>" $ desktopui::EscapeHtml(name) $ "</span></span>")
+}
+
+obj:VideoTable() {
+    self.html = " "
+    self.rows = " "
+
+    func:AddVideo(self, title, source, kind, status, eventName) {
+        actions = "<div class='lw-cell-actions'><button type='button' class='ui-btn primary' onclick=\"webuiEvent('" $ desktopui::EscapeJs(eventName) $ "_select',{id:'" $ desktopui::EscapeJs(eventName) $ "',value:'" $ desktopui::EscapeJs(title) $ "'})\"><span data-icon='play'></span>Select</button><button type='button' class='ui-btn' onclick=\"webuiEvent('" $ desktopui::EscapeJs(eventName) $ "_inspect',{id:'" $ desktopui::EscapeJs(eventName) $ "',value:'" $ desktopui::EscapeJs(source) $ "'})\">Inspect</button></div>"
+        self.rows = self.rows $ "<tr><td><span class='gallery-table-title'>" $ desktopui::EscapeHtml(title) $ "</span></td><td><span class='gallery-badge'>" $ desktopui::EscapeHtml(kind) $ "</span></td><td>" $ desktopui::EscapeHtml(source) $ "</td><td><span class='gallery-badge done'>" $ desktopui::EscapeHtml(status) $ "</span></td><td>" $ actions $ "</td></tr>"
+        return (self)
+    }
+
+    func:Close(self) {
+        self.html = "<section class='ui-card'><div class='ui-card-head'><div class='ui-card-title'>Video player table</div><div class='ui-card-sub'>Placeholder for the future local video component</div></div><div class='ui-card-body'><div class='gallery-table-card'><div class='gallery-table-scroll'><table class='gallery-table'><thead><tr><th>Media</th><th>Type</th><th>Source</th><th>Status</th><th></th></tr></thead><tbody>" $ self.rows $ "</tbody></table></div></div><div class='gallery-note'>This table is ready for the upcoming video player widget. Row actions already send events to Toba.</div></div></section>"
+        return (self)
+    }
+}
+
+obj:VideoPlayer() {
+    self.html = " "
+    self.id = "video_player"
+    self.title = "Video player"
+    self.source = " "
+    self.poster = " "
+    self.note = "Local HTML5 video widget"
+
+    func:Setup(self, id, title, source, poster, note) {
+        self.id = id
+        self.title = title
+        self.source = source
+        self.poster = poster
+        self.note = note
+        return (self)
+    }
+
+    func:Close(self) {
+        self.html = widget_core::Styles() $ widget_core::VideoPlayer(self.id, self.title, self.source, self.poster, self.note)
+        return (self)
+    }
+}
+
+obj:TableDemo() {
+    self.html = "<div class='gallery-table-demo'>"
+    self.closed = 0
+
+    func:AddTop(self, tabs, dropdown) {
+        self.html = self.html $ "<div class='gallery-table-top'>" $ tabs.html $ "<div class='gallery-row'>" $ dropdown.html $ "<button type='button' class='ui-btn primary' onclick=\"webuiToast('Table','Add Section event sent to Toba')\"><span data-icon='plus'></span>Add Section</button></div></div>"
+        return (self)
+    }
+
+    func:AddTable(self, table) {
+        self.html = self.html $ table.html
+        return (self)
+    }
+
+    func:AddPagination(self) {
+        rows = "<div class='tm-dropdown'><button type='button' class='ui-btn' onclick='tmDrop(this)'>10</button><div class='ui-dropdown-menu tm-drop-menu'><button type='button' class='ui-option active' onclick=\"webuiEvent('page_10')\">10</button><button type='button' class='ui-option' onclick=\"webuiEvent('page_25')\">25</button><button type='button' class='ui-option' onclick=\"webuiEvent('page_50')\">50</button></div></div>"
+        first = "<button type='button' class='ui-btn ui-icon-btn' title='First page' onclick=\"webuiEvent('page_first')\"><span data-icon='chevronsLeft'></span></button>"
+        prev = "<button type='button' class='ui-btn ui-icon-btn' title='Previous page' onclick=\"webuiEvent('page_prev')\"><span data-icon='chevronLeft'></span></button>"
+        next = "<button type='button' class='ui-btn ui-icon-btn' title='Next page' onclick=\"webuiEvent('page_next')\"><span data-icon='chevronRight'></span></button>"
+        last = "<button type='button' class='ui-btn ui-icon-btn' title='Last page' onclick=\"webuiEvent('page_last')\"><span data-icon='chevronsRight'></span></button>"
+        self.html = self.html $ "<div class='gallery-pagination'><span id='gallery_table_selected'>0 of 68 row(s) selected.</span><div class='gallery-pager'><span>Rows per page</span>" $ rows $ "<strong>Page 1 of 7</strong>" $ first $ prev $ next $ last $ "</div></div>"
+        return (self)
+    }
+
+    func:Close(self) {
+        if (self.closed == 0) {
+            self.html = self.html $ "</div>"
+            self.closed = 1
+        }
+        return (self)
+    }
+}
+
+obj:Chart() {
+    self.id = "gallery_chart"
+    self.title = "Chart.js professional chart"
+    self.note = "Toba can push real-time points through the bridge"
+    self.html = widget_core::Styles() $ widget_core::Chart(self.id, self.title, self.note)
+
+    func:Setup(self, id, title, note) {
+        self.id = id
+        self.title = title
+        self.note = note
+        return (self)
+    }
+
+    func:Close(self) {
+        self.html = widget_core::Styles() $ widget_core::Chart(self.id, self.title, self.note)
+        return (self)
+    }
+}
+
+obj:Navigation() {
+    self.html = " "
+
+    func:Build(self) {
+        profile = "<div class='gallery-profile-wrap'><button type='button' class='gallery-profile-trigger' onclick='webuiProfile(this)'><span class='gallery-avatar'>S</span><span><div class='gallery-profile-name'>shadcn</div><div class='gallery-profile-mail'>m@example.com</div></span><span class='gallery-chev'></span></button><div class='gallery-profile-menu'><div class='gallery-profile-head'><span class='gallery-avatar'>S</span><span><div class='gallery-profile-name'>shadcn</div><div class='gallery-profile-mail'>m@example.com</div></span></div><div class='gallery-menu-section'><button type='button' class='gallery-menu-item' onclick=\"webuiEvent('upgrade')\"><span data-icon='sparkles'></span>Upgrade to Pro</button></div><div class='gallery-menu-section'><button type='button' class='gallery-menu-item' onclick=\"webuiEvent('account')\"><span data-icon='user'></span>Account</button><button type='button' class='gallery-menu-item' onclick=\"webuiEvent('billing')\"><span data-icon='credit'></span>Billing</button><button type='button' class='gallery-menu-item' onclick=\"webuiEvent('notifications')\"><span data-icon='bell'></span>Notifications</button></div><div class='gallery-menu-section'><button type='button' class='gallery-menu-item' onclick=\"webuiEvent('logout')\"><span data-icon='logOut'></span>Log out</button></div></div></div>"
+        tree = "<div class='gallery-tree'><div class='gallery-tree-item open'><button type='button' class='gallery-tree-row' onclick='webuiTree(this)'><span class='gallery-disclosure'></span><span>app</span></button><div class='gallery-tree-kids'><div class='gallery-tree-item open'><button type='button' class='gallery-tree-row' onclick='webuiTree(this)'><span class='gallery-disclosure'></span><span>components</span></button><div class='gallery-tree-kids'><button type='button' class='gallery-tree-row' onclick=\"webuiEvent('tree_button')\">button.to</button><button type='button' class='gallery-tree-row' onclick=\"webuiEvent('tree_dropdown')\">dropdown.to</button><button type='button' class='gallery-tree-row' onclick=\"webuiEvent('tree_table')\">table.to</button><button type='button' class='gallery-tree-row' onclick=\"webuiEvent('tree_chart')\">chart.to</button></div></div><div class='gallery-tree-item open'><button type='button' class='gallery-tree-row' onclick='webuiTree(this)'><span class='gallery-disclosure'></span><span>layouts</span></button><div class='gallery-tree-kids'><button type='button' class='gallery-tree-row' onclick=\"webuiEvent('tree_dock')\">dock.to</button><button type='button' class='gallery-tree-row' onclick=\"webuiEvent('tree_grid')\">grid.to</button></div></div><div class='gallery-tree-item'><button type='button' class='gallery-tree-row' onclick='webuiTree(this)'><span class='gallery-disclosure'></span><span>examples</span></button><div class='gallery-tree-kids'><button type='button' class='gallery-tree-row' onclick=\"webuiEvent('tree_gallery')\">webui_components_gallery.to</button></div></div></div></div></div>"
+        collapse = "<div id='gallery_collapse_one' class='gallery-collapse'><button type='button' class='gallery-collapse-head' onclick=\"webuiCollapse('gallery_collapse_one')\"><span>Can I nest widgets?</span><span class='gallery-chev'></span></button><div class='gallery-collapse-body'>Yes: any widget exposing html can be added into a Panel or another container with Add(widget).</div></div><div id='gallery_collapse_two' class='gallery-collapse'><button type='button' class='gallery-collapse-head' onclick=\"webuiCollapse('gallery_collapse_two')\"><span>Are events sent to Toba?</span><span class='gallery-chev'></span></button><div class='gallery-collapse-body'>Yes: webuiEvent dispatches toba:event, then WithBridge sends JSON events to Toba BridgePoll.</div></div>"
+        accordion = "<div class='gallery-accordion'><div class='gallery-acc-item open'><button type='button' class='gallery-acc-head' onclick='webuiAccordion(this)'><span>Is it accessible?</span><span class='gallery-chev'></span></button><div class='gallery-acc-body'>Keyboard and focus rules can be added in the shared widget layer.</div></div><div class='gallery-acc-item'><button type='button' class='gallery-acc-head' onclick='webuiAccordion(this)'><span>Can it be themed?</span><span class='gallery-chev'></span></button><div class='gallery-acc-body'>Yes. It uses libwebui theme variables.</div></div><div class='gallery-acc-item'><button type='button' class='gallery-acc-head' onclick='webuiAccordion(this)'><span>Can it send events?</span><span class='gallery-chev'></span></button><div class='gallery-acc-body'>Every clickable row calls webuiEvent and dispatches a Toba bridge event.</div></div><div class='gallery-acc-item'><button type='button' class='gallery-acc-head' onclick='webuiAccordion(this)'><span>Can panels contain tables?</span><span class='gallery-chev'></span></button><div class='gallery-acc-body'>Yes. Containers add child widgets through Add(widget); special table cells will get slot APIs next.</div></div></div>"
+        self.html = "<div class='gallery-nav-grid'><section class='ui-card'><div class='ui-card-head'><div class='ui-card-title'>Profile dropdown</div><div class='ui-card-sub'>shadcn-like account menu</div></div><div class='ui-card-body'>" $ profile $ "</div></section><section class='ui-card'><div class='ui-card-head'><div class='ui-card-title'>Treeview</div><div class='ui-card-sub'>Expandable hierarchy</div></div><div class='ui-card-body'>" $ tree $ "</div></section><section class='ui-card'><div class='ui-card-head'><div class='ui-card-title'>Collapse</div><div class='ui-card-sub'>Single expandable panel</div></div><div class='ui-card-body'>" $ collapse $ "</div></section><section class='ui-card'><div class='ui-card-head'><div class='ui-card-title'>Accordion</div><div class='ui-card-sub'>One section open at a time</div></div><div class='ui-card-body'>" $ accordion $ "</div></section></div>"
+        return (self)
+    }
+}
+
+obj:Chat() {
+    self.html = " "
+    self.id = "chat"
+    self.title = "Chat"
+    self.status = "Ready"
+    self.sendEvent = "send_message"
+
+    func:Build(self) {
+        self.html = "<section class='lw-chat gallery-chat-mini'><div class='lw-chat-head'><strong>Chat widget</strong><span class='tm-value'>demo</span></div><div id='gallery_chat_messages' class='lw-chat-messages'>" $ widgets::ChatMessage("system", "System message") $ widgets::ChatMessage("assistant", "Assistant bubble") $ widgets::ChatMessage("user", "User bubble") $ "</div>" $ widgets::ChatComposer("gallery_prompt", "Send", "webuiChatSend()") $ "</section>"
+        return (self)
+    }
+
+    // Chat reel pilote par le bridge. id = prefixe des elements.
+    // sendEvent = nom d'event Toba emis a l'envoi (le prompt est pousse en args).
+    // Le backend repond via BridgeExecute("uiAssistant"/"uiSystem"/...).
+    func:Setup(self, id, title, sendEvent) {
+        self.id = id
+        self.title = title
+        self.sendEvent = sendEvent
+        msgId = id $ "_messages"
+        inputId = id $ "_input"
+        statusId = id $ "_status"
+
+        head = "<div class='lw-chat-head'><strong>" $ desktopui::EscapeHtml(title) $ "</strong><span id='" $ statusId $ "' class='llm-badge'>" $ desktopui::EscapeHtml(self.status) $ "</span></div>"
+        msgs = "<div id='" $ msgId $ "' class='lw-chat-messages'></div>"
+        composer = widgets::ChatComposer(inputId, "Send", "webuiChatSend('" $ id $ "','" $ sendEvent $ "')")
+
+        script = "<script>"
+        script = script $ "window.webuiChatAppend=window.webuiChatAppend||function(boxId,role,text){var b=document.getElementById(boxId);if(!b)return;var d=document.createElement('div');d.className='lw-chat-msg '+role;d.textContent=text;b.appendChild(d);b.scrollTop=b.scrollHeight};"
+        script = script $ "window.webuiChatSend=window.webuiChatSend||function(id,ev){var t=document.getElementById(id+'_input');if(!t)return;var v=(t.value||String()).trim();if(!v)return;webuiChatAppend(id+'_messages','user',v);t.value=String();if(window.webuiEvent)webuiEvent(ev,{id:id,value:v})};"
+        script = script $ "window.webuiChatStatus=window.webuiChatStatus||function(id,text){var s=document.getElementById(id+'_status');if(s)s.textContent=text};"
+        // hooks appeles par le backend via BridgeExecute (params = objet JSON)
+        script = script $ "window.uiAssistant=window.uiAssistant||function(p){p=p||{};webuiChatAppend('" $ id $ "_messages','assistant',p.text||String())};"
+        script = script $ "window.uiSystem=window.uiSystem||function(p){p=p||{};webuiChatAppend('" $ id $ "_messages','system',p.text||String())};"
+        script = script $ "window.uiStatus=window.uiStatus||function(p){p=p||{};webuiChatStatus('" $ id $ "',p.text||String())};"
+        script = script $ "window.uiReady=window.uiReady||function(p){p=p||{};webuiChatStatus('" $ id $ "',p.text||'Ready')};"
+        script = script $ "window.uiLoading=window.uiLoading||function(p){p=p||{};webuiChatStatus('" $ id $ "',p.text||'Loading...')};"
+        script = script $ "window.uiStopped=window.uiStopped||function(p){p=p||{};webuiChatStatus('" $ id $ "',p.text||'Stopped')};"
+        script = script $ "</script>"
+
+        self.html = "<section class='lw-chat lw-dock-panel' id='" $ id $ "_panel'>" $ head $ msgs $ composer $ "</section>" $ script
+        return (self)
+    }
+
+    func:SetStatus(self, status) {
+        self.status = status
+        return (self)
+    }
+}
+
+obj:Code() {
+    self.html = " "
+    self.id = "webui_code"
+    self.title = "Code"
+    self.lang = "text"
+
+    func:Text(self, text) {
+        self.html = widget_core::Styles() $ widget_core::CodeBlock(self.id, self.title, self.lang, text)
+        return (self)
+    }
+
+    func:Toba(self, id, title, text) {
+        self.id = id
+        self.title = title
+        self.lang = "toba"
+        self.html = widget_core::Styles() $ widget_core::CodeBlock(self.id, self.title, self.lang, text)
+        return (self)
+    }
+}
+
+obj:Markdown() {
+    self.html = " "
+
+    func:Text(self, text) {
+        self.html = "<div class='ui-markdown' data-md='1'><textarea style='display:none'>" $ desktopui::EscapeHtml(text) $ "</textarea><div class='ui-md-view'></div></div>"
+        return (self)
+    }
+
+    func:LoadFile(self, path) {
+        txt = fsreadf(path)
+        if (!isstr(txt)) {
+            txt = "# Documentation missing\n\nFile not found: " $ path
+        }
+        self.Text(txt)
+        return (self)
+    }
+}
+
+obj:CompactPage() {
+    self.title = "Toba WebUI"
+    self.footer = "libwebui"
+    self.port = 19190
+    self.width = 720
+    self.height = 520
+    self.x = 160
+    self.y = 100
+    self.windowMode = "normal"
+    self.customChrome = 1
+    self.nativeHandle = 0
+    self.body = "<div class='ui-pro gallery-stack'>"
+    self.closed = 0
+
+    func:SetTitle(self, title) {
+        self.title = title
+        return (self)
+    }
+
+    func:SetFooter(self, footer) {
+        self.footer = footer
+        return (self)
+    }
+
+    func:SetPort(self, port) {
+        self.port = port
+        return (self)
+    }
+
+    func:SetWindow(self, width, height, x, y) {
+        self.width = width
+        self.height = height
+        self.x = x
+        self.y = y
+        self.windowMode = "normal"
+        return (self)
+    }
+
+    func:SetSize(self, width, height) {
+        self.width = width
+        self.height = height
+        self.windowMode = "normal"
+        return (self)
+    }
+
+    func:SetPosition(self, x, y) {
+        self.x = x
+        self.y = y
+        return (self)
+    }
+
+    func:Normal(self) {
+        self.windowMode = "normal"
+        return (self)
+    }
+
+    func:Maximized(self) {
+        self.windowMode = "maximized"
+        self.width = 1480
+        self.height = 900
+        self.x = 20
+        self.y = 20
+        return (self)
+    }
+
+    func:CustomChrome(self) {
+        self.customChrome = 1
+        return (self)
+    }
+
+    func:NativeChrome(self) {
+        self.customChrome = 0
+        return (self)
+    }
+
+    func:NativeHandle(self) {
+        return (self.nativeHandle)
+    }
+
+    func:Add(self, widget) {
+        self.body = self.body $ widget.html
+        return (self)
+    }
+
+    func:AddHtml(self, html) {
+        self.body = self.body $ html
+        return (self)
+    }
+
+    func:Close(self) {
+        if (self.closed == 0) {
+            self.body = self.body $ "</div>"
+            self.closed = 1
+        }
+        return (self)
+    }
+
+    func:Render(self) {
+        self.Close()
+        toast = "<div id='gallery_toast_root' class='gallery-toast-root'></div>"
+        compact = "<style>.lw-compact-page{min-height:100vh;display:grid;grid-template-rows:44px 1fr 28px;background:var(--bg-deep);color:var(--text-1)}.lw-compact-head{display:flex;align-items:center;justify-content:space-between;padding:0 14px;border-bottom:1px solid var(--border);background:var(--bg-surface);font-weight:800}.lw-compact-actions{display:flex;align-items:center;gap:8px}.lw-compact-main{padding:14px;overflow:auto}.lw-compact-foot{display:flex;align-items:center;padding:0 14px;border-top:1px solid var(--border);background:var(--bg-surface);color:var(--text-2);font-size:12px}.lw-compact-page .ui-pro{max-width:980px;margin:0 auto}.lw-compact-page .gallery-code{min-height:34px}</style>"
+        bodyClass = " "
+        titlebar = " "
+        if (self.customChrome == 1) {
+            bodyClass = " class='lw-native-chrome'"
+            titlebar = widgets::WindowTitleBar(self.title, "T")
+        }
+        html = "<!doctype html><html><head><meta charset='utf-8'><title>" $ desktopui::EscapeHtml(self.title) $ "</title>" $ widgets::Styles() $ runtime::ProStyles() $ runtime::Styles() $ compact $ "</head><body data-theme='light_modern'" $ bodyClass $ ">" $ titlebar $ "<div class='lw-compact-page'><header class='lw-compact-head'><span>" $ desktopui::EscapeHtml(self.title) $ "</span><div class='lw-compact-actions'>" $ widgets::ThemeDropdown() $ "<span id='bridge_status' class='tm-value'>Bridge: starting</span></div></header><main class='lw-compact-main'>" $ self.body $ "</main><footer class='lw-compact-foot'>" $ desktopui::EscapeHtml(self.footer) $ "</footer></div>" $ toast $ runtime::Script() $ "</body></html>"
+        html = desktopui::WithBridge(html, self.port)
+        return (html)
+    }
+
+    func:ShowReliable(self, debugPath) {
+        selectedPort = desktopui::BridgeStartReliable(self.port, 40)
+        if (selectedPort != 0) {
+            self.port = selectedPort
+        }
+        bridgeInit = selectedPort
+        print("bridge init=")
+        print(bridgeInit)
+        print(" error=")
+        print(desktopui::BridgeLastError())
+        print("\n")
+        html = self.Render()
+        if (size(debugPath) > 0) {
+            fswritef(debugPath, html)
+        }
+        if (self.customChrome == 1) {
+            ShowWebViewHost(html, self.title, self.width, self.height, self.x, self.y)
+            win = 0
+        }
+        else {
+            win = desktopui::ShowBrowser(html, 1)
+            desktopui::SetWindow(win, self.width, self.height, self.x, self.y)
+        }
+        return (win)
+    }
+}
+
+func: PollRaw(timeoutMs) {
+    res = desktopui::BridgePoll(timeoutMs)
+    return (res)
+}
+

@@ -1,0 +1,18 @@
+import : libwebui / widgets / dropdown_list
+
+func: ActionDropdown() {
+    labels = ("Recharger la page", "Debug JS (console)", "Plein ecran", "Copier le HTML", "Journal des events", "Pause refresh", "Reset view")
+    values = ("reload", "debug", "fullscreen", "copy_html", "events", "pause", "reset")
+    events = ("action_reload", "action_debug", "action_fullscreen", "action_copy_html", "action_events", "action_pause", "action_reset")
+    html = dropdown_list::DropdownList("action_dropdown", "Actions", labels, values, events, " ", "tm-action-dropdown")
+    html = freplace(html, "webuiEvent('action_reload',{id:'action_dropdown',value:'reload',label:'Recharger la page'})", "lwActReload()")
+    html = freplace(html, "webuiEvent('action_debug',{id:'action_dropdown',value:'debug',label:'Debug JS (console)'})", "lwActDebug()")
+    html = freplace(html, "webuiEvent('action_fullscreen',{id:'action_dropdown',value:'fullscreen',label:'Plein ecran'})", "lwActFullscreen()")
+    html = freplace(html, "webuiEvent('action_copy_html',{id:'action_dropdown',value:'copy_html',label:'Copier le HTML'})", "lwActCopyHtml()")
+    html = freplace(html, "webuiEvent('action_events',{id:'action_dropdown',value:'events',label:'Journal des events'})", "lwActToggleEvents()")
+    html = freplace(html, "webuiEvent('action_pause',{id:'action_dropdown',value:'pause',label:'Pause refresh'})", "tmPickAction(this,'pause')")
+    html = freplace(html, "webuiEvent('action_reset',{id:'action_dropdown',value:'reset',label:'Reset view'})", "tmPickAction(this,'reset')")
+    closeButton = "<button type='button' class='tm-drop-option' data-value='close' onclick=\"var d=this.closest('.tm-dropdown');if(d)d.classList.remove('open');lwActRequestClose()\">Quitter</button>"
+    html = freplace(html, "</div></div>", closeButton $ "</div></div>")
+    return (html)
+}

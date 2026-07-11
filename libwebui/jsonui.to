@@ -1,0 +1,155 @@
+import : libwebui / model
+import : libjson / json
+
+func: BaseNode(js) {
+    kind = json::GetString(js, "type", "")
+    id = json::GetString(js, "id", kind)
+    node = model::Node(kind, id)
+    if (kind == "app") {
+        node = model::App(json::GetString(js, "title", "Toba WebUI"))
+    }
+    else {
+        if (kind == "stack") {
+            node = model::Stack(id, json::GetString(js, "direction", "vertical"))
+        }
+        else {
+            if (kind == "grid") {
+                node = model::Grid(id, json::GetNumber(js, "columns", 12))
+            }
+            else {
+                if (kind == "masonry") {
+                    node = model::Masonry(id, json::GetNumber(js, "minWidth", 260))
+                }
+                else {
+                    if (kind == "card") {
+                        node = model::Card(id, json::GetString(js, "title", ""))
+                    }
+                    else {
+                        if (kind == "text") {
+                            node = model::Text(id, json::GetString(js, "text", ""))
+                        }
+                        else {
+                            if (kind == "button") {
+                                node = model::Button(id, json::GetString(js, "text", "Button"), json::GetString(js, "event", id))
+                            }
+                            else {
+                                if (kind == "input") {
+                                    node = model::Input(id, json::GetString(js, "placeholder", ""), json::GetString(js, "value", ""), json::GetString(js, "event", id))
+                                }
+                                else {
+                                    if (kind == "textarea") {
+                                        node = model::TextArea(id, json::GetString(js, "placeholder", ""), json::GetString(js, "value", ""), json::GetString(js, "event", id))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return (node)
+}
+
+func: FromJsonLeaf(js) {
+    return (BaseNode(js))
+}
+
+func: FromJsonLevel1(js) {
+    raw = json::GetRaw(js, "children", "[]")
+    objects = json::SplitObjects(raw)
+    built = map(0, 0)
+    i = for (0, size(objects), 1) {
+        built = built $ (FromJsonLeaf(objects[i]))
+    }
+    node = BaseNode(js)
+    i = for (0, size(built), 1) {
+        node = model::Add(node, built[i])
+    }
+    return (node)
+}
+
+func: FromJsonLevel2(js) {
+    raw = json::GetRaw(js, "children", "[]")
+    objects = json::SplitObjects(raw)
+    built = map(0, 0)
+    i = for (0, size(objects), 1) {
+        item = objects[i]
+        childNode = BaseNode(item)
+        childRaw = json::GetRaw(item, "children", "[]")
+        childObjects = json::SplitObjects(childRaw)
+        j = for (0, size(childObjects), 1) {
+            childNode = model::Add(childNode, BaseNode(childObjects[j]))
+        }
+        built = built $ (childNode)
+    }
+    node = BaseNode(js)
+    i = for (0, size(built), 1) {
+        node = model::Add(node, built[i])
+    }
+    return (node)
+}
+
+func: FromJsonLevel3(js) {
+    kind = json::GetString(js, "type", "")
+    node = ""
+    if (kind == "app") {
+        layout = json::GetRaw(js, "layout", "")
+        layoutNode = ""
+        if (size(layout) > 0) {
+            layoutNode = BaseNode(layout)
+            raw = json::GetRaw(layout, "children", "[]")
+            objects = json::SplitObjects(raw)
+            i = for (0, size(objects), 1) {
+                item = objects[i]
+                childNode = BaseNode(item)
+                childRaw = json::GetRaw(item, "children", "[]")
+                childObjects = json::SplitObjects(childRaw)
+                j = for (0, size(childObjects), 1) {
+                    childNode = model::Add(childNode, BaseNode(childObjects[j]))
+                }
+                layoutNode = model::Add(layoutNode, childNode)
+            }
+        }
+        node = BaseNode(js)
+        if (size(layoutNode) > 0) {
+            node = model::Add(node, layoutNode)
+        }
+    }
+    else {
+        raw = json::GetRaw(js, "children", "[]")
+        objects = json::SplitObjects(raw)
+        node = BaseNode(js)
+        i = for (0, size(objects), 1) {
+            item = objects[i]
+            childNode = BaseNode(item)
+            childRaw = json::GetRaw(item, "children", "[]")
+            childObjects = json::SplitObjects(childRaw)
+            j = for (0, size(childObjects), 1) {
+                childNode = model::Add(childNode, BaseNode(childObjects[j]))
+            }
+            node = model::Add(node, childNode)
+        }
+    }
+    return (node)
+}
+
+func: FromJson(js) {
+    title = json::GetString(js, "title", "Toba WebUI")
+    node = model::Node("jsonraw", "jsonraw")
+    node = model::SetProp(node, "title", title)
+    node = model::SetProp(node, "json", js)
+    return (node)
+}
+
+func: FromFile(path) {
+    js = fsreadf(path)
+    if (!isstr(js)) {
+        js = fsreadf("C:/Toba/" $ path)
+    }
+    app = model::App("Toba WebUI")
+    if (isstr(js)) {
+        app = FromJson(js)
+    }
+    return (app)
+}

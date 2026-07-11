@@ -1,0 +1,21 @@
+import : libwebui / desktopui
+
+func: __module_ready() {
+    return (1)
+}
+
+func: WindowTitleBar(title, iconText) {
+    safeTitle = desktopui::EscapeHtml(title)
+    safeIcon = desktopui::EscapeHtml(iconText)
+    html = "<header class='lw-windowbar' data-windowbar='1'>"
+    html = html $ "<div class='lw-windowbar-drag' onmousedown=\"if(event.button===0&&window.nativeWindowAction){nativeWindowAction('drag')}\" ondblclick=\"if(window.nativeWindowAction){nativeWindowAction('maximize')}\"><span class='lw-windowbar-icon'>" $ safeIcon $ "</span><span class='lw-windowbar-title'>" $ safeTitle $ "</span></div>"
+    html = html $ "<div class='lw-windowbar-actions'>"
+    svgMin = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round'><line x1='6' y1='12' x2='18' y2='12'/></svg>"
+    svgMax = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='5' y='5' width='14' height='14' rx='2.5'/></svg>"
+    svgClose = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round'><line x1='6' y1='6' x2='18' y2='18'/><line x1='18' y1='6' x2='6' y2='18'/></svg>"
+    html = html $ "<button type='button' class='lw-windowbar-btn' title='Reduire' onclick=\"event.preventDefault();event.stopPropagation();if(window.nativeWindowAction){nativeWindowAction('minimize')}else{webuiEvent('native_window_action',{id:'window',value:'minimize',action:'minimize'})}\">" $ svgMin $ "</button>"
+    html = html $ "<button type='button' class='lw-windowbar-btn' title='Agrandir / restaurer' onclick=\"event.preventDefault();event.stopPropagation();if(window.nativeWindowAction){nativeWindowAction('maximize')}else{webuiEvent('native_window_action',{id:'window',value:'maximize',action:'maximize'})}\">" $ svgMax $ "</button>"
+    html = html $ "<button type='button' class='lw-windowbar-btn danger' title='Fermer' onclick=\"event.preventDefault();event.stopPropagation();if(window.webuiRequestClose){webuiRequestClose({source:'titlebar'})}else{webuiEvent('window_close_request',{id:'window',state:'request',source:'titlebar'})}\">" $ svgClose $ "</button>"
+    html = html $ "</div></header>"
+    return (html)
+}

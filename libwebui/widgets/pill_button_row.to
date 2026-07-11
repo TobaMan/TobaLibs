@@ -1,0 +1,6 @@
+import : libwebui / widgets
+
+func: PillButtonRow(contentHtml) {
+    return (widgets::PillButtonRow(contentHtml))
+}
+

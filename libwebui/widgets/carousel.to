@@ -1,0 +1,72 @@
+import : libwebui / desktopui
+import : libwebui / widget_core
+import : libwebui / widgets / image_view
+
+func: CarouselScript() {
+    js = "<script data-libwebui-carousel='1'>"
+    js = js $ "window.lwCarouselSync=function(root){if(!root)return;var n=Number(root.getAttribute('data-index')||0);var total=Number(root.getAttribute('data-count')||0);if(total<1)return;if(n<0)n=total-1;if(n>=total)n=0;root.setAttribute('data-index',String(n));var tr=root.querySelector('.lw-carousel-track');if(tr)tr.style.transform='translateX('+(-100*n)+'%)';var ds=root.querySelectorAll('.lw-carousel-dot');for(var i=0;i<ds.length;i++)ds[i].classList.toggle('active',i==n);webuiEvent(root.getAttribute('data-event')||'carousel_change',{id:root.id,value:n,state:'slide'})};"
+    js = js $ "window.lwCarouselGo=function(id,delta){var r=document.getElementById(id);if(!r)return;var n=Number(r.getAttribute('data-index')||0)+Number(delta||0);r.setAttribute('data-index',String(n));lwCarouselSync(r)};"
+    js = js $ "window.lwCarouselSet=function(id,n){var r=document.getElementById(id);if(!r)return;r.setAttribute('data-index',String(n));lwCarouselSync(r)};"
+    js = js $ "window.lwCarouselAuto=function(root){if(!root||root.getAttribute('data-auto-ready'))return;root.setAttribute('data-auto-ready','1');var ms=Number(root.getAttribute('data-autoplay')||0);if(ms>0){setInterval(function(){if(document.body.contains(root))lwCarouselGo(root.id,1)},ms)}};"
+    js = js $ "window.lwCarouselInit=function(){var xs=document.querySelectorAll('.lw-carousel');for(var i=0;i<xs.length;i++){lwCarouselSync(xs[i]);lwCarouselAuto(xs[i])}};if(document.readyState=='loading')document.addEventListener('DOMContentLoaded',lwCarouselInit);else setTimeout(lwCarouselInit,0);"
+    js = js $ "</script>"
+    return (js)
+}
+
+obj:Carousel() {
+    self.html = " "
+    self.id = "carousel"
+    self.title = "Carousel"
+    self.note = "Slides image"
+    self.eventName = "carousel_change"
+    self.slides = " "
+    self.dots = " "
+    self.count = 0
+    self.autoplayMs = 0
+    self.disabled = 0
+
+    func:Setup(self, id, title, note, eventName) {
+        self.id = id
+        self.title = title
+        self.note = note
+        self.eventName = eventName
+        return (self)
+    }
+
+    func:SetAutoPlay(self, ms) {
+        self.autoplayMs = ms
+        return (self)
+    }
+
+    func:AddSlide(self, source, title, note) {
+        src = desktopui::EscapeHtml(image_view::ImageSourceUrl(source))
+        idx = self.count
+        self.slides = self.slides $ "<div class='lw-carousel-slide'><img src='" $ src $ "' alt='" $ desktopui::EscapeHtml(title) $ "' loading='lazy'><div class='lw-carousel-caption'><span>" $ desktopui::EscapeHtml(title) $ "<small>" $ desktopui::EscapeHtml(note) $ "</small></span></div></div>"
+        cls = "lw-carousel-dot"
+        if (idx == 0) {
+            cls = "lw-carousel-dot active"
+        }
+        self.dots = self.dots $ "<button type='button' class='" $ cls $ "' onclick=\"lwCarouselSet('" $ desktopui::EscapeJs(self.id) $ "'," $ strnum(idx) $ ")\"></button>"
+        self.count = self.count + 1
+        return (self)
+    }
+
+    func:SetDisabled(self, disabled) {
+        self.disabled = disabled
+        return (self)
+    }
+
+    func:Close(self) {
+        content = self.slides
+        if (self.count == 0) {
+            content = "<div class='lw-carousel-slide'><div class='lw-image-empty'>Ajoute des slides avec AddSlide(...).</div></div>"
+            self.count = 1
+        }
+        self.html = widget_core::Styles() $ image_view::ImageStyles() $ CarouselScript()
+        self.html = self.html $ "<section class='ui-card lw-carousel-card'><div class='ui-card-head'><div class='ui-card-title'>" $ desktopui::EscapeHtml(self.title) $ "</div><div class='ui-card-sub'>" $ desktopui::EscapeHtml(self.note) $ "</div></div><div class='ui-card-body'><div id='" $ desktopui::EscapeHtml(self.id) $ "' class='lw-carousel' data-index='0' data-count='" $ strnum(self.count) $ "' data-event='" $ desktopui::EscapeHtml(self.eventName) $ "' data-autoplay='" $ strnum(self.autoplayMs) $ "'><div class='lw-carousel-track'>" $ content $ "</div><button type='button' class='lw-carousel-btn lw-carousel-prev' onclick=\"lwCarouselGo('" $ desktopui::EscapeJs(self.id) $ "',-1)\">&#8249;</button><button type='button' class='lw-carousel-btn lw-carousel-next' onclick=\"lwCarouselGo('" $ desktopui::EscapeJs(self.id) $ "',1)\">&#8250;</button><div class='lw-carousel-dots'>" $ self.dots $ "</div></div></div></section>"
+        if (self.disabled == 1) {
+            self.html = widget_core::DisableHtml(self.html)
+        }
+        return (self)
+    }
+}

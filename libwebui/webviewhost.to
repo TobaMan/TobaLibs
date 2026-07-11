@@ -1,0 +1,63 @@
+/*
+    libwebui / webviewhost
+
+    Backend WebView2 (https://github.com/webview/webview) pour libwebui.
+    Remplace l'affichage via webui-2.dll (https://webui.me/) par le lancement
+    de webview_host.exe, qui cree une vraie fenetre frameless propre.
+
+    Le reste de libwebui est inchange : Toba genere le HTML, injecte le bridge
+    WebSocket (desktopui::WithBridge) et lit les events via desktopui::BridgePoll.
+    Ce module ne fait que lancer le host et lui passer le fichier HTML.
+
+    Garde ce module petit et sans import lourd : le compilateur Toba plante si
+    un module devient trop gros.
+*/
+
+func: HostPath() {
+    return ("C:/Toba/modules/libwebui/webview_host.exe")
+}
+
+func: HostDebugHtmlPath() {
+    return ("C:/Toba/modules/libwebui/webview_host_page.html")
+}
+
+func: HostText(value) {
+    res = ""
+    if (isstr(value)) {
+        res = value
+    }
+    else {
+        if (isnum(value)) {
+            res = strnum(value)
+        }
+    }
+    return (res)
+}
+
+func: HostQuote(value) {
+    return ("\"" $ HostText(value) $ "\"")
+}
+
+// Lance le host sur un fichier HTML deja ecrit sur le disque.
+// frameless : 1 = fenetre sans bordure native (titlebar HTML), 0 = normale.
+// Non bloquant : le host tourne pendant que Toba fait sa boucle BridgePoll.
+func: ShowFile(htmlPath, title, width, height, x, y, frameless, debug) {
+    cmd = "cmd /c start \"\" " $ HostQuote(HostPath())
+    cmd = cmd $ " --html=" $ HostQuote(htmlPath)
+    cmd = cmd $ " --title=" $ HostQuote(title)
+    cmd = cmd $ " --width=" $ strnum(width)
+    cmd = cmd $ " --height=" $ strnum(height)
+    cmd = cmd $ " --x=" $ strnum(x)
+    cmd = cmd $ " --y=" $ strnum(y)
+    cmd = cmd $ " --frameless=" $ strnum(frameless)
+    cmd = cmd $ " --debug=" $ strnum(debug)
+    runproc(cmd, " ")
+    return (1)
+}
+
+// Ecrit le HTML dans un fichier puis lance le host dessus.
+func: Show(html, title, width, height, x, y, frameless, debug) {
+    path = HostDebugHtmlPath()
+    fswritef(path, html)
+    return (ShowFile(path, title, width, height, x, y, frameless, debug))
+}

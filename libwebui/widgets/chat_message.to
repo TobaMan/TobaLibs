@@ -1,0 +1,6 @@
+import : libwebui / widgets
+
+func: ChatMessage(role, text) {
+    return (widgets::ChatMessage(role, text))
+}
+

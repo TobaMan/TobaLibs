@@ -1,0 +1,13 @@
+import : libwebui / widgets / dropdown_list
+
+func: ThemeDropdown() {
+    labels = ("Light Modern", "Ocean Dark", "Ember Dark", "Forest Dark", "Rose Light", "Dracula Dark", "Nord Light", "Graphite Dark", "shadcn Light", "shadcn Dark")
+    values = ("light_modern", "ocean_dark", "ember_dark", "forest_dark", "rose_light", "dracula_dark", "nord_light", "graphite_dark", "shadcn_light", "shadcn_dark")
+    events = ("theme_light_modern", "theme_ocean_dark", "theme_ember_dark", "theme_forest_dark", "theme_rose_light", "theme_dracula_dark", "theme_nord_light", "theme_graphite_dark", "theme_shadcn_light", "theme_shadcn_dark")
+    html = dropdown_list::DropdownList("theme_dropdown", "Light Modern", labels, values, events, "light_modern", "tm-theme-dropdown")
+    html = freplace(html, "data-value='", "data-theme='")
+    i = for (0, size(values), 1) {
+        html = freplace(html, "webuiEvent('" $ events[i] $ "',{id:'theme_dropdown',value:'" $ values[i] $ "',label:'" $ labels[i] $ "'})", "tmPickTheme(this,'" $ values[i] $ "')")
+    }
+    return (html)
+}

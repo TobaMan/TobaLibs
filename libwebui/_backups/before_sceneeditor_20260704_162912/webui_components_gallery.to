@@ -1,0 +1,697 @@
+import : libwebui / webui
+import : libwebui / desktopui
+import : libwebui / widgets
+import : libwebui / eventbus
+import : libwebui / widgets_extra
+import : libwebui / effects
+import : libwebui / effects / gridcraft
+import : libjson / json
+
+func: ChartValue(pointId) {
+    v = pointId * 17
+    loop {
+        if (v <= 60) {
+            break
+        }
+        v = v - 60
+    }
+    res = 25 + v
+    return (res)
+}
+
+func: PushChartPoint(pointId) {
+    value = ChartValue(pointId)
+    secondary = value - 8
+    if (secondary < 0) {
+        secondary = 0
+    }
+    eventbus::ChartAddPoint("Toba " $ strnum(pointId), value, secondary)
+    return (pointId + 1)
+}
+
+func: OnGalleryEvent(evt, chartPoint) {
+    handled = 0
+    if (evt.Is("callback_notify")) {
+        eventbus::Notify("Toba callback", "Toba received " $ evt.Name() $ " from " $ evt.WidgetId())
+        handled = 1
+    }
+    if (evt.Is("chart_add_point")) {
+        chartPoint = PushChartPoint(chartPoint)
+        handled = 1
+    }
+    if (evt.Is("chart_add_burst")) {
+        i = for (0, 5, 1) {
+            chartPoint = PushChartPoint(chartPoint)
+        }
+        handled = 1
+    }
+    if (evt.Is("chart_reset")) {
+        eventbus::ChartReset()
+        chartPoint = 1
+        handled = 1
+    }
+    return (chartPoint)
+}
+
+// Controles GridCraft construits avec de VRAIS widgets libwebui : Toolbar
+// (boutons -> events gc_*) + Fields.SliderUnit (sliders themes). startEvent =
+// 'gc_start_radiance' ou 'gc_start_rtx'. Aucun HTML brut.
+func: GcControls(startEvent, suffix) {
+    bar = webui::Toolbar()
+    bar.Button("gc_start_" $ suffix, "Demarrer", "play", startEvent, "primary")
+    bar.Button("gc_stop_" $ suffix, "Arreter", "square", "gc_stop", " ")
+    bar.Button("gc_refresh_" $ suffix, "Rafraichir", "refresh", "gc_refresh", " ")
+    bar.Close()
+
+    // SliderPillHtml directement (pas via Fields qui empile) -> rangee flex.
+    sliders = webui::SliderPillHtml("gc_q_" $ suffix, "Qualite", 0.6, 0.25, 1, 0.05, "gcSetScale", "gc_qv_" $ suffix)
+    sliders = sliders $ webui::SliderPillHtml("gc_o_" $ suffix, "Opacite", 0.75, 0.1, 1, 0.05, "gcSetOpacity", "gc_ov_" $ suffix)
+    sliders = sliders $ webui::SliderPillHtml("gc_i_" $ suffix, "Intensite", 0.6, 0.1, 1, 0.05, "gcSetMaxAlpha", "gc_iv_" $ suffix)
+    sliders = sliders $ webui::SliderPillHtml("gc_f_" $ suffix, "Finesse", 2, 1, 4, 1, "gcSetLineStep", "gc_fv_" $ suffix)
+
+    // Rangee compacte de pills (flex, retour a la ligne si besoin).
+    return (bar.html $ "<div class='gallery-row' style='flex-wrap:wrap;gap:8px;margin-top:10px'>" $ sliders $ "</div>")
+}
+
+if (main()) {
+    page = webui::Page()
+    page.SetTitle("Toba WebUI Component Gallery")
+    page.SetFooter("libwebui gallery built with Toba widget objects")
+    page.SetPort(19165)
+    page.SetWindow(1240, 820, 90, 60)
+    page.CustomChrome()
+
+    overview = webui::Panel()
+    overview.Setup("overview", "Overview", "catalog", "All component families")
+        stats = webui::Stats()
+        stats.Add("Window", "Desktop", "ShowBrowser + DockPage")
+        stats.Add("Widgets", "Pro", "shadcn-like layer")
+        stats.Add("Events", "Bridge", "WebSocket to Toba")
+        stats.Add("Layout", "Dock", "Sidebar + stage")
+        stats.Close()
+        overview.Add(stats)
+
+        cards = webui::CardGrid()
+        cards.AddCard("Design tokens", "Small type, stable heights", "Every widget uses libwebui theme variables.")
+        cards.AddCard("Pill rows preserved", "Joined buttons stay clean", "The pill row system keeps straight inner joins and rounded outer edges.")
+        cards.AddCard("Local icons", "Lucide-style inline SVG", "No network dependency; icons are rendered by the shared script.")
+        cards.AddCard("Custom dropdowns", "Not native select menus", "Dropdown menus are custom widgets and inherit the selected theme.")
+        cards.Close()
+        overview.Add(cards)
+    overview.Close()
+    page.AddPanel(overview)
+
+    inputs = webui::Panel()
+    inputs.Setup("inputs", "Inputs and actions", "events", "Pill fields, buttons and event log")
+        toolbar = webui::Toolbar()
+        toolbar.IconButton("new_btn", "plus", "new_clicked")
+        toolbar.IconButton("search_btn", "search", "search_clicked")
+        toolbar.Separator()
+        toolbar.Button("save_btn", "Save", "save", "save_clicked", "primary")
+        toolbar.Button("copy_btn", "Copy", "copy", "copy_clicked", " ")
+        toolbar.Button("notify_btn", "Toba Notify", "bell", "callback_notify", " ")
+        toolbar.IconButton("delete_btn", "trash", "delete_clicked")
+        toolbar.Close()
+        inputs.Add(toolbar)
+
+        fields = webui::Fields()
+        fields.PillInput("name_input", "Name", "Toba component", "name_changed")
+        fields.PillSelect("mode_select", "Mode", ("Compact", "Comfortable", "Dense"), "mode_changed")
+        fields.Slider("radius_slider", "Radius", 6, 0, 24, "gallerySetRadiusPx", "radius_value")
+        fields.Slider("spacing_slider", "Spacing", 14, 6, 28, "gallerySetSpacingPx", "spacing_value")
+        fields.EventLog()
+        fields.Close()
+        inputs.Add(fields)
+
+        rating = widgets_extra::Rating()
+        rating.Setup("quality_rating", "Qualite percue", 4, 5, "rating_change")
+        rating.Close()
+        inputs.Add(rating)
+
+        sw = widgets_extra::Switch()
+        sw.Setup("auto_play", "Lecture automatique", 1, "switch_change")
+        sw.Close()
+        inputs.Add(sw)
+
+        copy = widgets_extra::CopyField()
+        copy.Setup("voice_path", "Fichier voice", "C:/Toba/voices/webui_clone.voice", "copy_value")
+        copy.Close()
+        inputs.Add(copy)
+
+        steps = widgets_extra::ProgressSteps()
+        steps.Setup("clone_steps", "Pipeline clone", ("Audio", "Reference", "Voice", "Test"), 3, "step_select")
+        steps.Close()
+        inputs.Add(steps)
+
+        date = widgets_extra::DatePicker()
+        date.Setup("delivery_date", "Date de livraison", "2026-06-26", "date_change")
+        date.Close()
+        inputs.Add(date)
+
+        color = widgets_extra::ColorPicker()
+        color.Setup("accent_color", "Couleur accent", "#00d4aa", ("#00d4aa", "#3563e9", "#d64f8c", "#ff8b3d", "#18181b"), "color_change")
+        color.Close()
+        inputs.Add(color)
+
+        disabledRating = widgets_extra::Rating()
+        disabledRating.Setup("disabled_rating", "Qualite verrouillee", 2, 5, "disabled_rating_change")
+        disabledRating.SetDisabled(1)
+        disabledRating.Close()
+        inputs.Add(disabledRating)
+    inputs.Close()
+    page.AddPanel(inputs)
+
+    feedback = webui::Panel()
+    feedback.Setup("feedback", "Feedback", "overlay", "Popups, toasts and notifications")
+        popupBody = "<p><strong>PopupWindow</strong> accepte du HTML Toba libre, se ferme au clic exterieur ou avec Escape, et renvoie des events cote Toba.</p><div class='lw-popup-grid'><div class='lw-popup-metric'><b>3</b>Actions</div><div class='lw-popup-metric'><b>Esc</b>Fermeture</div><div class='lw-popup-metric'><b>100%</b>Themable</div></div>"
+        popup = widgets_extra::PopupWindow()
+        popup.Setup("demo_popup", "Fenetre de test", "Widget factory popup_window.to", popupBody)
+        popup.SetPrimary("Lancer", "popup_launch")
+        popup.SetSecondary("Fermer", "popup_cancel")
+        popup.Close()
+        feedback.Add(popup)
+        feedback.AddHtml("<div class='gallery-row'><button type='button' class='ui-btn primary' onclick='webuiModal(1)'>Popup historique</button><button type='button' class='ui-btn' onclick=\"webuiToast('Saved','Toast event rendered by the web runtime')\"><span data-icon='bell'></span>Toast demo</button><button type='button' class='ui-btn' onclick=\"webuiEvent('callback_notify',{id:'notify_feedback'})\"><span data-icon='bell'></span>Toba notify</button></div>")
+    feedback.Close()
+    page.AddPanel(feedback)
+
+    dp = widgets::DataPanel()
+    dp.Setup("gallery_dp")
+    dp.AddToolButton("Ajouter", "plus", "webuiToast('Ajouter','Nouveau document')")
+    dp.AddToolButton("Supprimer", "trash", "webuiToast('Supprimer','Document retire')")
+    dp.SetSearchBox("Rechercher un document...")
+    dp.TreeNode("Knowledge", "12", 1)
+    dp.TreeLeaf("lca_articles", "webuiToast('Theme','lca_articles selectionne')")
+    dp.TreeLeaf("camera", "webuiToast('Theme','camera selectionne')")
+    dp.TreeEnd()
+    dp.TreeNode("Behavior", "3", 0)
+    dp.TreeLeaf("historique", "webuiToast('Theme','historique selectionne')")
+    dp.TreeEnd()
+    dp.SetColumns(("Document", "Type", "Chunks", "Statut"))
+    dp.AddRow(("these247.pdf", "knowledge", "4", "Indexe"), "webuiToast('Editer','these247.pdf')")
+    dp.AddRow(("reconstruction.pdf", "knowledge", "7", "Indexe"), "webuiToast('Editer','reconstruction.pdf')")
+    dp.AddRow(("camera_01.jpg", "visual", "1", "En cours"), "webuiToast('Editer','camera_01.jpg')")
+
+    data = webui::Panel()
+    data.Setup("data", "Data display", "tables", "Professional table widgets")
+        tabs = webui::Tabs()
+        tabs.Tab("outline", "Outline", " ", 1)
+        tabs.Tab("past", "Past Performance", "3", 0)
+        tabs.Tab("key", "Key Personnel", "2", 0)
+        tabs.Tab("focus", "Focus Documents", " ", 0)
+        tabs.Close()
+
+        columns = webui::Dropdown()
+        columns.Setup("columns_menu", "Customize Columns")
+        columns.Option("Header", "column_header", 1)
+        columns.Option("Status", "column_status", 1)
+        columns.Option("Reviewer", "column_reviewer", 1)
+        columns.Close()
+
+        table = webui::Table()
+        table.AddSection("Cover page", "Cover page", "In Process", "busy", "18", "5", "Eddie Lake", "row_cover")
+        table.AddSection("Table of contents", "Table of contents", "Done", "done", "29", "24", "Eddie Lake", "row_toc")
+        table.AddSection("Executive summary", "Narrative", "Done", "done", "10", "13", "Eddie Lake", "row_summary")
+        table.AddSection("Technical approach", "Narrative", "Done", "done", "27", "23", "Jamik Tashpulatov", "row_technical")
+        table.AddSection("Design", "Narrative", "In Process", "busy", "2", "16", "Jamik Tashpulatov", "row_design")
+        table.AddSection("Capabilities", "Narrative", "In Process", "busy", "20", "8", "Jamik Tashpulatov", "row_capabilities")
+        table.AddSection("Integration with existing systems", "Narrative", "In Process", "busy", "19", "21", "Jamik Tashpulatov", "row_integration")
+        table.AddSection("Innovation and Advantages", "Narrative", "Done", "done", "25", "26", "Assign reviewer", "row_innovation")
+        table.AddSection("Overview of EMR's Innovative Solutions", "Technical content", "Done", "done", "7", "23", "Assign reviewer", "row_emr")
+        table.AddSection("Advanced Algorithms and Machine Learning", "Narrative", "Done", "done", "30", "28", "Assign reviewer", "row_ml")
+        table.Close()
+
+        dataStats = webui::Stats()
+        dataStats.Add("Selected", "0", "0 of 68 row(s)")
+        dataStats.Add("Sections", "68", "Outline dataset")
+        dataStats.Add("Reviewers", "3", "Assignable people")
+        dataStats.Add("Status", "live", "Events routed to Toba")
+        dataStats.Close()
+        data.Add(dataStats)
+
+        tableDemo = webui::TableDemo()
+        tableDemo.AddTop(tabs, columns)
+        tableDemo.AddTable(table)
+        tableDemo.AddPagination()
+        tableDemo.Close()
+        data.Add(tableDemo)
+        data.AddHtml(widgets::DataPanelStyles())
+        data.AddHtml("<div class='gallery-note' style='margin-top:18px'>DataPanel : toolbar + arborescence + tableau modifiable</div><div style='height:420px;margin-top:8px'>" $ dp.Render() $ "</div>")
+        simple = "<div class='gallery-note' style='margin-top:18px'>Tableau simple</div>"
+        simple = simple $ "<div class='tm-table-wrap' style='margin-top:8px'><table class='tm-table'>"
+        simple = simple $ "<thead><tr><th>Nom</th><th>Role</th><th>Statut</th></tr></thead><tbody>"
+        simple = simple $ "<tr><td>Diane</td><td>Assistante</td><td>Active</td></tr>"
+        simple = simple $ "<tr><td>Marc</td><td>Analyste</td><td>Active</td></tr>"
+        simple = simple $ "<tr><td>Sophie</td><td>Chercheuse</td><td>Pause</td></tr>"
+        simple = simple $ "</tbody></table></div>"
+        data.AddHtml(simple)
+    data.Close()
+    page.AddPanel(data)
+
+    advancedPanel = webui::Panel()
+    advancedPanel.Setup("advanced", "Advanced", "tabs", "Charts, media and future advanced widgets")
+    advancedPanel.Fill()
+        chart = widgets_extra::Chart()
+        chart.Setup("gallery_chart", "Chart.js professional chart", "Toba can push real-time points through the bridge")
+        chart.Close()
+        imageOne = widgets_extra::ImageView()
+        imageOne.Setup("advanced_image_view", "Image viewer", "C:/Toba/modules/libwebui/assets/sample_image_1.svg", "Demo image", "Image locale, themable, object-fit configurable")
+        imageOne.SetFit("cover")
+        imageOne.Close()
+        imageGallery = widgets_extra::ImageGallery()
+        imageGallery.Setup("advanced_image_gallery", "Image gallery", "Vignettes cliquables avec event Toba", "image_gallery_select")
+        imageGallery.SetColumns(2)
+        imageGallery.AddImage("C:/Toba/modules/libwebui/assets/sample_image_1.svg", "Landscape", "Landscape")
+        imageGallery.AddImage("C:/Toba/modules/libwebui/assets/sample_image_2.svg", "Curves", "Curves")
+        imageGallery.AddImage("C:/Toba/modules/libwebui/assets/sample_image_3.svg", "Cards", "Cards")
+        imageGallery.Close()
+        carousel = widgets_extra::Carousel()
+        carousel.Setup("advanced_carousel_widget", "Carousel", "Slides image avec fleches, dots et autoplay optionnel", "carousel_change")
+        carousel.SetAutoPlay(0)
+        carousel.AddSlide("C:/Toba/modules/libwebui/assets/sample_image_1.svg", "Landscape", "Image locale")
+        carousel.AddSlide("C:/Toba/modules/libwebui/assets/sample_image_2.svg", "Curves", "Navigation par fleches")
+        carousel.AddSlide("C:/Toba/modules/libwebui/assets/sample_image_3.svg", "Cards", "Dots cliquables")
+        carousel.Close()
+        videos = widgets_extra::VideoPlayer()
+        videos.Setup("advanced_video_player", "Video player", "C:/Toba/modules/libwebui/sample_video.mp4", " ", "HTML5 video component with Toba events")
+        videos.Close()
+        audio = widgets_extra::AudioPlayer()
+        audio.Setup("advanced_audio_player", "Audio player", "C:/Users/damie/Downloads/MyAssistant-main/MyAssistant-main/bin/piper_tts/piper/test.wav", "Lecteur audio avec sliders webui")
+        audio.Close()
+
+        advancedTabs = webui::TabView()
+        advancedTabs.Add("advanced_chart", "Graph", "live", 1, chart)
+        advancedTabs.Add("advanced_image", "Image", "new", 0, imageOne)
+        advancedTabs.Add("advanced_gallery", "Gallery", "new", 0, imageGallery)
+        advancedTabs.Add("advanced_carousel", "Carousel", "new", 0, carousel)
+        advancedTabs.Add("advanced_audio", "Audio player", "wave", 0, audio)
+        advancedTabs.Add("advanced_video", "Video player", "new", 0, videos)
+        advancedTabs.Close()
+        advancedPanel.AddHtml(advancedTabs.html)
+    advancedPanel.Close()
+    page.AddPanel(advancedPanel)
+
+    effectsPanel = webui::Panel()
+    effectsPanel.Setup("effects", "Effects", "motion", "CSS effects, Radiance cascade et Raytracer sur les widgets existants")
+        // Assets effects CSS (classes lwfx-*).
+        effectsPanel.AddHtml(effects::Assets())
+        effectsPanel.AddHtml(effects::CursorGlow())
+        effectsPanel.AddHtml(effects::EnableClickSparks())
+        // Toggle utilisateur (vrai widget Switch) : le glow curseur est
+        // desactive par defaut, l'utilisateur choisit de l'activer.
+        cursorToggle = widgets_extra::Switch()
+        cursorToggle.Setup("fx_cursor_glow", "Effets interactifs (glow curseur + etincelles au clic)", 0, "fx_cursor_glow_toggle")
+        cursorToggle.Close()
+        // Moteurs GridCraft (radiance + rtx) charges une fois pour le panel.
+        effectsPanel.AddHtml(gridcraft::Scripts())
+        // Fonctions gc* definies UNE SEULE fois (cible .gc-sample). gcStart(mode)
+        // recoit le mode au clic -> pas de doublon entre onglets radiance/rtx.
+        effectsPanel.AddHtml(gridcraft::Runtime(".lw-scene-obj", 0.6, 0.75))
+
+        // ---- Sous-onglet 1 : CSS effects (classes lwfx-*) ----
+        fxCards = webui::CardGrid()
+        fxCards.AddCardFx(effects::GradientText("Gradient text"), "lwfx-gradient", "Texte anime theme-aware pour titres et statuts.", "lwfx-reveal")
+        fxCards.AddCardFx(effects::ShinyText("Shiny text"), "lwfx-shiny", "Reflet qui balaie le texte, pour mettre en avant un libelle.", "lwfx-reveal")
+        fxCards.AddCardFx(effects::ScrambleText("fx_scramble", "SCRAMBLE"), "lwfx-scramble", "Reveal type terminal (rejoue au changement d'onglet).", "lwfx-reveal")
+        fxCards.AddCardFx("Spotlight", "lwfx-spotlight", "Halo lumineux qui suit la souris. Survole la carte.", "lwfx-spotlight lwfx-reveal")
+        fxCards.AddCardFx("Animated border", "lwfx-border", "Bordure degradee en mouvement continu.", "lwfx-border lwfx-reveal")
+        fxCards.AddCardFx("Star border", "lwfx-star-border", "Point lumineux qui tourne autour de la bordure.", "lwfx-star-border lwfx-reveal")
+        fxCards.AddCardFx("Tilt 3D", "lwfx-tilt", "Inclinaison 3D + ombre profonde au survol.", "lwfx-tilt lwfx-reveal")
+        fxCards.AddCardFx("Glare", "lwfx-glare", "Reflet diagonal qui balaie la carte au survol.", "lwfx-glare lwfx-reveal")
+        fxCards.AddCardFx("Scan", "lwfx-scan", "Bande lumineuse qui balaie en continu (chargement).", "lwfx-scan lwfx-reveal")
+        fxCards.AddCardFx(effects::BlurText("Blur in"), "lwfx-blur", "Apparition floutee (rejouee au changement d'onglet).", "lwfx-reveal")
+        fxCards.AddCardFx("Gradient background", "lwfx-gradient-bg", "Fond degrade anime, subtil, theme-aware.", "lwfx-gradient-bg lwfx-reveal")
+        fxCards.AddCardFx("Float", "lwfx-float", "Flottement vertical lent, pour icones ou badges.", "lwfx-float lwfx-reveal")
+        fxCards.Close()
+        cssTab = "<div class='gallery-stack'><div class='gallery-note'>Ajoute une classe lwfx-* a n'importe quel widget (CardGrid.AddCardFx ou effects::Apply). Clique pour voir les sparks.</div>" $ cursorToggle.html $ fxCards.html $ "</div>"
+
+        // Echantillons = VRAIS widgets libwebui instancies (Table draggable,
+        // Stats, Toolbar, Fields), les memes objets que les autres onglets.
+        // L'overlay cible leurs classes reelles (voir Runtime targets).
+        // Tableau GENERIQUE avec LIGNES CUSTOMISEES : chaque cellule est un widget
+        // libwebui imbrique (Badge de statut, Avatar+nom, boutons d'action). Style
+        // au theme + drag des lignes gratuits via .gallery-table.
+        gcTable = webui::GridTable()
+        gcTable.SetColumns(("Tache", "Statut", "Priorite", "Responsable", "Actions"))
+        gcTable.AddRow(("Indexer les documents", webui::Badge("Termine", "done"), webui::Badge("Haute", "danger"), webui::Avatar("EL", "Eddie Lake"), "<div class='lw-cell-actions'>" $ webui::ActionBtn("Voir", "primary", "gc_view_1") $ webui::ActionBtn("Suppr.", "danger", "gc_del_1") $ "</div>"))
+        gcTable.AddRow(("Analyser les images", webui::Badge("En cours", "busy"), webui::Badge("Moyenne", " "), webui::Avatar("JT", "Jamik Tashpulatov"), "<div class='lw-cell-actions'>" $ webui::ActionBtn("Voir", "primary", "gc_view_2") $ webui::ActionBtn("Suppr.", "danger", "gc_del_2") $ "</div>"))
+        gcTable.AddRow(("Generer le rapport", webui::Badge("En attente", " "), webui::Badge("Basse", " "), webui::Avatar("MC", "Marie Curie"), "<div class='lw-cell-actions'>" $ webui::ActionBtn("Voir", "primary", "gc_view_3") $ webui::ActionBtn("Suppr.", "danger", "gc_del_3") $ "</div>"))
+        gcTable.AddRow(("Publier la synthese", webui::Badge("Termine", "done"), webui::Badge("Haute", "danger"), webui::Avatar("EL", "Eddie Lake"), "<div class='lw-cell-actions'>" $ webui::ActionBtn("Voir", "primary", "gc_view_4") $ webui::ActionBtn("Suppr.", "danger", "gc_del_4") $ "</div>"))
+        gcTable.Close()
+
+        gcSamples = "<div class='gallery-note' style='margin-top:40px;padding-top:20px;border-top:1px solid var(--border)'>Tableau libwebui a lignes customisees (widgets imbriques ; glisse les lignes par la poignee ::). Seuls les boutons/badges/cartes ci-dessus recoivent l'effet, pas le tableau :</div>" $ gcTable.html
+
+        // Sliders THEMES via .gallery-slider-card (input[type=range] est stylise
+        // au theme dans runtime.to). Chaque slider met a jour sa valeur affichee.
+        // ---- Sous-onglet 2 : Radiance cascade (sur .gc-sample seulement) ----
+        // Enveloppe dans .gallery-stack -> gap:var(--lw-gap) (espacement global).
+        radTab = "<div class='gallery-stack'><div class='gallery-note'>Eclairage global (radiance cascade) confine aux echantillons ci-dessous. Regle les parametres pour trouver le bon compromis.</div>"
+        radTab = radTab $ GcControls("gc_start_radiance", "rad") $ gcSamples $ "</div>"
+
+        // ---- Sous-onglet 3 : Raytracer 2D (COPIE EXACTE de test3_work) --------
+        // Reproduction fidele de test3_work qui MARCHE : widgets .gc-widget en
+        // grille, canvas RTX dedie, appel DIRECT new Raytracer2D('.gc-widget')
+        // (pas le wrapper GridCraftHtmlEffects), clic sur widget -> materiau.
+        rtxTab = "<div class='gallery-note'>Raytracer 2D (path tracing) : clique un widget pour le selectionner, puis choisis son materiau ci-dessous. L'emissif eclaire les voisins.</div>"
+
+        // Editeur : grille MAGNETIQUE (snap) ou on place librement des VRAIS
+        // widgets libwebui par drag & drop. Zone scene (gauche) + toolbar
+        // d'insertion (droite). Canvas RTX plein viewport par-dessus.
+        rtxCss = "<style>"
+        rtxCss = rtxCss $ ".gc-rtx-wrap{position:relative;display:flex;gap:12px;align-items:stretch}"
+        // Canvas PLEIN VIEWPORT (fixed) : le moteur lit les positions en coords
+        // viewport (getBoundingClientRect) et dimensionne le canvas a innerW/innerH.
+        rtxCss = rtxCss $ "#gcRtxCanvas{position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:60;pointer-events:none;mix-blend-mode:multiply;opacity:1}"
+        // Grille magnetique : fond quadrille (24px), position:relative pour placer
+        // les widgets en absolu, snap gere en JS. min-height genereux.
+        rtxCss = rtxCss $ ".gc-page{position:relative;z-index:1;flex:1;background:var(--bg-surface);background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:24px 24px;border:1px solid var(--border);border-radius:var(--lw-radius);min-height:560px;overflow:hidden}"
+        rtxCss = rtxCss $ ".gc-page.gc-empty:before{content:'Clique un widget dans la barre a droite pour l ajouter, puis glisse-le sur la grille';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text-3);font-size:13px;padding:20px;text-align:center;pointer-events:none}"
+        // Widget place : positionne en absolu, deplacable, selectionnable. Il porte
+        // la COULEUR DE FOND (l'objet colore lu par le raytracer). Le vrai widget
+        // libwebui a l'interieur REMPLIT tout l'item (pas de contour) et est
+        // semi-transparent (~75%) pour prendre la teinte de l'objet colore.
+        // Resize via poignee CUSTOM JS (pas resize:both natif) -> overflow hidden
+        // possible = pas de bordure/scrollbar parasite, contenu bien clippe.
+        rtxCss = rtxCss $ ".gc-item{position:absolute;box-sizing:border-box;cursor:grab;user-select:none;touch-action:none;min-width:120px;min-height:70px;width:180px;height:110px;border-radius:var(--lw-radius);background:#3b82f6;box-shadow:0 6px 20px rgba(0,0,0,.18);overflow:hidden}"
+        // Le widget interne remplit TOUT l'item (bloc unique, pas de bande en bas).
+        rtxCss = rtxCss $ ".gc-item>*{display:block;box-sizing:border-box;width:100%;height:100%;margin:0!important;opacity:var(--gc-tr,.75)}"
+        // Carte : flex colonne, le body prend l'espace restant -> remplit tout.
+        rtxCss = rtxCss $ ".gc-item .ui-card,.gc-item section{display:flex!important;flex-direction:column;width:100%;height:100%;background:color-mix(in srgb,var(--bg-card) 75%,transparent)!important;border:0!important;border-radius:var(--lw-radius)!important;box-shadow:none!important;overflow:hidden}"
+        rtxCss = rtxCss $ ".gc-item .ui-card-body{flex:1}"
+        rtxCss = rtxCss $ ".gc-item .ui-btn{width:100%;height:100%;justify-content:center;border-radius:var(--lw-radius)}"
+        // Poignee de resize custom (coin bas-droite) : element clickable dedie.
+        rtxCss = rtxCss $ ".gc-resize{position:absolute;right:0;bottom:0;width:20px;height:20px;cursor:nwse-resize;z-index:4}.gc-resize:after{content:' ';position:absolute;right:4px;bottom:4px;width:10px;height:10px;border-right:2px solid rgba(255,255,255,.9);border-bottom:2px solid rgba(255,255,255,.9)}"
+        rtxCss = rtxCss $ ".gc-item.gc-dragging{cursor:grabbing;z-index:5;opacity:.92}"
+        rtxCss = rtxCss $ ".gc-item.gc-selected{outline:3px solid var(--accent);outline-offset:3px;border-radius:var(--lw-radius)}"
+        // Toolbar d'insertion (droite) : colonne verticale, largeur fixe. Styles
+        // forces (!important) pour ne pas etre ecrases par les regles globales.
+        rtxCss = rtxCss $ ".gc-toolbar{flex:0 0 96px!important;width:96px;z-index:1;display:flex!important;flex-direction:column!important;gap:8px!important;padding:10px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--lw-radius);align-self:flex-start}"
+        rtxCss = rtxCss $ ".gc-toolbar .gc-add{width:100%!important;height:60px!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:4px!important;border:1px solid var(--border)!important;border-radius:var(--lw-radius)!important;background:var(--bg-surface)!important;color:var(--text-2)!important;cursor:pointer;font-size:10px!important;font-weight:700!important;line-height:1.1}.gc-toolbar .gc-add:hover{border-color:var(--accent)!important;color:var(--accent)!important;background:var(--accent-glow)!important}.gc-toolbar .gc-add .lw-icon,.gc-toolbar .gc-add span[data-icon]{width:20px!important;height:20px!important}"
+        rtxCss = rtxCss $ ".gc-toolbar-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);text-align:center;margin-bottom:2px}"
+        rtxCss = rtxCss $ "</style>"
+
+        // Toolbar verticale = VRAI widget libwebui webui::VToolbar (independant).
+        // Chaque bouton emet gc_add_widget avec value=type -> l'editeur insere le
+        // widget correspondant. Widget reutilisable ailleurs.
+        gcVtb = webui::VToolbar()
+        gcVtb.Setup("gc_vtoolbar", "Widgets")
+        gcVtb.AddButton("gc_add_btn", "Bouton", "plus", "gc_add_widget", "button")
+        gcVtb.AddButton("gc_add_card", "Carte", "copy", "gc_add_widget", "card")
+        gcVtb.AddButton("gc_add_badge", "Badge", "bell", "gc_add_widget", "badge")
+        gcVtb.AddButton("gc_add_table", "Table", "save", "gc_add_widget", "table")
+        gcVtb.Close()
+        gcTbar = gcVtb.html
+
+        // Grille vide au depart (classe gc-empty affiche l'aide).
+        rtxScene = "<div class='gc-rtx-wrap'><canvas id='gcRtxCanvas'></canvas>"
+        rtxScene = rtxScene $ "<div class='gc-page gc-empty' id='gcPage'></div>"
+        rtxScene = rtxScene $ gcTbar $ "</div>"
+
+        // Templates de VRAIS widgets libwebui, generes en Toba puis inseres par
+        // le JS dans un .gc-item positionnable. Chaque widget garde son style
+        // libwebui (le raytracer lira sa couleur de fond).
+        // Bouton SEUL (pas une Toolbar) : un vrai .ui-btn libwebui.
+        tplBtn = "<button type='button' class='ui-btn primary'><span data-icon='play'></span>Bouton</button>"
+        tplCard = webui::CardGrid()
+        tplCard.AddCard("Carte", "widget", "Contenu de la carte.")
+        tplCard.Close()
+        tplBadge = webui::Badge("Badge", "done")
+        tplTableW = webui::Table()
+        tplTableW.AddSection("Ligne 1", "Type", "Done", "done", "10", "5", "Eddie Lake", "gc_tr1")
+        tplTableW.AddSection("Ligne 2", "Type", "In Process", "busy", "8", "3", "Marie Curie", "gc_tr2")
+        tplTableW.Close()
+
+        // Templates dans des <template> caches : le JS clone leur contenu pour
+        // inserer le widget (evite tout echappement JS fragile).
+        rtxTpl = "<div style='display:none'>"
+        rtxTpl = rtxTpl $ "<template id='gctpl_button'>" $ tplBtn $ "</template>"
+        rtxTpl = rtxTpl $ "<template id='gctpl_card'>" $ tplCard.html $ "</template>"
+        rtxTpl = rtxTpl $ "<template id='gctpl_badge'>" $ tplBadge $ "</template>"
+        rtxTpl = rtxTpl $ "<template id='gctpl_table'>" $ tplTableW.html $ "</template>"
+        rtxTpl = rtxTpl $ "</div>"
+
+        // Config simplifiee : juste le select de materiau (agit sur le widget
+        // selectionne au clic). Pas de tableau, pas de wrapper.
+        // Panneau de reglages RTX dans un widget COLLAPSE (cache par defaut,
+        // deplie au clic sur l'entete via webuiCollapse). Tout au meme endroit.
+        rtxCfg = "<div id='gc_rtx_settings' class='gallery-collapse' style='margin-top:14px'>"
+        rtxCfg = rtxCfg $ "<button type='button' class='gallery-collapse-head' onclick=\"webuiCollapse('gc_rtx_settings')\"><span>Reglages RTX</span><span class='gallery-chev'></span></button>"
+        rtxCfg = rtxCfg $ "<div class='gallery-collapse-body'>"
+        rtxCfg = rtxCfg $ "<div class='gallery-stack' style='gap:12px'>"
+        // Materiau du widget selectionne
+        rtxCfg = rtxCfg $ "<div class='gallery-row' style='align-items:center;gap:12px'><span class='gallery-note' style='min-width:180px'>Materiau (widget selectionne)</span><select id='gcMatSel' class='ui-input' style='width:200px'><option value='0'>Diffus</option><option value='1'>Miroir</option><option value='2'>Verre</option><option value='3'>Glossy</option><option value='4'>Emissif</option></select></div>"
+        // Couleur du widget selectionne : VRAI color picker custom libwebui
+        // (plan de couleur + teinte + chips + hex). Emet gc_color_change {value}.
+        gcColPicker = widgets_extra::ColorPicker()
+        gcColPicker.Setup("gcColorPick", "Couleur (widget selectionne)", "#3b82f6", ("#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#a855f7", "#ffffff"), "gc_color_change")
+        gcColPicker.Close()
+        rtxCfg = rtxCfg $ gcColPicker.html
+        // Transparence du widget sur l'objet (opacite du contenu 0.1 -> 1.0).
+        rtxCfg = rtxCfg $ "<div class='gallery-row' style='align-items:center;gap:12px'><span class='gallery-note' style='min-width:180px'>Transparence du widget</span><input type='range' id='gcTranspRange' min='0.1' max='1' step='0.05' value='0.75' style='flex:1'><span id='gcTranspVal' class='gallery-slider-value' style='min-width:36px'>0.75</span></div>"
+        // Actions sur le widget selectionne (supprimer).
+        rtxCfg = rtxCfg $ "<div class='gallery-row' style='align-items:center;gap:12px'><span class='gallery-note' style='min-width:180px'>Ordre (superposition)</span><button type='button' id='gcFrontBtn' class='ui-btn'><span data-icon='maximize'></span>Avancer</button><button type='button' id='gcBackBtn' class='ui-btn'>Reculer</button></div>"
+        rtxCfg = rtxCfg $ "<div class='gallery-row' style='align-items:center;gap:12px'><span class='gallery-note' style='min-width:180px'>Widget selectionne</span><button type='button' id='gcDelBtn' class='ui-btn danger'><span data-icon='trash'></span>Supprimer</button></div>"
+        // Optimisation (renderScale)
+        rtxCfg = rtxCfg $ "<div class='gallery-row' style='align-items:center;gap:12px'><span class='gallery-note' style='min-width:180px'>Optimisation (vitesse)</span><select id='gcOptimSel' class='ui-input' style='width:120px'><option value='0.1'>0.1</option><option value='0.2'>0.2</option><option value='0.3'>0.3</option><option value='0.4'>0.4</option><option value='0.5'>0.5</option><option value='0.6' selected>0.6</option><option value='0.7'>0.7</option><option value='0.8'>0.8</option><option value='0.9'>0.9</option><option value='1.0'>1.0</option></select></div>"
+        // Puissance emissive
+        rtxCfg = rtxCfg $ "<div class='gallery-row' style='align-items:center;gap:12px'><span class='gallery-note' style='min-width:180px'>Puissance emissive</span><input type='range' id='gcEmisRange' min='0' max='8' step='0.2' value='2' style='flex:1'><span id='gcEmisVal' class='gallery-slider-value' style='min-width:36px'>2.0</span></div>"
+        // Saturation
+        rtxCfg = rtxCfg $ "<div class='gallery-row' style='align-items:center;gap:12px'><span class='gallery-note' style='min-width:180px'>Saturation</span><input type='range' id='gcSatRange' min='0' max='3' step='0.1' value='1' style='flex:1'><span id='gcSatVal' class='gallery-slider-value' style='min-width:36px'>1.0</span></div>"
+        // Bloom (halo)
+        rtxCfg = rtxCfg $ "<div class='gallery-row' style='align-items:center;gap:12px'><span class='gallery-note' style='min-width:180px'>Bloom (halo lumineux)</span><input type='range' id='gcBloomRange' min='0' max='2' step='0.1' value='0' style='flex:1'><span id='gcBloomVal' class='gallery-slider-value' style='min-width:36px'>0.0</span></div>"
+        rtxCfg = rtxCfg $ "</div></div></div>"
+
+        // JS de l'editeur : insertion de VRAIS widgets (clone des <template>),
+        // drag magnetique (snap 24px), selection, materiau, color picker custom.
+        rtxScript = "<script>"
+        rtxScript = rtxScript $ "window.gcRtxInit=function(){"
+        rtxScript = rtxScript $ "  if(window.__gcRtx||!window.Raytracer2D||!document.getElementById('gcRtxCanvas'))return;"
+        rtxScript = rtxScript $ "  var page=document.getElementById('gcPage');"
+        // Le raytracer cible .gc-item (les widgets places).
+        rtxScript = rtxScript $ "  window.__gcRtx=new Raytracer2D('gcRtxCanvas',{domSelector:'.gc-item'});"
+        rtxScript = rtxScript $ "  window.__gcRtx.updateSceneFromDOM();"
+        // Fond de scene RTX = couleur reelle de la grille (suit le theme).
+        rtxScript = rtxScript $ "  window.gcRtxSyncBg=function(){if(!page||!window.__gcRtx)return;var c=getComputedStyle(page).backgroundColor;var m=c.match(/(\\d+(?:\\.\\d+)?)/g);if(m&&m.length>=3){window.__gcRtx.setBackgroundColor([m[0]/255,m[1]/255,m[2]/255])}};"
+        rtxScript = rtxScript $ "  gcRtxSyncBg();"
+        rtxScript = rtxScript $ "  var sel=null;var matSel=document.getElementById('gcMatSel');var GRID=24;"
+        // Selection d'un item + sync du panneau (materiau + color picker custom).
+        rtxScript = rtxScript $ "  window.gcPick=function(el){if(sel)sel.classList.remove('gc-selected');sel=el;if(el){el.classList.add('gc-selected');var p=window.__gcRtx.getObjectProperties(el);if(matSel)matSel.value=String(p.materialType)}};"
+        // Rend un item deplacable (drag magnetique, snap a la grille).
+        rtxScript = rtxScript $ "  window.gcMakeDraggable=function(el){el.addEventListener('pointerdown',function(e){if(e.target.closest('button,select,input,a,.gc-resize'))return;e.preventDefault();gcPick(el);var r=el.getBoundingClientRect();var pr=page.getBoundingClientRect();var ox=e.clientX-r.left,oy=e.clientY-r.top;el.classList.add('gc-dragging');el.setPointerCapture(e.pointerId);function mv(ev){var x=ev.clientX-pr.left-ox,y=ev.clientY-pr.top-oy;x=Math.round(x/GRID)*GRID;y=Math.round(y/GRID)*GRID;x=Math.max(0,Math.min(x,page.clientWidth-el.offsetWidth));y=Math.max(0,Math.min(y,page.clientHeight-el.offsetHeight));el.style.left=x+'px';el.style.top=y+'px';if(window.__gcRtx)window.__gcRtx.updateSceneFromDOM()}function up(ev){el.classList.remove('gc-dragging');el.releasePointerCapture(e.pointerId);el.removeEventListener('pointermove',mv);el.removeEventListener('pointerup',up);if(window.__gcRtx)window.__gcRtx.updateSceneFromDOM()}el.addEventListener('pointermove',mv);el.addEventListener('pointerup',up)});el.addEventListener('click',function(){gcPick(el)})};"
+        // Resize via poignee custom (coin bas-droite). Snap a la grille.
+        rtxScript = rtxScript $ "  window.gcMakeResizable=function(el,handle){handle.addEventListener('pointerdown',function(e){e.preventDefault();e.stopPropagation();gcPick(el);var sx=e.clientX,sy=e.clientY,sw=el.offsetWidth,sh=el.offsetHeight;handle.setPointerCapture(e.pointerId);function mv(ev){var w=Math.max(120,Math.round((sw+ev.clientX-sx)/GRID)*GRID);var h=Math.max(70,Math.round((sh+ev.clientY-sy)/GRID)*GRID);el.style.width=w+'px';el.style.height=h+'px';if(window.__gcRtx)window.__gcRtx.updateSceneFromDOM()}function up(ev){handle.releasePointerCapture(e.pointerId);handle.removeEventListener('pointermove',mv);handle.removeEventListener('pointerup',up);if(window.__gcRtx)window.__gcRtx.updateSceneFromDOM()}handle.addEventListener('pointermove',mv);handle.addEventListener('pointerup',up)})};"
+        // Insere un widget (clone du template) dans un .gc-item colore positionne.
+        rtxScript = rtxScript $ "  window.__gcPal=['#ef4444','#3b82f6','#22c55e','#f59e0b','#a855f7','#14b8a6','#ec4899'];window.__gcN=0;"
+        rtxScript = rtxScript $ "  window.gcAddWidget=function(type,x,y,color){var tpl=document.getElementById('gctpl_'+type);if(!tpl||!page)return null;page.classList.remove('gc-empty');var item=document.createElement('div');item.className='gc-item';item.appendChild(tpl.content.cloneNode(true));var hd=document.createElement('div');hd.className='gc-resize';item.appendChild(hd);var n=window.__gcN++;item.style.background=color||window.__gcPal[n%window.__gcPal.length];item.style.left=(x!==undefined?x:40+((n%4)*30))+'px';item.style.top=(y!==undefined?y:40+((n%4)*30))+'px';page.appendChild(item);if(window.galleryRenderIcons)galleryRenderIcons(item);gcMakeDraggable(item);gcMakeResizable(item,hd);gcPick(item);if(window.__gcRtx)window.__gcRtx.updateSceneFromDOM();return item};"
+        rtxScript = rtxScript $ "  window.addEventListener('toba:event',function(e){var d=e.detail||{};if(d.name==='gc_add_widget'){var t=(d.data&&d.data.value)||String();if(t)gcAddWidget(t)}});"
+        // Materiau du widget selectionne.
+        rtxScript = rtxScript $ "  if(matSel)matSel.addEventListener('change',function(e){if(!sel)return;var m=parseInt(e.target.value,10);var rt=window.__gcRtx;rt.updateObjectProperty(sel,'materialType',m);if(m===2){rt.updateObjectProperty(sel,'opacity',0.4);rt.updateObjectProperty(sel,'ior',1.5)}else if(m===3){rt.updateObjectProperty(sel,'roughness',0.2);rt.updateObjectProperty(sel,'opacity',1.0)}else{rt.updateObjectProperty(sel,'opacity',1.0)}});"
+        // Color picker custom (event gc_color_change) -> couleur du widget selectionne.
+        rtxScript = rtxScript $ "  window.addEventListener('toba:event',function(e){var d=e.detail||{};if(d.name==='gc_color_change'&&sel){var v=(d.data&&d.data.value)||d.value;if(v){sel.style.background=v;if(window.__gcRtx)window.__gcRtx.updateSceneFromDOM()}}});"
+        // Transparence du widget selectionne (opacite du contenu via --gc-tr).
+        rtxScript = rtxScript $ "  var trR=document.getElementById('gcTranspRange'),trV=document.getElementById('gcTranspVal');if(trR){trR.addEventListener('input',function(e){var x=parseFloat(e.target.value);if(trV)trV.textContent=x.toFixed(2);if(sel)sel.style.setProperty('--gc-tr',x)})}"
+        // Supprimer le widget selectionne.
+        rtxScript = rtxScript $ "  var delB=document.getElementById('gcDelBtn');if(delB){delB.addEventListener('click',function(){if(sel){var p=sel;sel=null;p.remove();if(window.__gcRtx)window.__gcRtx.updateSceneFromDOM()}})}"
+        // Ordre d'empilement : reordonne dans le DOM (dernier=devant) + z-index.
+        // Le raytracer scanne dans l'ordre DOM -> l'ordre RTX suit l'empilement.
+        rtxScript = rtxScript $ "  window.__gcZ=10;window.gcReindex=function(){var it=page.querySelectorAll('.gc-item');for(var i=0;i<it.length;i++)it[i].style.zIndex=String(2+i);if(window.__gcRtx)window.__gcRtx.updateSceneFromDOM()};"
+        rtxScript = rtxScript $ "  var frB=document.getElementById('gcFrontBtn');if(frB){frB.addEventListener('click',function(){if(sel){page.appendChild(sel);gcReindex()}})}"
+        rtxScript = rtxScript $ "  var bkB=document.getElementById('gcBackBtn');if(bkB){bkB.addEventListener('click',function(){if(sel&&page.firstElementChild!==sel){page.insertBefore(sel,page.firstElementChild)}gcReindex()})}"
+        // Resize (resize:both natif) : rescanner le raytracer quand la taille change.
+        // Optimisation (renderScale).
+        rtxScript = rtxScript $ "  var optSel=document.getElementById('gcOptimSel');if(optSel){window.__gcRtx.setRenderScale(parseFloat(optSel.value));optSel.addEventListener('change',function(e){window.__gcRtx.setRenderScale(parseFloat(e.target.value))})}"
+        // Sliders : puissance emissive, saturation, bloom.
+        rtxScript = rtxScript $ "  function gcBindRange(id,valId,fn,fix){var r=document.getElementById(id),v=document.getElementById(valId);if(!r)return;fn(parseFloat(r.value));r.addEventListener('input',function(e){var x=parseFloat(e.target.value);if(v)v.textContent=x.toFixed(fix);fn(x)})}"
+        rtxScript = rtxScript $ "  gcBindRange('gcEmisRange','gcEmisVal',function(x){window.__gcRtx.setEmissivePower(x)},1);"
+        rtxScript = rtxScript $ "  gcBindRange('gcSatRange','gcSatVal',function(x){window.__gcRtx.setSaturation(x)},1);"
+        rtxScript = rtxScript $ "  gcBindRange('gcBloomRange','gcBloomVal',function(x){window.__gcRtx.setBloom(x>0,x,0.7)},1);"
+        // Scene par defaut : quelques cartes colorees placees d'emblee (dont une
+        // emissive) pour que le RTX ait des objets et demarre visible tout de suite.
+        rtxScript = rtxScript $ "  if(page&&!page.querySelector('.gc-item')){var a=gcAddWidget('card',60,60,'#ef4444');var b=gcAddWidget('card',360,60,'#3b82f6');var c=gcAddWidget('card',60,260,'#a855f7');var g=gcAddWidget('card',360,260,'#22c55e');if(g){window.__gcRtx.updateObjectProperty(g,'materialType',4)}gcPick(a);window.__gcRtx.updateSceneFromDOM()}"
+        rtxScript = rtxScript $ "};"
+        // Demarrage a l'affichage de l'onglet RTX + resync fond au theme.
+        rtxScript = rtxScript $ "window.addEventListener('toba:event',function(e){var d=e.detail||{};if(d.name==='tab_fx_rtx'){[100,400,900].forEach(function(ms){setTimeout(function(){gcRtxInit();if(window.__gcRtx){window.__gcRtx.updateSceneFromDOM();if(window.gcRtxSyncBg)gcRtxSyncBg()}},ms)})}else if(d.name==='theme_change'){setTimeout(function(){if(window.gcRtxSyncBg)gcRtxSyncBg()},60)}});"
+        rtxScript = rtxScript $ "</script>"
+
+        rtxTab = "<div class='gallery-stack'>" $ rtxTab $ rtxCss $ rtxTpl $ rtxScene $ rtxCfg $ rtxScript $ "</div>"
+
+        fxTabs = webui::TabView()
+        fxTabs.AddHtml("fx_css", "CSS effects", " ", 1, cssTab)
+        fxTabs.AddHtml("fx_radiance", "Radiance", "GL", 0, radTab)
+        fxTabs.AddHtml("fx_rtx", "Raytracer", "RTX", 0, rtxTab)
+        fxTabs.Close()
+        effectsPanel.AddHtml(fxTabs.html)
+    effectsPanel.Close()
+    page.AddPanel(effectsPanel)
+
+    layoutPanel = webui::Panel()
+    layoutPanel.Setup("layout", "Layouts", "dock", "Dock, masonry and responsive placement")
+        layoutCards = webui::CardGrid()
+        layoutCards.AddCard("DockPage", "Application shell", "Header, sidebar, stage and footer.")
+        layoutCards.AddCard("DesktopLayout", "Resizable desktop panels", "Sidebar + main area with themeable spacing.")
+        layoutCards.AddCard("Grid", "Responsive placement", "Auto-fit cards and widgets without manual coordinates.")
+        layoutCards.AddCard("Masonry", "Content-heavy pages", "Useful for heterogeneous widget heights.")
+        layoutCards.Close()
+        layoutPanel.Add(layoutCards)
+        layoutPanel.AddHtml("<div class='gallery-layout-demo'><div>Sidebar</div><div>Main stage</div><div>Resizable panel</div><div>Responsive panel</div></div>")
+        layoutCode = webui::Code()
+        layoutCode.Text("page = webui::Page()\npanel = webui::Panel()\npanel.Setup(\"layout\", \"Layouts\", \"dock\", \"Responsive placement\")\npanel.Add(widget)\npage.AddPanel(panel)")
+        layoutPanel.Add(layoutCode)
+    layoutPanel.Close()
+    page.AddPanel(layoutPanel)
+
+    navigation = webui::Panel()
+    navigation.Setup("navigation", "Navigation widgets", "tree", "Treeview, collapse, accordion, profile menu")
+        nav = webui::Navigation()
+        nav.Build()
+        navigation.Add(nav)
+    navigation.Close()
+    page.AddPanel(navigation)
+
+    bar = widgets::ChatBar()
+    bar.Setup("gallery_chatbar", "Ecris un message...", "webuiToast('Message',document.getElementById('gallery_chatbar_input').value||'(vide)')")
+    bar.AddPillBadge("perso", "users", "Personnalites", "3")
+    bar.AddPill("sources", "image", "Sources")
+    bar.AddPill("comportement", "settings", "Comportement")
+    bar.AddPanel("perso", "Personnalites", "<div class='lw-cbpanel-list'><button class='ui-btn' onclick=\"webuiToast('Personnalite','Diane')\">Diane</button><button class='ui-btn' onclick=\"webuiToast('Personnalite','Marc')\">Marc</button><button class='ui-btn' onclick=\"webuiToast('Personnalite','Sophie')\">Sophie</button></div>")
+    bar.AddPanel("sources", "Sources visuelles", "<div class='lw-cbpanel-list'><button class='ui-btn' onclick=\"webuiToast('Source','Webcam')\">Webcam</button><button class='ui-btn' onclick=\"webuiToast('Source','Ecran')\">Ecran</button><button class='ui-btn' onclick=\"webuiToast('Source','Fichier')\">Fichier</button></div>")
+    bar.AddPanel("comportement", "Comportement", "<div class='lw-cbpanel-list'><button class='ui-btn primary' onclick=\"webuiToast('Mode','Normal')\">Normal</button><button class='ui-btn' onclick=\"webuiToast('Mode','Podcast')\">Podcast</button><button class='ui-btn' onclick=\"webuiToast('Mode','Roleplay')\">Roleplay</button></div>")
+
+    chatPanel = webui::Panel()
+    chatPanel.Setup("chat", "Chat", "composer", "Messages, composer and ChatBar")
+        chat = webui::Chat()
+        chat.Build()
+        chatPanel.Add(chat)
+        chatPanel.AddHtml(widgets::ChatBarStyles())
+        chatPanel.AddHtml("<div class='gallery-note' style='margin-top:18px'>ChatBar : pastilles, panneaux soudes et events vers Toba.</div><div class='lw-cbdemo' style='min-height:200px;margin-top:8px'>" $ bar.Render() $ "</div>")
+        chatPanel.AddHtml(widgets::ChatBarScript())
+    chatPanel.Close()
+    page.AddPanel(chatPanel)
+
+    classicPanel = webui::Panel()
+    classicPanel.Setup("classic", "Classic desktopui", "simple", "Low-level widgets kept for compatibility")
+        classicPanel.AddHtml("<div class='gallery-basic'><div class='tb-toolbar'><button id='classic_run' class='tb-button' onclick=\"webuiEvent('classic_run',{id:'classic_run'})\">Run</button><button id='classic_cancel' class='tb-button secondary' onclick=\"webuiEvent('classic_cancel',{id:'classic_cancel'})\">Cancel</button></div><div class='tb-row'><label for='classic_name'>Name</label><input id='classic_name' class='tb-input' value='Classic widget' onchange=\"webuiEvent('classic_name_changed',{id:this.id,value:this.value})\"></div><div class='tb-row'><select id='classic_size' class='tb-input' onchange=\"webuiEvent('classic_size_changed',{id:this.id,value:this.value})\"><option>Small</option><option>Medium</option><option>Large</option></select></div><textarea id='classic_notes' class='tb-area' onchange=\"webuiEvent('classic_notes_changed',{id:this.id,value:this.value})\">Classic textarea</textarea><div id='classic_status' class='tb-status'>Classic desktopui visual style, wired to webuiEvent for this standalone page.</div></div>")
+        classicCode = webui::Code()
+        classicCode.Text("desktopui::Button\ndesktopui::SecondaryButton\ndesktopui::Input\ndesktopui::Select\ndesktopui::TextArea\ndesktopui::Status")
+        classicPanel.Add(classicCode)
+    classicPanel.Close()
+    page.AddPanel(classicPanel)
+
+    editorsPanel = webui::Panel()
+    editorsPanel.Setup("editors", "Editors", "code", "Code, markdown and rich text")
+        tobaCode = "func: BuildWidget() {\n    html = widget_core::CodeBlock(\"demo_code\", \"Exemple Toba\", \"toba\", \"return (1)\")\n    return (html)\n}"
+        codeBlock = widgets_extra::CodeBlock()
+        codeBlock.Setup("toba_code_sample", "Code Toba", "toba", tobaCode)
+        codeBlock.Close()
+        editorsPanel.Add(codeBlock)
+
+        editorsPanel.AddHtml("<style>#editors #monaco_toba_sample{min-height:180px}#editors #monaco_toba_sample .lw-monaco-host,#editors #monaco_toba_sample .lw-monaco-textarea{min-height:140px}#editors #rich_note_sample{min-height:260px}#editors #rich_note_sample .lw-rich-host{min-height:220px}#editors #rich_note_sample .ql-container,#editors #rich_note_sample .ql-editor,#editors #rich_note_sample .lw-rich-area{min-height:160px}</style>")
+
+        richHtml = "<h2>Note vocale</h2><p>Ce widget utilise <strong>Quill</strong> en local depuis le dossier vendor.</p><blockquote>Selectionne du texte puis teste la toolbar.</blockquote>"
+        rich = widgets_extra::RichTextEditor()
+        rich.Setup("rich_note_sample", "Rich Text Editor", richHtml, "rich_text_change")
+        rich.Close()
+        editorsPanel.Add(rich)
+
+        monacoCode = "func: BuildEditor() {\n    ed = widgets_extra::MonacoEditor()\n    ed.Setup('editor', 'Script Toba', 'toba', 'print(1)', 'monaco_change')\n    ed.Close()\n    return (ed.html)\n}"
+        monaco = widgets_extra::MonacoEditor()
+        monaco.Setup("monaco_toba_sample", "Monaco Editor", "toba", monacoCode, "monaco_change")
+        monaco.Close()
+        editorsPanel.Add(monaco)
+    editorsPanel.Close()
+    page.AddPanel(editorsPanel)
+
+    docsPanel = webui::Panel()
+    docsPanel.Setup("docs", "Widget documentation", "markdown", "Sommaire de navigation + doc des widgets")
+        docs = webui::Markdown()
+        docs.LoadFile("C:/Toba/modules/libwebui/WIDGETS.md")
+        docsPanel.AddHtml("<div class='lw-doc'><nav class='lw-doc-nav'></nav>" $ docs.html $ "</div>")
+    docsPanel.Close()
+    page.AddPanel(docsPanel)
+
+    page.Show()
+    print("native handle after show = ")
+    print(page.NativeHandle())
+    print("\n")
+    print("TOBA WEBUI COMPONENT GALLERY STARTED\n")
+    print("Click Toba Notify or the chart buttons to run Toba callbacks.\n")
+    eventbus::SetCloseGuard(1, "Demander l'autorisation a Toba avant de quitter ?")
+    chartPoint = 1
+    chartStream = 0
+    streamTick = 0
+    diagTick = 0
+    loop {
+        rawEvt = desktopui::BridgePoll(50)
+        diagTick = diagTick + 1
+        if (diagTick > 20) {
+            diagTick = 0
+            print("bridge connected=")
+            print(desktopui::BridgeIsConnected())
+            print(" events=")
+            print(desktopui::BridgeEventCount())
+            print(" error=")
+            print(desktopui::BridgeLastError())
+            print("\n")
+        }
+        if (size(rawEvt) > 0) {
+            print("raw bridge = ")
+            print(rawEvt)
+            print("\n")
+            rawName = json::GetString(rawEvt, "name", " ")
+            if (rawName == "native_window_action") {
+                if (page.NativeHandle() == 0) {
+                    page.nativeHandle = desktopui::NativeWindowFind("Toba WebUI Component Gallery")
+                }
+                print("native action=")
+                print(webui::EventAction(rawEvt))
+                print(" handle=")
+                print(page.NativeHandle())
+                print("\n")
+                webui::HandleNativeWindowEventHandle(rawEvt, page.NativeHandle())
+                print("native result=")
+                print(desktopui::NativeWindowLastActionResult())
+                print("\n")
+                rawEvt = ""
+            }
+        }
+        evt = eventbus::New(rawEvt)
+        if (evt.HasEvent()) {
+            print("component event = ")
+            print(evt.Name())
+            print(" widget = ")
+            print(evt.WidgetId())
+            print(" state = ")
+            print(evt.State())
+            print("\n")
+            if (evt.Is("chart_start_stream")) {
+                chartStream = 1
+                eventbus::Notify("Chart stream", "Toba realtime stream started.")
+            }
+            if (evt.Is("chart_stop_stream")) {
+                chartStream = 0
+                eventbus::Notify("Chart stream", "Toba realtime stream stopped.")
+            }
+            if (evt.Is("window_close_request")) {
+                print("close request received by Toba\n")
+                eventbus::Notify("Fermeture demandee", "Toba a recu window_close_request.")
+            }
+            if (evt.Is("window_close_confirm")) {
+                print("close confirmed by WebUI\n")
+                desktopui::NativeWindowActionHandle(page.NativeHandle(), "force_close")
+                break
+            }
+            if (evt.Is("window_closed")) {
+                print("window closed\n")
+            }
+            chartPoint = OnGalleryEvent(evt, chartPoint)
+        }
+        if (chartStream == 1) {
+            streamTick = streamTick + 1
+            if (streamTick > 8) {
+                chartPoint = PushChartPoint(chartPoint)
+                streamTick = 0
+            }
+        }
+        sleep(0.05)
+    }
+}
+

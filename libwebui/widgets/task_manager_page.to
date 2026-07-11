@@ -1,0 +1,6 @@
+import : libwebui / widgets
+
+func: TaskManagerPage(content, script) {
+    return (widgets::TaskManagerPage(content, script))
+}
+

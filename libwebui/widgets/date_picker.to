@@ -1,0 +1,57 @@
+import : libwebui / desktopui
+import : libwebui / widget_core
+
+func: RenderDatePicker(id, label, value, eventName) {
+    eid = desktopui::EscapeJs(id)
+    ev = desktopui::EscapeJs(eventName)
+    day = widget_core::DateDay(value)
+    month = widget_core::DateMonth(value)
+    year = widget_core::DateYear(value)
+    display = widget_core::DateDisplay(value)
+    html = widget_core::WidgetStart(id, label, "Calendrier custom integre a libwebui.")
+    html = html $ "<div id='" $ desktopui::EscapeHtml(id) $ "_wrap' class='lw-pop-wrap' data-popover='up' data-month='" $ month $ "'><button type='button' class='lw-pop-trigger' onclick=\"" $ widget_core::PopoverToggleJs() $ "\"><span id='" $ desktopui::EscapeHtml(id) $ "_display'>" $ desktopui::EscapeHtml(display) $ "</span></button>"
+    html = html $ "<div class='lw-pop-panel lw-date-panel'><div class='lw-date-monthbar'><button type='button' class='lw-x-btn' onclick=\"" $ widget_core::MonthStepJs(id, -1) $ "\">-</button><div class='lw-date-title' id='" $ desktopui::EscapeHtml(id) $ "_month_title'>" $ widget_core::MonthName(month) $ "</div><button type='button' class='lw-x-btn' onclick=\"" $ widget_core::MonthStepJs(id, 1) $ "\">+</button></div>"
+    html = html $ "<div class='lw-date-head'><button type='button' class='lw-x-btn' onclick=\"var y=document.getElementById('" $ eid $ "_year');y.textContent=String(Number(y.textContent)-1)\">-</button><div class='lw-date-title'><span id='" $ desktopui::EscapeHtml(id) $ "_year'>" $ year $ "</span></div><button type='button' class='lw-x-btn' onclick=\"var y=document.getElementById('" $ eid $ "_year');y.textContent=String(Number(y.textContent)+1)\">+</button></div>"
+    html = html $ "<div class='lw-date-grid'><span class='lw-date-week'>Lu</span><span class='lw-date-week'>Ma</span><span class='lw-date-week'>Me</span><span class='lw-date-week'>Je</span><span class='lw-date-week'>Ve</span><span class='lw-date-week'>Sa</span><span class='lw-date-week'>Di</span>"
+    i = for (1, 32, 1) {
+        dd = widget_core::Pad2(i)
+        cls = "lw-date-day"
+        if (dd == day) {
+            cls = "lw-date-day current"
+        }
+        js = "var y=document.getElementById('" $ eid $ "_year').textContent;var d='" $ dd $ "';var m=document.getElementById('" $ eid $ "_wrap').getAttribute('data-month')||'" $ month $ "';var v=y+'-'+m+'-'+d;document.getElementById('" $ eid $ "_display').textContent=d+'/'+m+'/'+y;var xs=this.parentNode.querySelectorAll('.lw-date-day');for(var j=0;j<xs.length;j++)xs[j].classList.remove('current');this.classList.add('current');document.getElementById('" $ eid $ "_wrap').classList.remove('open');webuiEvent('" $ ev $ "',{id:'" $ eid $ "',value:v})"
+        html = html $ "<button type='button' class='" $ cls $ "' onclick=\"" $ js $ "\">" $ strnum(i) $ "</button>"
+    }
+    html = html $ "</div></div></div>" $ widget_core::WidgetEnd()
+    return (html)
+}
+
+obj:DatePicker() {
+    self.html = " "
+    self.id = "date_picker"
+    self.label = "Date"
+    self.value = "2026-06-26"
+    self.eventName = "date_change"
+    self.disabled = 0
+
+    func:Setup(self, id, label, value, eventName) {
+        self.id = id
+        self.label = label
+        self.value = value
+        self.eventName = eventName
+        return (self)
+    }
+
+    func:SetDisabled(self, disabled) {
+        self.disabled = disabled
+        return (self)
+    }
+
+    func:Close(self) {
+        self.html = widget_core::Styles() $ RenderDatePicker(self.id, self.label, self.value, self.eventName)
+        if (self.disabled == 1) {
+            self.html = widget_core::DisableHtml(self.html)
+        }
+        return (self)
+    }
+}

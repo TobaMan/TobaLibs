@@ -1,0 +1,6 @@
+import : libwebui / widgets
+
+func: PillInput(inputId, label, value, onInputJs) {
+    return (widgets::PillInput(inputId, label, value, onInputJs))
+}
+

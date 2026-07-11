@@ -1,0 +1,152 @@
+import : libwebui / desktopui
+import : libwebui / widget_core
+
+func: ImageHasText(source, pattern) {
+    pos = find(source, pattern)
+    res = 0
+    if (isnum(pos)) {
+        if (pos >= 0) {
+            res = 1
+        }
+    }
+    return (res)
+}
+
+func: ImageMime(source) {
+    s = widget_core::TextOrEmpty(source)
+    low = s
+    low = freplace(low, ".JPG", ".jpg")
+    low = freplace(low, ".JPEG", ".jpeg")
+    low = freplace(low, ".PNG", ".png")
+    low = freplace(low, ".WEBP", ".webp")
+    low = freplace(low, ".GIF", ".gif")
+    low = freplace(low, ".SVG", ".svg")
+    res = "image/jpeg"
+    if (ImageHasText(low, ".png") == 1) { res = "image/png" }
+    if (ImageHasText(low, ".webp") == 1) { res = "image/webp" }
+    if (ImageHasText(low, ".gif") == 1) { res = "image/gif" }
+    if (ImageHasText(low, ".svg") == 1) { res = "image/svg+xml" }
+    return (res)
+}
+
+func: ImageSourceUrl(source) {
+    s = widget_core::TextOrEmpty(source)
+    res = s
+    direct = 0
+    if (ImageHasText(s, "data:image/") == 1) { direct = 1 }
+    if (ImageHasText(s, "http://") == 1) { direct = 1 }
+    if (ImageHasText(s, "https://") == 1) { direct = 1 }
+    if (direct == 0) {
+        embedded = 0
+        b64Path = s $ ".b64"
+        if (size(s) > 0) {
+            if (fstype(b64Path) == 1) {
+                b64 = fsreadf(b64Path)
+                if (isstr(b64)) {
+                    b64 = freplace(b64, "\n", "")
+                    b64 = freplace(b64, "\r", "")
+                    res = "data:" $ ImageMime(source) $ ";base64," $ b64
+                    embedded = 1
+                }
+            }
+        }
+        if (embedded == 0) {
+            if (size(s) > 2) {
+                if (slice(s, 1, 2) == ":") {
+                    res = freplace(s, "\\", "/")
+                    res = "file:///" $ res
+                }
+            }
+        }
+    }
+    return (res)
+}
+
+func: ImageStyles() {
+    css = "<style data-libwebui-image='1'>"
+    css = css $ ".lw-image-card,.lw-gallery-card,.lw-carousel-card{overflow:hidden}"
+    css = css $ ".lw-image-frame{position:relative;display:grid;place-items:center;min-height:260px;border:1px solid var(--border);border-radius:var(--lw-radius);background:color-mix(in srgb,var(--bg-surface) 72%,var(--bg-card));overflow:hidden}"
+    css = css $ ".lw-image-frame img{display:block;width:100%;height:100%;max-height:520px;object-fit:var(--lw-fit,cover)}"
+    css = css $ ".lw-image-caption{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px;color:var(--text-2);font-size:12.5px;line-height:1.35}"
+    css = css $ ".lw-image-source{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--mono);font-size:11px;color:var(--text-3)}"
+    css = css $ ".lw-image-empty{padding:38px 18px;text-align:center;color:var(--text-3);font-size:12.5px}"
+    css = css $ ".lw-gallery-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(150px,240px);gap:12px;min-height:320px}"
+    css = css $ ".lw-gallery-main{min-height:320px}"
+    css = css $ ".lw-gallery-main img{cursor:zoom-in}"
+    css = css $ ".lw-gallery-thumbs{min-height:0;max-height:520px;overflow:auto;display:grid;grid-template-columns:repeat(var(--lw-cols,2),minmax(0,1fr));gap:8px;align-content:start}"
+    css = css $ ".lw-gallery-thumb{height:82px;border:1px solid var(--border);border-radius:var(--lw-radius);background:var(--bg-card);padding:0;overflow:hidden;cursor:pointer;position:relative}"
+    css = css $ ".lw-gallery-thumb img{width:100%;height:100%;object-fit:cover;display:block}"
+    css = css $ ".lw-gallery-thumb:hover,.lw-gallery-thumb.active{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}"
+    css = css $ ".lw-gallery-thumb span{position:absolute;left:6px;right:6px;bottom:5px;padding:3px 6px;border-radius:var(--lw-radius);background:color-mix(in srgb,var(--bg-card) 82%,transparent);color:var(--text-1);font-size:10.5px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}"
+    css = css $ ".lw-carousel{position:relative;min-height:360px;border:1px solid var(--border);border-radius:var(--lw-radius);background:color-mix(in srgb,var(--bg-surface) 72%,var(--bg-card));overflow:hidden}"
+    css = css $ ".lw-carousel-track{height:100%;min-height:360px;display:flex;transition:transform .22s ease;will-change:transform}"
+    css = css $ ".lw-carousel-slide{min-width:100%;position:relative;display:grid;place-items:center;background:var(--bg-card)}"
+    css = css $ ".lw-carousel-slide img{width:100%;height:100%;min-height:360px;max-height:560px;object-fit:cover;display:block}"
+    css = css $ ".lw-carousel-caption{position:absolute;left:14px;right:14px;bottom:14px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid color-mix(in srgb,var(--border) 70%,transparent);border-radius:var(--lw-radius);background:color-mix(in srgb,var(--bg-card) 82%,transparent);backdrop-filter:blur(10px);color:var(--text-1);font-weight:850}"
+    css = css $ ".lw-carousel-caption small{display:block;margin-top:3px;color:var(--text-3);font-weight:650}"
+    css = css $ ".lw-carousel-btn{position:absolute;top:50%;transform:translateY(-50%);width:36px;height:36px;border:1px solid var(--border);border-radius:var(--lw-pill-radius);background:color-mix(in srgb,var(--bg-card) 88%,transparent);color:var(--text-1);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:3}"
+    css = css $ ".lw-carousel-btn:hover{border-color:var(--accent);background:var(--accent-glow);color:var(--accent)}"
+    css = css $ ".lw-carousel-prev{left:12px}.lw-carousel-next{right:12px}"
+    css = css $ ".lw-carousel-dots{position:absolute;left:0;right:0;bottom:12px;display:flex;justify-content:center;gap:6px;z-index:4;pointer-events:none}"
+    css = css $ ".lw-carousel-dot{width:8px;height:8px;border:0;border-radius:999px;background:color-mix(in srgb,var(--text-3) 65%,transparent);padding:0;pointer-events:auto;cursor:pointer}"
+    css = css $ ".lw-carousel-dot.active{width:22px;background:var(--accent)}"
+    css = css $ "@media(max-width:760px){.lw-gallery-layout{grid-template-columns:1fr}.lw-gallery-thumbs{grid-template-columns:repeat(3,minmax(0,1fr));max-height:none}.lw-carousel-caption{position:static;border-radius:0;border-left:0;border-right:0;border-bottom:0}.lw-carousel-dots{bottom:8px}}"
+    css = css $ "</style>"
+    return (css)
+}
+
+func: RenderImageView(id, title, source, alt, caption, fit) {
+    safeId = desktopui::EscapeHtml(id)
+    src = desktopui::EscapeHtml(ImageSourceUrl(source))
+    safeAlt = desktopui::EscapeHtml(alt)
+    safeFit = desktopui::EscapeHtml(fit)
+    if (size(widget_core::TextOrEmpty(fit)) == 0) {
+        safeFit = "cover"
+    }
+    empty = ""
+    img = "<img src='" $ src $ "' alt='" $ safeAlt $ "' loading='lazy' onclick=\"webuiEvent('image_click',{id:'" $ desktopui::EscapeJs(id) $ "',value:'" $ desktopui::EscapeJs(source) $ "'})\">"
+    if (size(widget_core::TextOrEmpty(source)) == 0) {
+        img = "<div class='lw-image-empty'>Aucune image selectionnee.</div>"
+    }
+    html = ImageStyles()
+    html = html $ "<section id='" $ safeId $ "' class='ui-card lw-image-card'><div class='ui-card-head'><div class='ui-card-title'>" $ desktopui::EscapeHtml(title) $ "</div><div class='ui-card-sub'>" $ desktopui::EscapeHtml(caption) $ "</div></div><div class='ui-card-body'><div class='lw-image-frame' style='--lw-fit:" $ safeFit $ "'>" $ img $ empty $ "</div><div class='lw-image-caption'><span>" $ desktopui::EscapeHtml(caption) $ "</span><span class='lw-image-source'>" $ desktopui::EscapeHtml(source) $ "</span></div></div></section>"
+    return (html)
+}
+
+obj:ImageView() {
+    self.html = " "
+    self.id = "image_view"
+    self.title = "Image"
+    self.source = " "
+    self.alt = "Image"
+    self.caption = "Image themable"
+    self.fit = "cover"
+    self.disabled = 0
+
+    func:Setup(self, id, title, source, alt, caption) {
+        self.id = id
+        self.title = title
+        self.source = source
+        self.alt = alt
+        self.caption = caption
+        return (self)
+    }
+
+    func:SetFit(self, fit) {
+        self.fit = fit
+        return (self)
+    }
+
+    func:SetDisabled(self, disabled) {
+        self.disabled = disabled
+        return (self)
+    }
+
+    func:Close(self) {
+        self.html = widget_core::Styles() $ RenderImageView(self.id, self.title, self.source, self.alt, self.caption, self.fit)
+        if (self.disabled == 1) {
+            self.html = widget_core::DisableHtml(self.html)
+        }
+        return (self)
+    }
+}

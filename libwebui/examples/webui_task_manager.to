@@ -1,0 +1,135 @@
+import : libmetrics / metrics
+import : libwebui / webui
+import : libwebui / desktopui
+import : libwebui / widgets / dashboard
+import : libwebui / widgets / empty_gpu_metric_row
+import : libwebui / widgets / gpu_metric_row
+import : libwebui / widgets / metrics_script
+import : libjson / json
+
+func: LogPath() {
+    return ("C:/Toba/modules/libwebui/examples/webui_task_manager.log")
+}
+
+func: DebugPath() {
+    return ("C:/Toba/modules/libwebui/examples/webui_task_manager_debug.html")
+}
+
+func: Log(line) {
+    path = LogPath()
+    old = fsreadf(path)
+    if (!isstr(old)) {
+        old = ""
+    }
+    fswritef(path, old $ line $ "\n")
+    return (1)
+}
+
+func: NumText(metricsJson, key) {
+    value = json::GetNumber(metricsJson, key, 0)
+    res = strnum(value)
+    return (res)
+}
+
+func: GpuRows(metricsJson) {
+    rows = ""
+    raw = json::GetRaw(metricsJson, "gpus", "[]")
+    if (size(raw) > 2) {
+        items = json::SplitObjects(raw)
+        i = for (0, size(items), 1) {
+            item = items[i]
+            gpuName = json::GetString(item, "name", "GPU")
+            gpuUsed = json::GetNumber(item, "vramUsedMb", 0)
+            gpuTotal = json::GetNumber(item, "vramTotalMb", 0)
+            gpuPercent = json::GetNumber(item, "vramPercent", 0)
+            gpuTemp = json::GetNumber(item, "tempC", 0)
+            rows = rows $ gpu_metric_row::GpuMetricRow(gpuName, gpuUsed, gpuTotal, gpuPercent, gpuTemp)
+        }
+    }
+    if (size(rows) == 0) {
+        rows = empty_gpu_metric_row::EmptyGpuMetricRow()
+    }
+    return (rows)
+}
+
+func: BuildHtml(port, firstMetrics) {
+    cpu = NumText(firstMetrics, "cpu")
+    ram = NumText(firstMetrics, "ramPercent")
+    ramUsed = NumText(firstMetrics, "ramUsedMb")
+    ramTotal = NumText(firstMetrics, "ramTotalMb")
+    vram = NumText(firstMetrics, "vramPercent")
+    vramUsed = NumText(firstMetrics, "vramUsedMb")
+    vramTotal = NumText(firstMetrics, "vramTotalMb")
+    gpuTemp = NumText(firstMetrics, "gpuTempC")
+
+    dash = dashboard::Dashboard()
+    dash.SetTitle("Toba WebUI Task Manager")
+    dash.SetFooter("libwebui widgets + libmetrics live CPU / RAM / VRAM")
+    dash.AddThemeSelector()
+    dash.AddActionMenu()
+    dash.AddMetric("cpu", "CPU", cpu $ "%", "Utilisation processeur")
+    dash.AddMetric("cputemp", "Temperature CPU", "N/A", "Non disponible sans capteur/driver")
+    dash.AddMetric("ram", "RAM", ram $ "%", ramUsed $ " MB / " $ ramTotal $ " MB")
+    dash.AddMetric("vram", "VRAM cumulee", vram $ "%", vramUsed $ " MB / " $ vramTotal $ " MB")
+    dash.AddMetric("gputemp", "Temperature GPU", gpuTemp $ " C", "Temperature GPU max")
+    dash.AddKpi("gpu_count", "GPU", "snapshot", "Cartes detectees")
+    dash.AddTable("gpu", "GPU par carte", "snapshot", "Toutes les cartes graphiques", GpuRows(firstMetrics))
+    body = dash.Render()
+    script = metrics_script::MetricsScript(port, firstMetrics)
+    return (body $ script)
+}
+
+func: Main() {
+    metricsPort = 19111
+    fswritef(LogPath(), "TOBA WEBUI TASK MANAGER WIDGETS LOG\n")
+    started = metrics::Start(metricsPort)
+    Log("metrics::Start = " $ strnum(started))
+    if (started != 0) {
+        Log("metrics::LastError = " $ metrics::LastError())
+    }
+    first = metrics::Snapshot()
+    Log("snapshot = " $ first)
+
+    body = BuildHtml(metricsPort, first)
+
+    page = webui::CompactPage()
+    page.SetTitle("Toba WebUI Task Manager")
+    page.SetFooter("libwebui widgets + libmetrics live CPU / RAM / VRAM")
+    page.SetPort(19112)
+    page.SetWindow(1100, 720, 100, 70)
+    page.AddHtml(body)
+    page.ShowReliable(DebugPath())
+
+    Log("debug html written = " $ DebugPath())
+    Log("window opened")
+    print("TOBA WEBUI TASK MANAGER STARTED\n")
+    print("log = ")
+    print(LogPath())
+    print("\n")
+
+    tick = 0
+    loop {
+        evt = webui::PollRaw(50)
+        if (webui::EventName(evt) == "window_closed") {
+            break
+        }
+        if (tick % 4 == 0) {
+            line = "metrics accept = " $ strnum(metrics::AcceptCount())
+            line = line $ " | clients = " $ strnum(metrics::ClientCount())
+            line = line $ " | sent = " $ strnum(metrics::SentCount())
+            line = line $ " | handshake fail = " $ strnum(metrics::HandshakeFailCount())
+            line = line $ " | client threads = " $ strnum(metrics::ClientThreadCount())
+            line = line $ " | send fail = " $ strnum(metrics::SendFailCount())
+            line = line $ " | last = " $ metrics::LastError()
+            Log(line)
+        }
+        tick = tick + 1
+        sleep(0.5)
+    }
+    metrics::Stop()
+    return (1)
+}
+
+if (main()) {
+    Main()
+}

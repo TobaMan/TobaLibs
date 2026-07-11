@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Test RTX Player V3 - SVGF stable + matériaux volumiques</title>
+<style>
+  :root{
+    --accent:#14b8a6; --bg-card:#ffffff; --text-1:#111827; --text-2:#6b7280;
+    --bg:#eef2f7;
+  }
+  body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--text-1);min-height:100vh}
+  .toolbar{position:fixed;top:0;left:0;right:0;z-index:5000;background:#111827;color:#fff;
+           display:flex;gap:14px;align-items:center;padding:10px 16px;flex-wrap:wrap;font-size:13px}
+  .toolbar label{display:flex;gap:6px;align-items:center}
+  .toolbar input[type="range"]{width:110px}
+  .toolbar select,.toolbar input,.toolbar button{font-size:13px}
+  #status{font-family:ui-monospace,Consolas,monospace;font-size:11px;margin-left:auto;opacity:.9;white-space:pre}
+  .stage{position:relative;min-height:100vh;padding:118px 40px 40px;background:
+    linear-gradient(rgba(15,23,42,.055) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(15,23,42,.055) 1px,transparent 1px);
+    background-size:28px 28px}
+  .player{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:320px;border-radius:16px;padding:18px;background:rgba(255,255,255,.82);
+          box-shadow:0 12px 40px rgba(0,0,0,.16);display:flex;flex-direction:column;gap:14px;cursor:grab;touch-action:none;user-select:none}
+  .player.dragging{cursor:grabbing}
+  .player-top{display:flex;gap:14px;align-items:center}
+  .art{position:relative;overflow:hidden;width:64px;height:64px;border-radius:12px;flex:0 0 auto;background:#f59e0b}
+  .art:after{content:"";position:absolute;left:10px;top:9px;width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.32)}
+  .art img{width:100%;height:100%;object-fit:cover;display:block;border-radius:inherit}
+  .meta{min-width:0}.title{font-weight:800;font-size:18px}.artist{font-size:13px;color:var(--text-2)}
+  .bar{height:8px;border-radius:5px;background:#cbd5e1;overflow:hidden}
+  .fill{display:block;width:38%;height:100%;background:var(--accent);border-radius:5px}
+  .time{display:flex;justify-content:space-between;font-size:12px;color:var(--text-2)}
+  .ctrl{display:flex;gap:12px;justify-content:center;align-items:center}
+  .btn{width:44px;height:44px;border-radius:50%;border:0;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
+  .btn.prev,.btn.next{background:#64748b;color:#fff}.btn.play{width:54px;height:54px;background:#3b82f6;color:#fff}
+  /* width/height 100% (pas 100vw/100vh) : 100vw INCLUT la scrollbar alors que le
+     buffer est dimensionne sur innerWidth (SANS scrollbar) -> decalage. inset:0
+     sur un fixed = plein viewport LAYOUT, aligne avec getBoundingClientRect. */
+  html,body{overflow-x:hidden}
+  /* Controles adaptatifs selon le moteur : .rad-only visibles seulement en mode
+     radiance ; .pt-only (path tracer) masques en mode radiance. */
+  .rad-only{display:none}
+  .toolbar.mode-radiance .rad-only{display:flex}
+  .toolbar.mode-radiance .pt-only{display:none}
+  #rtxCanvas{position:fixed;inset:0;width:100%;height:100%;z-index:60;pointer-events:none;mix-blend-mode:multiply;opacity:1}
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <button id="btnStart">Demarrer RTX</button>
+    <button id="btnStop">Stop</button>
+    <label title="Moteur de rendu"><b>Moteur</b>
+      <select id="engineSel">
+        <option value="realtime" selected>RTX realtime (SVGF)</option>
+        <option value="quality">RTX non-realtime</option>
+        <option value="radiance">Radiance cascade</option>
+      </select>
+    </label>
+    <!-- Controles RADIANCE (masques sauf en mode radiance) -->
+    <label class="rad-only">Qualite <input type="range" id="radQuality" min="0.25" max="1" step="0.05" value="0.6"></label>
+    <label class="rad-only">Intensite <input type="range" id="radIntensity" min="0.1" max="1" step="0.05" value="0.6"></label>
+    <label class="rad-only">Opacite <input type="range" id="radOpacity" min="0.1" max="1" step="0.05" value="0.85"></label>
+    <label class="rad-only" title="Soleil directionnel">Soleil <input type="checkbox" id="radSun"></label>
+    <button id="nextCover">Pochette suivante</button>
+    <button id="smoothPreset">Preset lisse</button>
+    <button id="resetSettings">Reset reglages</button>
+    <label>Fond
+      <select id="bgSel">
+        <option value="#eef2f7">clair</option>
+        <option value="#0b1220">sombre</option>
+        <option value="#d8c0ae">chaud</option>
+      </select>
+    </label>
+    <label>Blend
+      <select id="blendSel"><option>multiply</option><option>screen</option><option>normal</option></select>
+    </label>
+    <label>Optim drag
+      <select id="dragMode">
+        <option value="default" selected>default</option>
+        <option value="positions-only">positions only</option>
+        <option value="quality-live">quality live</option>
+        <option value="quality-throttle">quality throttle</option>
+        <option value="reproject-cache">cache reproject</option>
+        <option value="cached-layer">cached layer</option>
+        <option value="dynamic-res">dynamic res</option>
+        <option value="adaptive-res">adaptive res</option>
+        <option value="ultra-lowres">ultra lowres</option>
+        <option value="cached-dynamic">cached + dynamic</option>
+        <option value="preview-fast">preview fast</option>
+        <option value="preview-smooth">preview smooth</option>
+        <option value="final-only">final only</option>
+      </select>
+    </label>
+    <label>Stabilisation
+      <select id="settleMode">
+        <option value="default" selected>default</option>
+        <option value="fast-settle">fast settle</option>
+        <option value="smooth-settle">smooth settle</option>
+        <option value="quality-burst">quality burst</option>
+      </select>
+    </label>
+    <label title="Resolution interne (scaling). Bas = plus rapide, flou ; haut = net, lourd">Resolution <input type="range" id="renderScale" min="0.3" max="1" step="0.05" value="0.55"></label>
+    <label>Bounces <input type="range" id="bounces" min="1" max="5" step="1" value="2"></label>
+    <label>Temporal <input type="range" id="temporal" min="0" max="0.55" step="0.01" value="0"></label>
+    <label>SVGF <input type="checkbox" id="denoise" checked></label>
+    <label>Force <input type="range" id="denoiseStrength" min="0" max="1" step="0.02" value="0.86"></label>
+    <label>Rayon <input type="range" id="denoiseRadius" min="0.5" max="3" step="0.1" value="1.8"></label>
+    <label>Ambiance <input type="range" id="ambient" min="0" max="1" step="0.02" value="0.32"></label>
+    <label>Emissive <input type="range" id="emis" min="0" max="8" step="0.2" value="3"></label>
+    <label>Front <input type="range" id="front" min="0" max="3" step="0.1" value="1.2"></label>
+    <label>Bloom <input type="checkbox" id="bloom" checked></label>
+    <label title="Tone mapping filmique (hautes lumieres douces)">ACES <input type="checkbox" id="aces"></label>
+    <label>Expo <input type="range" id="acesExpo" min="0.5" max="4" step="0.1" value="1.6"></label>
+    <label title="Liseré lumineux sur les bords du glossy">Fresnel <input type="checkbox" id="fresnel"></label>
+    <label>Force Fr <input type="range" id="fresnelPow" min="0" max="1" step="0.05" value="0.6"></label>
+    <label title="Portee du falloff physique. 0 = 1/d² d'origine ; >0 = eclairage calibre (gradient credible sur les surfaces)">Portee <input type="range" id="lightRadius" min="0" max="500" step="10" value="0"></label>
+    <label>Materiau
+      <select id="btnMat">
+        <option value="diffuse">diffuse</option>
+        <option value="glossy" selected>glossy</option>
+        <option value="mirror">mirror</option>
+        <option value="glass">glass</option>
+      </select>
+    </label>
+    <span id="status"></span>
+  </div>
+
+  <main class="stage">
+    <div class="player">
+      <div class="player-top">
+        <div class="art gc-rtx" data-rtx-material="emissive"><img id="artImg" alt=""></div>
+        <div class="meta">
+          <div class="title">Nightfall</div>
+          <div class="artist">Aurora Skies</div>
+        </div>
+      </div>
+      <div class="bar gc-rtx" data-rtx-material="diffuse"><span class="fill"></span></div>
+      <div class="time"><span>1:23</span><span>3:45</span></div>
+      <div class="ctrl">
+        <button class="btn prev gc-rtx" data-rtx-material="glossy" data-rtx-roughness="0.22">&#9664;</button>
+        <button class="btn play gc-rtx" data-rtx-material="emissive">&#9654;</button>
+        <button class="btn next gc-rtx" data-rtx-material="glossy" data-rtx-roughness="0.22">&#9654;&#9654;</button>
+      </div>
+    </div>
+  </main>
+
+  <canvas id="rtxCanvas"></canvas>
+  <!-- V3 = copies du moteur de production stable, avec uniquement les
+       corrections d'intersection/transport volumique SDF. -->
+  <script src="file:///C:/Toba/modules/libwebui/vendor/gridcraft/Raytracer_Engine_Realtime_V3.js"></script>
+  <script src="file:///C:/Toba/modules/libwebui/vendor/gridcraft/Raytracer_Engine_V3.js"></script>
+  <!-- Radiance cascade : moteur RC (window.RC) + wrapper (GridCraftHtmlEffects,
+       mode 'radiance') qui scanne le DOM et pilote le RC. API differente des
+       path tracers -> adaptateur cote lecteur. -->
+  <script src="file:///C:/Toba/modules/libwebui/vendor/gridcraft/Radiance_Cascade_Engine.js"></script>
+  <script src="file:///C:/Toba/modules/libwebui/vendor/gridcraft/GridCraftHtmlEffects.js"></script>
+  <script>
+    let rtx=null, frames=0, last=performance.now(), fps=0;
+    const SETTINGS_KEY='gridcraft.rtx.realtime.test.v3';   // v3: purge positions bugees (padding)
+    const CONTROL_IDS=['engineSel','radQuality','radIntensity','radOpacity','radSun','bgSel','blendSel','dragMode','settleMode','renderScale','bounces','temporal','denoise','denoiseStrength','denoiseRadius','ambient','emis','front','bloom','aces','acesExpo','fresnel','fresnelPow','lightRadius','btnMat'];
+    const SMOOTH_PRESET={
+      dragMode:'default',
+      settleMode:'default',
+      bounces:'2',
+      temporal:'0',
+      denoise:true,
+      denoiseStrength:'0.86',
+      denoiseRadius:'1.8',
+      ambient:'0.32',
+      emis:'3',
+      front:'1.2',
+      bloom:true,
+      btnMat:'glossy',
+      blendSel:'multiply'
+    };
+    function controlValue(el){
+      return el.type==='checkbox' ? el.checked : el.value;
+    }
+    function setControlValue(el,value){
+      if(value===undefined||value===null)return;
+      if(el.type==='checkbox')el.checked=!!value;
+      else el.value=String(value);
+    }
+    function readSettings(){
+      try{return JSON.parse(localStorage.getItem(SETTINGS_KEY)||'{}')}catch(e){return {}}
+    }
+    function saveSettings(){
+      const data=readSettings();
+      CONTROL_IDS.forEach(id=>{
+        const el=document.getElementById(id);
+        if(el)data[id]=controlValue(el);
+      });
+      const player=document.querySelector('.player');
+      if(player && player.dataset.placed==='1'){
+        data.playerLeft=player.style.left;
+        data.playerTop=player.style.top;
+      }
+      localStorage.setItem(SETTINGS_KEY,JSON.stringify(data));
+    }
+    function loadSettings(){
+      const data=readSettings();
+      CONTROL_IDS.forEach(id=>{
+        const el=document.getElementById(id);
+        if(el && Object.prototype.hasOwnProperty.call(data,id))setControlValue(el,data[id]);
+      });
+      document.body.style.background=document.getElementById('bgSel').value;
+      document.getElementById('rtxCanvas').style.mixBlendMode=document.getElementById('blendSel').value;
+      applyButtonMaterial();
+      const player=document.querySelector('.player');
+      if(player && data.playerLeft && data.playerTop){
+        player.style.left=data.playerLeft;
+        player.style.top=data.playerTop;
+        player.style.transform='none';
+        player.dataset.placed='1';
+      }
+    }
+    function applyPreset(values){
+      Object.keys(values).forEach(id=>{
+        const el=document.getElementById(id);
+        if(el)setControlValue(el,values[id]);
+      });
+      document.body.style.background=document.getElementById('bgSel').value;
+      document.getElementById('rtxCanvas').style.mixBlendMode=document.getElementById('blendSel').value;
+      applyButtonMaterial();
+      applyQualitySettings();
+      if(rtx)rtx.updateSceneFromDOM();
+      saveSettings();
+    }
+    function bgColor(){
+      var c=getComputedStyle(document.body).backgroundColor;
+      var m=c.match(/(\d+(?:\.\d+)?)/g);
+      return (m&&m.length>=3)?[m[0]/255,m[1]/255,m[2]/255]:[0.93,0.95,0.97];
+    }
+    function ambientColor(){
+      var a=parseFloat(document.getElementById('ambient').value);
+      var bg=bgColor();
+      return [bg[0]*a,bg[1]*a,bg[2]*a];
+    }
+    function syncDenoise(){
+      if(!rtx)return;
+      rtx.setDenoise(document.getElementById('denoise').checked,
+        parseFloat(document.getElementById('denoiseStrength').value),
+        parseFloat(document.getElementById('denoiseRadius').value));
+    }
+    function applyButtonMaterial(){
+      const mat=document.getElementById('btnMat').value;
+      document.querySelectorAll('.btn.prev,.btn.next').forEach(el=>el.setAttribute('data-rtx-material',mat));
+    }
+    function applyQualitySettings(){
+      if(!rtx)return;
+      rtx.setMaxBounces(parseInt(document.getElementById('bounces').value,10));
+      if(rtx.setTemporalAlpha)rtx.setTemporalAlpha(parseFloat(document.getElementById('temporal').value));
+      if(rtx.setDenoise)rtx.setDenoise(document.getElementById('denoise').checked,
+        parseFloat(document.getElementById('denoiseStrength').value),
+        parseFloat(document.getElementById('denoiseRadius').value));
+      rtx.setBloom(document.getElementById('bloom').checked,0.65,0.58);
+      rtx.setBackgroundColor(ambientColor());
+      rtx.setEmissivePower(parseFloat(document.getElementById('emis').value));
+      rtx.setFrontEmission(parseFloat(document.getElementById('front').value));
+      if(rtx.setAces)rtx.setAces(document.getElementById('aces').checked, parseFloat(document.getElementById('acesExpo').value));
+      if(rtx.setGlossyFresnel)rtx.setGlossyFresnel(document.getElementById('fresnel').checked, parseFloat(document.getElementById('fresnelPow').value));
+      if(rtx.setLightRadius)rtx.setLightRadius(parseFloat(document.getElementById('lightRadius').value));
+      if(rtx.setSettleProfile)rtx.setSettleProfile(document.getElementById('settleMode').value);
+    }
+    function enterDragPreview(){
+      if(!rtx)return;
+      // Modes de preview drag = specifiques au moteur REALTIME. En non-realtime,
+      // rien a faire (accumulation pure : le rescan suffit).
+      if(!rtx.setPreserveAccumulationOnMove)return;
+      const mode=document.getElementById('dragMode').value;
+      const canvas=document.getElementById('rtxCanvas');
+      canvas.style.opacity='1';
+      canvas.style.transform='none';
+      canvas.style.willChange='auto';
+      rtx.setPreserveAccumulationOnMove(false);
+      if(mode==='positions-only'){
+        rtx.setPreserveAccumulationOnMove(true);
+        rtx.setTemporalAlpha(Math.max(0.12,parseFloat(document.getElementById('temporal').value)));
+      }else if(mode==='quality-live'){
+        rtx.setPreserveAccumulationOnMove(true);
+        rtx.setTemporalAlpha(Math.max(0.16,parseFloat(document.getElementById('temporal').value)));
+      }else if(mode==='quality-throttle'){
+        rtx.setPreserveAccumulationOnMove(true);
+        rtx.setTemporalAlpha(Math.max(0.14,parseFloat(document.getElementById('temporal').value)));
+      }else if(mode==='reproject-cache'){
+        rtx.setPreserveAccumulationOnMove(true);
+        rtx.setTemporalAlpha(Math.max(0.18,parseFloat(document.getElementById('temporal').value)));
+        canvas.style.willChange='transform';
+      }else if(mode==='cached-layer'){
+        rtx.setPreserveAccumulationOnMove(true);
+        canvas.style.willChange='transform';
+      }else if(mode==='dynamic-res'){
+        rtx.setPreserveAccumulationOnMove(true);
+        if(rtx.setRenderScale)rtx.setRenderScale(0.5);
+        rtx.setTemporalAlpha(Math.max(0.20,parseFloat(document.getElementById('temporal').value)));
+      }else if(mode==='adaptive-res'){
+        rtx.setPreserveAccumulationOnMove(true);
+        if(rtx.setRenderScale)rtx.setRenderScale(0.65);
+        rtx.setTemporalAlpha(Math.max(0.24,parseFloat(document.getElementById('temporal').value)));
+        rtx.setDenoise(true,Math.max(0.82,parseFloat(document.getElementById('denoiseStrength').value)),Math.max(1.7,parseFloat(document.getElementById('denoiseRadius').value)));
+      }else if(mode==='ultra-lowres'){
+        rtx.setPreserveAccumulationOnMove(true);
+        if(rtx.setRenderScale)rtx.setRenderScale(0.35);
+        rtx.setMaxBounces(1);
+        rtx.setTemporalAlpha(0.38);
+        rtx.setDenoise(true,0.70,1.2);
+        rtx.setBloom(false,0.0,0.8);
+      }else if(mode==='cached-dynamic'){
+        rtx.setPreserveAccumulationOnMove(true);
+        canvas.style.opacity='0.88';
+        canvas.style.willChange='transform';
+      }else if(mode==='preview-fast'){
+        rtx.setMaxBounces(1);
+        rtx.setTemporalAlpha(0.42);
+        rtx.setDenoise(true,0.42,1.0);
+        rtx.setBloom(false,0.0,0.8);
+      }else if(mode==='preview-smooth'){
+        rtx.setMaxBounces(1);
+        rtx.setTemporalAlpha(0.24);
+        rtx.setDenoise(true,0.74,1.35);
+        rtx.setBloom(document.getElementById('bloom').checked,0.45,0.62);
+      }else if(mode==='final-only'){
+        canvas.style.opacity='0.18';
+      }
+    }
+    function exitDragPreview(){
+      if(!rtx)return;
+      // TOUJOURS remettre le canvas a plat (opacity/transform/willChange) a la fin
+      // du drag, quel que soit le moteur : un mode cache a pu deplacer le canvas
+      // via transform:translate -> sinon le decalage RTX/widgets reste apres le drag.
+      const canvas=document.getElementById('rtxCanvas');
+      canvas.style.opacity='1';
+      canvas.style.transform='none';
+      canvas.style.willChange='auto';
+      // En non-realtime : juste rescanner (pas de preserve-accumulation).
+      if(!rtx.setPreserveAccumulationOnMove){ rtx.updateSceneFromDOM(); return; }
+      const mode=document.getElementById('dragMode').value;
+      const canContinueAccumulation=!['final-only','cached-layer','cached-dynamic','dynamic-res','adaptive-res','ultra-lowres','preview-fast','preview-smooth'].includes(mode);
+      rtx.setPreserveAccumulationOnMove(canContinueAccumulation);
+      if(rtx.setRenderScale && !canContinueAccumulation)rtx.setRenderScale(1.0);
+      applyQualitySettings();
+      rtx.updateSceneFromDOM();   // positions finales
+      // RELEASE : reconvergence propre AUTOMATIQUE. On repasse temporal a 0 (via
+      // triggerReconverge) -> le moteur entre dans le settle/burst et nettoie
+      // l'image tout seul en ~0.4s. Plus besoin de bouger un slider a la main.
+      if(rtx.triggerReconverge){ rtx.triggerReconverge(); }
+      else { rtx.setPreserveAccumulationOnMove(false); }
+    }
+    function currentEngine(){ return document.getElementById('engineSel').value; }
+
+    function start(){
+      if(rtx)return;
+      const eng=currentEngine();
+      // Le canvas #rtxCanvas peut avoir ete RETIRE du DOM par un destroy() moteur
+      // precedent (les path tracers enlevent leur canvas). On le RECREE si absent.
+      let rtxCv=document.getElementById('rtxCanvas');
+      if(!rtxCv){ rtxCv=document.createElement('canvas'); rtxCv.id='rtxCanvas'; document.body.appendChild(rtxCv); }
+      if(eng==='radiance'){ rtxCv.style.display='none'; startRadiance(); return; }
+      rtxCv.style.display='';   // le path tracer utilise ce canvas
+      // --- PATH TRACERS (realtime / non-realtime) ---
+      const Engine = eng==='realtime' ? window.RTX_Realtime : window.RTX_Quality;
+      if(!Engine){ console.warn('[RTX] moteur pas encore charge'); return; }
+      rtx=new Engine('rtxCanvas',{
+        domSelector:'.gc-rtx',
+        renderScale:parseFloat(document.getElementById('renderScale').value),
+        maxBounces:parseInt(document.getElementById('bounces').value,10),
+        temporalAlpha:parseFloat(document.getElementById('temporal').value),
+        denoiseEnabled:document.getElementById('denoise').checked,
+        denoiseStrength:parseFloat(document.getElementById('denoiseStrength').value),
+        denoiseRadius:parseFloat(document.getElementById('denoiseRadius').value),
+        bloomEnabled:document.getElementById('bloom').checked,
+        acesEnabled:document.getElementById('aces').checked,
+        glossyFresnel:document.getElementById('fresnel').checked,
+        settleProfile:document.getElementById('settleMode').value
+      });
+      rtx.setBackgroundColor(ambientColor());
+      rtx.setEmissivePower(parseFloat(document.getElementById('emis').value));
+      rtx.setFrontEmission(parseFloat(document.getElementById('front').value));
+      rtx.setBloom(document.getElementById('bloom').checked,0.65,0.58);
+      rtx.updateSceneFromDOM();
+    }
+
+    // ADAPTATEUR RADIANCE : le wrapper GridCraftHtmlEffects (mode radiance) a une
+    // API differente. On l'enveloppe dans un objet 'rtx' qui expose les MEMES
+    // methodes que les path tracers (no-op pour celles qui n'ont pas de sens en
+    // radiance), pour que le reste du code (drag, tick, stop) ne plante pas.
+    function startRadiance(){
+      if(!window.GridCraftHtmlEffects || !window.RC){ console.warn('[RAD] wrapper/RC absent'); return; }
+      const fx=new GridCraftHtmlEffects({
+        mode:'radiance',
+        targets:['.gc-rtx'],
+        autoStart:true,
+        overlay:{opacity:parseFloat(document.getElementById('radOpacity').value), blendMode:document.getElementById('blendSel').value, zIndex:60},
+        performance:{maxFPS:60, qualityScale:parseFloat(document.getElementById('radQuality').value), maxElements:180, observeDom:true},
+        radiance:{srgb:true, enableSun:document.getElementById('radSun').checked, maxAlpha:parseFloat(document.getElementById('radIntensity').value)}
+      });
+      fx.start();
+      // Adaptateur : meme surface d'API que les path tracers.
+      rtx={
+        _fx:fx, _radiance:true,
+        scene:{length:0}, lights:{length:0}, frameCount:0, temporalAlpha:0,
+        updateSceneFromDOM(){ fx.refresh(); },
+        updateScenePositionsFromDOM(){ fx.refresh(); },
+        setBackgroundColor(){}, setEmissivePower(){}, setFrontEmission(){},
+        setBloom(){}, setMaxBounces(){}, setPreserveAccumulationOnMove(){},
+        destroy(){ fx.destroy(); },
+        // reglages radiance -> setOptions du wrapper
+        setRadOptions(o){ fx.setOptions(o); }
+      };
+      // Recale l'overlay radiance sur les widgets (positions).
+      setTimeout(()=>fx.refresh(),80);
+    }
+    function stop(){if(rtx){rtx.destroy();rtx=null}}
+    function tick(){
+      frames++;
+      var now=performance.now();
+      if(now-last>500){fps=Math.round(frames*1000/(now-last));frames=0;last=now}
+      var eng=currentEngine();var isRT=eng==='realtime';
+      var settling=rtx && isRT && rtx.temporalAlpha<=0.001 && rtx.frameCount < rtx.zeroTemporalSettleFrames;
+      document.getElementById('status').textContent='V3 | moteur='+(rtx?(rtx._radiance?'RADIANCE':(isRT?'RTX-REALTIME':'RTX-QUALITY')):'off')+
+        (rtx?' | objets='+(rtx.scene?rtx.scene.length:0)+' | lights='+(rtx.lights?rtx.lights.length:0)+' | frame='+rtx.frameCount+(isRT?(settling?' settling':' stable'):'')+' | fps~'+fps:'');
+      requestAnimationFrame(tick);
+    }
+    document.getElementById('btnStart').onclick=start;
+    document.getElementById('btnStop').onclick=stop;
+    document.getElementById('smoothPreset').onclick=()=>applyPreset(SMOOTH_PRESET);
+    document.getElementById('resetSettings').onclick=()=>{localStorage.removeItem(SETTINGS_KEY);location.reload()};
+    document.getElementById('bgSel').onchange=e=>{document.body.style.background=e.target.value;if(rtx)setTimeout(()=>rtx.setBackgroundColor(ambientColor()),50);saveSettings()};
+    document.getElementById('blendSel').onchange=e=>{document.getElementById('rtxCanvas').style.mixBlendMode=e.target.value;saveSettings()};
+    document.getElementById('dragMode').onchange=saveSettings;
+    document.getElementById('settleMode').onchange=e=>{if(rtx&&rtx.setSettleProfile)rtx.setSettleProfile(e.target.value);saveSettings()};
+    document.getElementById('bounces').oninput=e=>{if(rtx)rtx.setMaxBounces(parseInt(e.target.value,10));saveSettings()};
+    document.getElementById('temporal').oninput=e=>{if(rtx)rtx.setTemporalAlpha(parseFloat(e.target.value));saveSettings()};
+    document.getElementById('denoise').onchange=()=>{syncDenoise();saveSettings()};
+    document.getElementById('denoiseStrength').oninput=()=>{syncDenoise();saveSettings()};
+    document.getElementById('denoiseRadius').oninput=()=>{syncDenoise();saveSettings()};
+    document.getElementById('ambient').oninput=()=>{if(rtx)rtx.setBackgroundColor(ambientColor());saveSettings()};
+    document.getElementById('emis').oninput=e=>{if(rtx)rtx.setEmissivePower(parseFloat(e.target.value));saveSettings()};
+    document.getElementById('front').oninput=e=>{if(rtx)rtx.setFrontEmission(parseFloat(e.target.value));saveSettings()};
+    document.getElementById('bloom').onchange=e=>{if(rtx)rtx.setBloom(e.target.checked,0.65,0.58);saveSettings()};
+    document.getElementById('engineSel').onchange=e=>{ const v=e.target.value; document.querySelector('.toolbar').classList.toggle('mode-radiance', v==='radiance'); if(v==='realtime')document.getElementById('renderScale').value='0.55'; else if(v==='quality')document.getElementById('renderScale').value='1'; if(rtx){stop();start();} saveSettings(); };
+    // sliders radiance -> setOptions du wrapper (via l adaptateur)
+    function pushRad(){ if(rtx&&rtx._radiance&&rtx.setRadOptions){ rtx.setRadOptions({ overlay:{opacity:parseFloat(document.getElementById('radOpacity').value), blendMode:document.getElementById('blendSel').value}, performance:{qualityScale:parseFloat(document.getElementById('radQuality').value)}, radiance:{maxAlpha:parseFloat(document.getElementById('radIntensity').value), enableSun:document.getElementById('radSun').checked} }); } }
+    ['radQuality','radIntensity','radOpacity'].forEach(id=>{document.getElementById(id).oninput=()=>{pushRad();saveSettings();};});
+    document.getElementById('radSun').onchange=()=>{pushRad();saveSettings();};
+    document.getElementById('aces').onchange=e=>{if(rtx&&rtx.setAces)rtx.setAces(e.target.checked, parseFloat(document.getElementById('acesExpo').value));saveSettings()};
+    document.getElementById('renderScale').oninput=e=>{ if(rtx&&rtx.setRenderScale)rtx.setRenderScale(parseFloat(e.target.value)); saveSettings(); };
+    document.getElementById('acesExpo').oninput=e=>{if(rtx&&rtx.setAces)rtx.setAces(document.getElementById('aces').checked, parseFloat(e.target.value));saveSettings()};
+    document.getElementById('fresnel').onchange=e=>{if(rtx&&rtx.setGlossyFresnel)rtx.setGlossyFresnel(e.target.checked, parseFloat(document.getElementById('fresnelPow').value));saveSettings()};
+    document.getElementById('fresnelPow').oninput=e=>{if(rtx&&rtx.setGlossyFresnel)rtx.setGlossyFresnel(document.getElementById('fresnel').checked, parseFloat(e.target.value));saveSettings()};
+    document.getElementById('lightRadius').oninput=e=>{if(rtx&&rtx.setLightRadius)rtx.setLightRadius(parseFloat(e.target.value));saveSettings()};
+    document.getElementById('btnMat').onchange=e=>{
+      applyButtonMaterial();
+      if(rtx)rtx.updateSceneFromDOM();
+      saveSettings();
+    };
+
+    function initDrag(){
+      const stage=document.querySelector('.stage');
+      const player=document.querySelector('.player');
+      let drag=null, raf=0, lastRtxUpdate=0;
+      function scheduleRtxUpdate(){
+        if(raf)return;
+        raf=requestAnimationFrame(()=>{
+          raf=0;
+          if(!rtx)return;
+          const mode=document.getElementById('dragMode').value;
+          if(mode==='final-only'||mode==='cached-layer'||mode==='cached-dynamic')return;
+          const now=performance.now();
+          if(mode==='quality-throttle' && now-lastRtxUpdate<66)return;
+          if(mode==='reproject-cache' && now-lastRtxUpdate<90)return;
+          if(mode==='dynamic-res' && now-lastRtxUpdate<33)return;
+          if(mode==='adaptive-res' && now-lastRtxUpdate<33)return;
+          if(mode==='ultra-lowres' && now-lastRtxUpdate<16)return;
+          if(mode==='preview-smooth' && now-lastRtxUpdate<33)return;
+          lastRtxUpdate=now;
+          if((mode==='positions-only'||mode==='quality-live'||mode==='quality-throttle'||mode==='reproject-cache'||mode==='dynamic-res'||mode==='adaptive-res'||mode==='ultra-lowres') && rtx.updateScenePositionsFromDOM){
+            rtx.updateScenePositionsFromDOM();
+            if(mode==='reproject-cache' && drag){
+              drag.startX=drag.x;
+              drag.startY=drag.y;
+              document.getElementById('rtxCanvas').style.transform='translate(0px,0px)';
+            }
+          }else{
+            rtx.updateSceneFromDOM();
+          }
+        });
+      }
+      player.addEventListener('pointerdown',e=>{
+        if(e.button!==0)return;
+        const rect=player.getBoundingClientRect();
+        const stageRect=stage.getBoundingClientRect();
+        // .player est position:absolute dans .stage qui a un PADDING (118px 40px).
+        // En absolute, 'left/top' se refere au bord INTERNE du padding, alors que
+        // stageRect.left/top est le bord externe -> il faut RETRANCHER le padding,
+        // sinon le widget saute (de padding-left) au 1er drag = decalage a gauche.
+        const cs=getComputedStyle(stage);
+        const padL=parseFloat(cs.paddingLeft)||0, padT=parseFloat(cs.paddingTop)||0;
+        function toStage(x,y){ return [x-stageRect.left-padL, y-stageRect.top-padT]; }
+        if(player.dataset.placed!=='1'){
+          const [lx,ly]=toStage(rect.left,rect.top);
+          player.style.left=lx+'px';
+          player.style.top=ly+'px';
+          player.style.transform='none';
+          player.dataset.placed='1';
+        }
+        // IMPORTANT : re-lire la position APRES le repositionnement (left/top +
+        // transform:none ont pu bouger le widget). Sinon dx/dy sont bases sur
+        // l'ancienne position -> le widget SAUTE au 1er mouvement.
+        const rect2=player.getBoundingClientRect();
+        const [sx,sy]=toStage(rect2.left,rect2.top);
+        drag={dx:e.clientX-rect2.left,dy:e.clientY-rect2.top,padL:padL,padT:padT,startX:sx,startY:sy,x:sx,y:sy};
+        player.classList.add('dragging');
+        player.setPointerCapture(e.pointerId);
+        lastRtxUpdate=0;
+        enterDragPreview();
+        e.preventDefault();
+      });
+      player.addEventListener('pointermove',e=>{
+        if(!drag)return;
+        const stageRect=stage.getBoundingClientRect();
+        const maxX=stage.clientWidth-player.offsetWidth;
+        const maxY=stage.clientHeight-player.offsetHeight;
+        const x=Math.max(0,Math.min(maxX,e.clientX-stageRect.left-drag.padL-drag.dx));
+        const y=Math.max(0,Math.min(maxY,e.clientY-stageRect.top-drag.padT-drag.dy));
+        player.style.left=x+'px';
+        player.style.top=y+'px';
+        drag.x=x;
+        drag.y=y;
+        const mode=document.getElementById('dragMode').value;
+        if(mode==='cached-layer'||mode==='cached-dynamic'||mode==='reproject-cache'){
+          document.getElementById('rtxCanvas').style.transform='translate('+(x-drag.startX)+'px,'+(y-drag.startY)+'px)';
+        }
+        scheduleRtxUpdate();
+      });
+      function endDrag(){
+        if(!drag)return;
+        drag=null;
+        player.classList.remove('dragging');
+        saveSettings();
+        exitDragPreview();
+      }
+      player.addEventListener('pointerup',endDrag);
+      player.addEventListener('pointercancel',endDrag);
+    }
+
+    function svgCover(stops){
+      var s="<svg xmlns='http://www.w3.org/2000/svg' width='128' height='128'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>"+stops+"</linearGradient></defs><rect width='128' height='128' fill='url(%23g)'/><circle cx='40' cy='44' r='26' fill='rgba(255,255,255,.28)'/></svg>";
+      return "data:image/svg+xml;charset=utf-8,"+s;
+    }
+    var covers=[
+      svgCover("<stop offset='0' stop-color='%23f97316'/><stop offset='1' stop-color='%23dc2626'/>"),
+      svgCover("<stop offset='0' stop-color='%2306b6d4'/><stop offset='1' stop-color='%233b82f6'/>"),
+      svgCover("<stop offset='0' stop-color='%23a855f7'/><stop offset='1' stop-color='%23ec4899'/>"),
+      svgCover("<stop offset='0' stop-color='%2322c55e'/><stop offset='1' stop-color='%23064e3b'/>")
+    ];
+    var coverIdx=0;
+    function averageColor(img,cb){
+      var c=document.createElement('canvas');c.width=c.height=32;
+      var ctx=c.getContext('2d');ctx.drawImage(img,0,0,32,32);
+      var d;try{d=ctx.getImageData(0,0,32,32).data}catch(e){cb(null);return}
+      var r=0,g=0,b=0,n=0;for(var i=0;i<d.length;i+=4){var a=d[i+3]/255;r+=d[i]*a;g+=d[i+1]*a;b+=d[i+2]*a;n+=a}
+      cb(n?[Math.round(r/n),Math.round(g/n),Math.round(b/n)]:null);
+    }
+    function loadCover(idx){
+      coverIdx=((idx%covers.length)+covers.length)%covers.length;
+      var img=document.getElementById('artImg'), art=document.querySelector('.art');
+      img.onload=function(){averageColor(img,function(rgb){if(rgb){art.style.backgroundColor='rgb('+rgb[0]+','+rgb[1]+','+rgb[2]+')';if(rtx)rtx.updateSceneFromDOM()}})};
+      img.src=covers[coverIdx];
+    }
+    document.getElementById('nextCover').onclick=()=>loadCover(coverIdx+1);
+    // SONDE decalage : dessine une croix rouge exactement au centre viewport du
+    // bouton play (ce que le RTX scanne). Si la croix n'est pas au centre du
+    // bouton affiche -> l'ecart visible = le decalage exact (direction+amplitude).
+    (function(){
+      const probe=document.createElement('div');
+      probe.style.cssText='position:fixed;z-index:9000;pointer-events:none;width:16px;height:16px;margin:-8px 0 0 -8px;';
+      probe.innerHTML='<div style="position:absolute;left:7px;top:0;width:2px;height:16px;background:red"></div><div style="position:absolute;left:0;top:7px;width:16px;height:2px;background:red"></div>';
+      document.body.appendChild(probe);
+      setInterval(()=>{
+        const play=document.querySelector('.btn.play');
+        if(!play)return;
+        const r=play.getBoundingClientRect();   // EXACTEMENT ce que lit le RTX
+        probe.style.left=(r.left+r.width/2)+'px';
+        probe.style.top=(r.top+r.height/2)+'px';
+      },200);
+    })();
+    // Tague les controles PATH-TRACER en .pt-only (masques en mode radiance).
+    // Tout ce qui n'est ni radiance (.rad-only) ni commun (fond/blend/moteur).
+    (function(){
+      const commun=['engineSel','bgSel','blendSel'];
+      const rad=['radQuality','radIntensity','radOpacity','radSun'];
+      document.querySelectorAll('.toolbar label').forEach(l=>{
+        const inp=l.querySelector('input,select'); if(!inp)return;
+        const id=inp.id;
+        if(l.classList.contains('rad-only'))return;
+        if(commun.includes(id))return;
+        l.classList.add('pt-only');
+      });
+    })();
+    loadSettings();
+    // Applique la classe de mode au chargement (selon le moteur sauve).
+    document.querySelector('.toolbar').classList.toggle('mode-radiance', currentEngine()==='radiance');
+    initDrag();
+    loadCover(0); requestAnimationFrame(tick); window.addEventListener('load',()=>setTimeout(start,150));
+  </script>
+</body>
+</html>

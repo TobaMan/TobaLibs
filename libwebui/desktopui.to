@@ -1,0 +1,685 @@
+/*
+    libwebui - Web desktop UI helpers for Toba
+    Usage : import : libwebui / desktopui
+            html = desktopui::Page("App", desktopui::Button("run", "Run", "run_clicked"))
+
+    This module builds self-contained WebUI pages and browser-side event widgets.
+    Toba cannot expose a real C function pointer to a DLL, so WebUI DLL callbacks
+    are not bound directly from this module. Use a native bridge or the older
+    LibWeb device/callback runtime when Toba-side event dispatch is required.
+*/
+
+enum:global{
+    NativeLibHandle
+    WindowBridgeLibHandle
+    BridgeLibHandle
+}
+
+NativeLibHandle = null()
+WindowBridgeLibHandle = null()
+BridgeLibHandle = null()
+
+// ===================================================================
+// TEXT ESCAPING
+// ===================================================================
+
+func: TextOrEmpty(value) {
+    res = ""
+    if (isstr(value)) {
+        res = value
+    }
+    else {
+        if (isnum(value)) {
+            res = strnum(value)
+        }
+    }
+    return (res)
+}
+
+func: EscapeHtml(value) {
+    s = TextOrEmpty(value)
+    res = ""
+    if (size(s) > 0) {
+        res = freplace(s, "&", "&amp;")
+        res = freplace(res, "<", "&lt;")
+        res = freplace(res, ">", "&gt;")
+        res = freplace(res, "\"", "&quot;")
+        res = freplace(res, "'", "&#39;")
+    }
+    return (res)
+}
+
+func: EscapeJs(value) {
+    s = TextOrEmpty(value)
+    res = ""
+    if (size(s) > 0) {
+        res = freplace(s, "\\", "\\\\")
+        res = freplace(res, "'", "\\'")
+        res = freplace(res, "\n", "\\n")
+        res = freplace(res, "\r", "")
+    }
+    return (res)
+}
+
+// ===================================================================
+// PAGE ASSETS
+// ===================================================================
+
+func: Styles() {
+    res = "<style>"
+    res = res $ ":root{color-scheme:light;--bg:#f6f7fb;--panel:#ffffff;--line:#d8dee9;--text:#172033;--muted:#667085;--primary:#2563eb;--primaryText:#ffffff;--lw-radius:8px;--lw-pill-radius:999px;--lw-gap:12px;}"
+    res = res $ "*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Segoe UI,Arial,sans-serif;font-size:14px;}"
+    res = res $ ".tb-app{min-height:100vh;display:grid;grid-template-columns:240px 1fr;grid-template-rows:auto 1fr auto;}"
+    res = res $ ".tb-title{grid-column:1/3;padding:12px 18px;background:#111827;color:white;font-weight:650;letter-spacing:.2px;}"
+    res = res $ ".tb-sidebar{padding:var(--lw-gap);border-right:1px solid var(--line);background:#eef2f7;}"
+    res = res $ ".tb-content{padding:calc(var(--lw-gap) + 4px);overflow:auto;}"
+    res = res $ ".tb-footer{grid-column:1/3;padding:8px 18px;border-top:1px solid var(--line);color:var(--muted);background:#fff;}"
+    res = res $ ".tb-panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--lw-radius);padding:var(--lw-gap);margin-bottom:var(--lw-gap);}"
+    res = res $ ".tb-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:var(--lw-gap);}"
+    res = res $ ".tb-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:8px 0;}"
+    res = res $ ".tb-col{display:flex;flex-direction:column;gap:8px;min-width:180px;}"
+    res = res $ ".tb-button{border:0;border-radius:var(--lw-pill-radius);background:var(--primary);color:var(--primaryText);padding:8px 12px;cursor:pointer;font-weight:600;}"
+    res = res $ ".tb-button.secondary{background:#e5e7eb;color:#111827;}"
+    res = res $ ".tb-input,.tb-area{border:1px solid var(--line);border-radius:var(--lw-radius);padding:8px;background:#fff;color:var(--text);}"
+    res = res $ ".tb-area{min-height:96px;resize:vertical;width:100%;}"
+    res = res $ ".tb-status{min-height:24px;color:var(--muted);padding:6px 0;}"
+    res = res $ "@media(max-width:760px){.tb-app{grid-template-columns:1fr}.tb-title,.tb-footer{grid-column:1}.tb-sidebar{border-right:0;border-bottom:1px solid var(--line)}}"
+    res = res $ "</style>"
+    return (res)
+}
+
+func: Script() {
+    res = "<script>"
+    res = res $ "function tobaEvent(name){var args=Array.prototype.slice.call(arguments,1);"
+    res = res $ "var detail={name:name,args:args};window.dispatchEvent(new CustomEvent('toba:event',{detail:detail}));"
+    res = res $ "if(window.webui&&webui.call){try{var p=webui.call.apply(webui,[name].concat(args));if(p&&p.catch){p.catch(function(e){console.log('Toba callback unavailable',name,e);});}return p;}catch(e){console.log('Toba callback unavailable',name,e);}}"
+    res = res $ "console.log('Toba event',name,args);return Promise.resolve(null);}"
+    res = res $ "function tobaText(id,value){var el=document.getElementById(id);if(el){el.textContent=value;}}"
+    res = res $ "function tobaHtml(id,value){var el=document.getElementById(id);if(el){el.innerHTML=value;}}"
+    res = res $ "function tobaValue(id,value){var el=document.getElementById(id);if(el){el.value=value;}}"
+    res = res $ "</script>"
+    return (res)
+}
+
+// ===================================================================
+// WIDGETS
+// ===================================================================
+
+func: Div(cls, content) {
+    res = "<div class='" $ EscapeHtml(cls) $ "'>" $ content $ "</div>"
+    return (res)
+}
+
+func: Panel(content) {
+    res = Div("tb-panel", content)
+    return (res)
+}
+
+func: Toolbar(content) {
+    res = Div("tb-toolbar", content)
+    return (res)
+}
+
+func: Row(content) {
+    res = Div("tb-row", content)
+    return (res)
+}
+
+func: Column(content) {
+    res = Div("tb-col", content)
+    return (res)
+}
+
+func: Label(id, text) {
+    res = "<label for='" $ EscapeHtml(id) $ "'>" $ EscapeHtml(text) $ "</label>"
+    return (res)
+}
+
+func: Text(id, text) {
+    res = "<span id='" $ EscapeHtml(id) $ "'>" $ EscapeHtml(text) $ "</span>"
+    return (res)
+}
+
+func: Status(id, text) {
+    res = "<div id='" $ EscapeHtml(id) $ "' class='tb-status'>" $ EscapeHtml(text) $ "</div>"
+    return (res)
+}
+
+func: Button(id, text, evtName) {
+    res = "<button id='" $ EscapeHtml(id) $ "' class='tb-button' onclick=\"tobaEvent('" $ EscapeJs(evtName) $ "',this.id)\">" $ EscapeHtml(text) $ "</button>"
+    return (res)
+}
+
+func: SecondaryButton(id, text, evtName) {
+    res = "<button id='" $ EscapeHtml(id) $ "' class='tb-button secondary' onclick=\"tobaEvent('" $ EscapeJs(evtName) $ "',this.id)\">" $ EscapeHtml(text) $ "</button>"
+    return (res)
+}
+
+func: Input(id, placeholder, value, evtName) {
+    res = "<input id='" $ EscapeHtml(id) $ "' class='tb-input' value='" $ EscapeHtml(value) $ "' placeholder='" $ EscapeHtml(placeholder) $ "' onchange=\"tobaEvent('" $ EscapeJs(evtName) $ "',this.id,this.value)\">"
+    return (res)
+}
+
+func: TextArea(id, placeholder, value, evtName) {
+    res = "<textarea id='" $ EscapeHtml(id) $ "' class='tb-area' placeholder='" $ EscapeHtml(placeholder) $ "' onchange=\"tobaEvent('" $ EscapeJs(evtName) $ "',this.id,this.value)\">" $ EscapeHtml(value) $ "</textarea>"
+    return (res)
+}
+
+func: Select(id, options, evtName) {
+    items = ""
+    i = for (0, size(options), 1) {
+        opt = EscapeHtml(options[i])
+        items = items $ "<option value='" $ opt $ "'>" $ opt $ "</option>"
+    }
+    res = "<select id='" $ EscapeHtml(id) $ "' class='tb-input' onchange=\"tobaEvent('" $ EscapeJs(evtName) $ "',this.id,this.value)\">" $ items $ "</select>"
+    return (res)
+}
+
+func: Link(id, text, evtName) {
+    res = "<a id='" $ EscapeHtml(id) $ "' href='#' onclick=\"tobaEvent('" $ EscapeJs(evtName) $ "',this.id);return false;\">" $ EscapeHtml(text) $ "</a>"
+    return (res)
+}
+
+// ===================================================================
+// PAGE AND DESKTOP SHELL
+// ===================================================================
+
+func: AppShell(title, sidebar, content, footer) {
+    res = "<div class='tb-app'>"
+    res = res $ "<header class='tb-title'>" $ EscapeHtml(title) $ "</header>"
+    res = res $ "<aside class='tb-sidebar'>" $ sidebar $ "</aside>"
+    res = res $ "<main class='tb-content'>" $ content $ "</main>"
+    res = res $ "<footer class='tb-footer'>" $ footer $ "</footer>"
+    res = res $ "</div>"
+    return (res)
+}
+
+func: Page(title, body) {
+    res = "<!DOCTYPE html><html><head><meta charset='utf-8'>"
+    res = res $ "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+    res = res $ "<title>" $ EscapeHtml(title) $ "</title>"
+    res = res $ Styles()
+    res = res $ Script()
+    res = res $ "</head><body>"
+    res = res $ body
+    res = res $ "</body></html>"
+    return (res)
+}
+
+func: DesktopPage(title, sidebar, content, footer) {
+    res = Page(title, AppShell(title, sidebar, content, footer))
+    return (res)
+}
+
+// ===================================================================
+// WEBUI WINDOW HELPERS
+// ===================================================================
+
+func: DllPath() {
+    return ("C:/Users/damie/Desktop/Lib_Toba/webui-2.dll")
+}
+
+func: NativeLib() {
+    if (!isnum(NativeLibHandle)) {
+        NativeLibHandle = dlopen(DllPath(), dlcdecl())
+    }
+    return (NativeLibHandle)
+}
+
+func: NativeNewWindow() {
+    args = (culong(), (cvoid(), 0))
+    res = dlcall(NativeLib(), "webui_new_window", args)
+    return (res)
+}
+
+func: NativeShow(window, html) {
+    ptr = ctoptr(cstring(), html)
+    args = (cuchar(), (culong(), window), (cpointer(), ptr))
+    res = dlcall(NativeLib(), "webui_show", args)
+    cfreeptr(ptr)
+    return (res)
+}
+
+func: NativeShowBrowser(window, html, browser) {
+    ptr = ctoptr(cstring(), html)
+    args = (cuchar(), (culong(), window), (cpointer(), ptr), (culong(), browser))
+    res = dlcall(NativeLib(), "webui_show_browser", args)
+    cfreeptr(ptr)
+    return (res)
+}
+
+func: NativeShowWebView(window, html) {
+    ptr = ctoptr(cstring(), html)
+    args = (cuchar(), (culong(), window), (cpointer(), ptr))
+    res = dlcall(NativeLib(), "webui_show_wv", args)
+    cfreeptr(ptr)
+    return (res)
+}
+
+func: NativeSetSize(window, width, height) {
+    args = (cvoid(), (culong(), window), (culong(), width), (culong(), height))
+    dlcall(NativeLib(), "webui_set_size", args)
+    return (window)
+}
+
+func: NativeSetPosition(window, x, y) {
+    args = (cvoid(), (culong(), window), (culong(), x), (culong(), y))
+    dlcall(NativeLib(), "webui_set_position", args)
+    return (window)
+}
+
+func: NativeRun(window, code) {
+    ptr = ctoptr(cstring(), code)
+    args = (cuchar(), (culong(), window), (cpointer(), ptr))
+    res = dlcall(NativeLib(), "webui_run", args)
+    cfreeptr(ptr)
+    return (res)
+}
+
+func: NativeWait() {
+    args = (cvoid(), (cvoid(), 0))
+    dlcall(NativeLib(), "webui_wait", args)
+    return (1)
+}
+
+func: NativeExit() {
+    args = (cvoid(), (cvoid(), 0))
+    dlcall(NativeLib(), "webui_exit", args)
+    return (1)
+}
+
+func: NativeGetStringAt(evtObj, idx) {
+    args = (cpointer(), (cpointer(), evtObj), (culong(), idx))
+    ptr = dlcall(NativeLib(), "webui_get_string_at", args)
+    res = cfromptr(ptr, cstring(), -1)
+    return (res)
+}
+
+func: NativeGetIntAt(evtObj, idx) {
+    args = (clong(), (cpointer(), evtObj), (culong(), idx))
+    res = dlcall(NativeLib(), "webui_get_int_at", args)
+    return (res)
+}
+
+func: NativeReturnString(evtObj, text) {
+    ptr = ctoptr(cstring(), text)
+    args = (cvoid(), (cpointer(), evtObj), (cpointer(), ptr))
+    dlcall(NativeLib(), "webui_return_string", args)
+    cfreeptr(ptr)
+    return (1)
+}
+
+func: NativeReturnInt(evtObj, value) {
+    args = (cvoid(), (cpointer(), evtObj), (clong(), value))
+    dlcall(NativeLib(), "webui_return_int", args)
+    return (1)
+}
+
+func: CanBindCallbacks() {
+    // Toba has FUNCTYPE values, but no C ABI function pointer for DLL callbacks.
+    return (0)
+}
+
+func: Bind(window, evtName, callbackFunc) {
+    // Kept as an explicit no-op guard to avoid pretending that ctoptr(...) can
+    // create a DLL callback pointer from a Toba func.
+    return (0)
+}
+
+func: Show(html) {
+    window = NativeNewWindow()
+    NativeShow(window, html)
+    return (window)
+}
+
+func: ShowBrowser(html, browser) {
+    window = NativeNewWindow()
+    NativeShowBrowser(window, html, browser)
+    return (window)
+}
+
+func: ShowWebView(html) {
+    window = NativeNewWindow()
+    NativeShowWebView(window, html)
+    return (window)
+}
+
+func: SetWindow(window, width, height, x, y) {
+    NativeSetSize(window, width, height)
+    NativeSetPosition(window, x, y)
+    return (window)
+}
+
+func: SetSizeOnly(window, width, height) {
+    NativeSetSize(window, width, height)
+    return (window)
+}
+
+// ===================================================================
+// NATIVE WINDOW CHROME BRIDGE
+// ===================================================================
+
+func: WindowBridgePath() {
+    return ("C:/Toba/modules/libwebui/toba_window_bridge.dll")
+}
+
+func: WindowBridgeLib() {
+    if (!isnum(WindowBridgeLibHandle)) {
+        WindowBridgeLibHandle = dlopen(WindowBridgePath(), dlcdecl())
+    }
+    return (WindowBridgeLibHandle)
+}
+
+func: NativeWindowPlatform() {
+    args = (cint(), (cvoid(), 0))
+    res = dlcall(WindowBridgeLib(), "toba_window_platform", args)
+    return (res)
+}
+
+func: NativeWindowFind(title) {
+    ptr = ctoptr(cstring(), title)
+    args = (culong(), (cpointer(), ptr))
+    res = dlcall(WindowBridgeLib(), "toba_window_find", args)
+    cfreeptr(ptr)
+    return (res)
+}
+
+// Lance une commande totalement detachee (CreateProcess DETACHED_PROCESS, sans
+// pipes stdout/stderr) et rend la main immediatement. A utiliser pour les
+// process GUI persistants (webview_host) que runproc bloquerait.
+func: RunDetached(cmd) {
+    ptr = ctoptr(cstring(), cmd)
+    args = (cint(), (cpointer(), ptr))
+    res = dlcall(WindowBridgeLib(), "toba_run_detached", args)
+    cfreeptr(ptr)
+    return (res)
+}
+
+func: NativeWindowFrameless(title, enabled) {
+    ptr = ctoptr(cstring(), title)
+    args = (cint(), (cpointer(), ptr), (cint(), enabled))
+    res = dlcall(WindowBridgeLib(), "toba_window_set_frameless", args)
+    cfreeptr(ptr)
+    return (res)
+}
+
+func: NativeWindowFramelessHandle(title, enabled) {
+    ptr = ctoptr(cstring(), title)
+    args = (culong(), (cpointer(), ptr), (cint(), enabled))
+    res = dlcall(WindowBridgeLib(), "toba_window_apply_frameless", args)
+    cfreeptr(ptr)
+    return (res)
+}
+
+func: NativeWindowFramelessRetry(title, enabled, attempts, delayMs) {
+    res = 0
+    maxTry = attempts
+    if (maxTry < 1) {
+        maxTry = 1
+    }
+    delay = delayMs
+    if (delay < 1) {
+        delay = 100
+    }
+    i = for (0, maxTry, 1) {
+        res = NativeWindowFrameless(title, enabled)
+        if (res == 1) {
+            break
+        }
+        sleep(delay * 0.001)
+    }
+    return (res)
+}
+
+func: NativeWindowFramelessHandleRetry(title, enabled, attempts, delayMs) {
+    res = 0
+    maxTry = attempts
+    if (maxTry < 1) {
+        maxTry = 1
+    }
+    delay = delayMs
+    if (delay < 1) {
+        delay = 100
+    }
+    i = for (0, maxTry, 1) {
+        res = NativeWindowFramelessHandle(title, enabled)
+        if (res != 0) {
+            break
+        }
+        sleep(delay * 0.001)
+    }
+    return (res)
+}
+
+func: NativeWindowAction(title, action) {
+    ptitle = ctoptr(cstring(), title)
+    paction = ctoptr(cstring(), action)
+    args = (cint(), (cpointer(), ptitle), (cpointer(), paction))
+    res = dlcall(WindowBridgeLib(), "toba_window_action", args)
+    cfreeptr(ptitle)
+    cfreeptr(paction)
+    return (res)
+}
+
+func: NativeWindowActionHandle(handle, action) {
+    paction = ctoptr(cstring(), action)
+    args = (cint(), (culong(), handle), (cpointer(), paction))
+    res = dlcall(WindowBridgeLib(), "toba_window_action_handle", args)
+    cfreeptr(paction)
+    return (res)
+}
+
+func: NativeWindowLastHandle() {
+    args = (culong(), (cvoid(), 0))
+    res = dlcall(WindowBridgeLib(), "toba_window_last_handle", args)
+    return (res)
+}
+
+func: NativeWindowLastActionResult() {
+    args = (cint(), (cvoid(), 0))
+    res = dlcall(WindowBridgeLib(), "toba_window_last_action_result", args)
+    return (res)
+}
+
+func: NativeWindowActionCount() {
+    args = (cint(), (cvoid(), 0))
+    res = dlcall(WindowBridgeLib(), "toba_window_action_count", args)
+    return (res)
+}
+
+func: RunJs(window, code) {
+    res = NativeRun(window, code)
+    return (res)
+}
+
+func: Wait() {
+    NativeWait()
+    return (1)
+}
+
+func: CloseAll() {
+    NativeExit()
+    return (1)
+}
+
+func: ArgText(evtObj, idx) {
+    res = NativeGetStringAt(evtObj, idx)
+    return (res)
+}
+
+func: ArgNumber(evtObj, idx) {
+    res = NativeGetIntAt(evtObj, idx)
+    return (res)
+}
+
+func: ReturnText(evtObj, text) {
+    NativeReturnString(evtObj, text)
+    return (1)
+}
+
+func: ReturnNumber(evtObj, value) {
+    NativeReturnInt(evtObj, value)
+    return (1)
+}
+
+func: JsSetText(id, text) {
+    res = "tobaText('" $ EscapeJs(id) $ "','" $ EscapeJs(text) $ "');"
+    return (res)
+}
+
+func: JsSetHtml(id, html) {
+    res = "tobaHtml('" $ EscapeJs(id) $ "','" $ EscapeJs(html) $ "');"
+    return (res)
+}
+
+func: JsSetValue(id, value) {
+    res = "tobaValue('" $ EscapeJs(id) $ "','" $ EscapeJs(value) $ "');"
+    return (res)
+}
+
+// ===================================================================
+// WEBSOCKET EVENT BRIDGE
+// ===================================================================
+
+func: BridgeDllPath() {
+    return ("C:/Toba/modules/libwebui/webui_bridge_shim_v2.dll")
+}
+
+func: BridgeLib() {
+    if (!isnum(BridgeLibHandle)) {
+        BridgeLibHandle = dlopen(BridgeDllPath(), dlcdecl())
+    }
+    return (BridgeLibHandle)
+}
+
+func: BridgeBuffer(sizeBytes) {
+    res = ""
+    if (sizeBytes > 0) {
+        i = for (0, sizeBytes, 1) {
+            res = res $ " "
+        }
+    }
+    return (res)
+}
+
+func: BridgeStart(port) {
+    args = (cint(), (cint(), port))
+    res = dlcall(BridgeLib(), "webui_bridge_init", args)
+    return (res)
+}
+
+func: BridgeStop() {
+    args = (cvoid(), (cvoid(), 0))
+    dlcall(BridgeLib(), "webui_bridge_shutdown", args)
+    return (1)
+}
+
+func: BridgeIsConnected() {
+    args = (cint(), (cvoid(), 0))
+    res = dlcall(BridgeLib(), "webui_bridge_is_connected", args)
+    return (res)
+}
+
+func: BridgeEventCount() {
+    args = (cint(), (cvoid(), 0))
+    res = dlcall(BridgeLib(), "webui_bridge_event_count", args)
+    return (res)
+}
+
+func: BridgeClear() {
+    args = (cvoid(), (cvoid(), 0))
+    dlcall(BridgeLib(), "webui_bridge_clear", args)
+    return (1)
+}
+
+func: BridgePoll(timeoutMs) {
+    res = ""
+    args = (cpointer(), (cint(), timeoutMs))
+    ptr = dlcall(BridgeLib(), "webui_bridge_poll", args)
+    if (ptr != 0) {
+        res = cfromptr(ptr, cstring(), -1)
+    }
+    if (!isstr(res)) {
+        res = ""
+    }
+    return (res)
+}
+
+func: BridgeExecute(action, paramsJson) {
+    paction = ctoptr(cstring(), action)
+    pparams = ctoptr(cstring(), paramsJson)
+    args = (cint(), (cpointer(), paction), (cpointer(), pparams))
+    res = dlcall(BridgeLib(), "webui_bridge_execute", args)
+    cfreeptr(paction)
+    cfreeptr(pparams)
+    return (res)
+}
+
+func: BridgeLastError() {
+    res = ""
+    args = (cpointer(), (cvoid(), 0))
+    ptr = dlcall(BridgeLib(), "webui_bridge_last_error", args)
+    if (ptr != 0) {
+        res = cfromptr(ptr, cstring(), -1)
+    }
+    if (!isstr(res)) {
+        res = ""
+    }
+    return (res)
+}
+
+func: BridgeStartReliable(port, attempts) {
+    selected = 0
+    maxTry = attempts
+    if (maxTry < 1) {
+        maxTry = 1
+    }
+    i = for (0, maxTry, 1) {
+        tryPort = port + i
+        startRes = BridgeStart(tryPort)
+        if (startRes == 0) {
+            selected = tryPort
+            break
+        }
+        BridgeStop()
+        sleep(0.03)
+    }
+    return (selected)
+}
+
+func: BridgeScript(port) {
+    p = strnum(port)
+    res = "<script>"
+    res = res $ "window.tobaBridge={ws:null,queue:[],sent:0,state:'starting',closing:false,closeGuard:true,closeApproved:false,closePrompt:'Quitter cette fenetre ?'};"
+    res = res $ "function tobaBridgeStatus(value){window.tobaBridge.state=value;var el=document.getElementById('bridge_status');if(el){el.textContent='Bridge: '+value+' | sent: '+window.tobaBridge.sent;}}"
+    res = res $ "function tobaBridgeSend(obj){var msg=JSON.stringify(obj);var b=window.tobaBridge;"
+    res = res $ "if(b.ws&&b.ws.readyState===WebSocket.OPEN){b.ws.send(msg);b.sent++;tobaBridgeStatus('sent');}else{b.queue.push(msg);tobaBridgeStatus('queued');}}"
+    res = res $ "function tobaBridgeConnect(){var b=window.tobaBridge;tobaBridgeStatus('connecting');try{b.ws=new WebSocket('ws://127.0.0.1:" $ p $ "');}catch(ex){tobaBridgeStatus('websocket exception: '+ex.message);return;}"
+    res = res $ "b.ws.onopen=function(){tobaBridgeStatus('open');b.ws.send(JSON.stringify({type:'bridge_open',widgetId:'bridge',timestamp:Date.now()}));b.sent++;while(b.queue.length>0){b.ws.send(b.queue.shift());b.sent++;}tobaBridgeStatus('open');};"
+    res = res $ "b.ws.onmessage=function(ev){try{var msg=JSON.parse(ev.data);var de=document.getElementById('tm_debug');if(de){de.textContent='bridge message: '+(msg.action||msg.type);}if(msg.type==='execute'){var fn=window[msg.action];if(typeof fn==='function'){fn(msg.params||{});}else{if(de){de.textContent='missing function: '+msg.action;}}}}catch(ex){var ee=document.getElementById('tm_debug');if(ee){ee.textContent='bridge JS error: '+ex.message;}console.log('Toba bridge message error',ex);}};"
+    res = res $ "b.ws.onclose=function(){tobaBridgeStatus('closed');if(!window.tobaBridge.closing){setTimeout(tobaBridgeConnect,500);}};"
+    res = res $ "b.ws.onerror=function(){tobaBridgeStatus('error');console.log('Toba bridge socket error');};}"
+    res = res $ "window.addEventListener('toba:event',function(e){"
+    res = res $ "var d=e.detail||{};var a=d.args||[];var data=d.data||{};var wid=d.widgetId||data.id||data.widgetId||(a.length>0?a[0]:'none');"
+    res = res $ "tobaBridgeSend({type:'event',name:d.name,widgetId:wid,args:a,data:data,timestamp:Date.now()});"
+    res = res $ "});"
+    res = res $ "window.webuiSetCloseGuard=function(params){params=params||{};if(params.enabled!==undefined){window.tobaBridge.closeGuard=!!params.enabled}if(params.prompt!==undefined){window.tobaBridge.closePrompt=String(params.prompt)}};"
+    res = res $ "window.webuiEnsureCloseModal=function(){var id='lw_close_confirm';var e=document.getElementById(id);if(e)return e;var css=document.createElement('style');css.setAttribute('data-libwebui-close','1');css.textContent='.lw-close-backdrop{display:none;position:fixed;inset:0;z-index:2000;align-items:center;justify-content:center;padding:24px;background:color-mix(in srgb,#020617 58%,transparent);backdrop-filter:blur(9px)}.lw-close-backdrop.open{display:flex}.lw-close-window{width:min(520px,calc(100vw - 32px));border:1px solid var(--border-glow,#c2d1e6);border-radius:calc(var(--lw-radius,8px) + 6px);background:linear-gradient(180deg,color-mix(in srgb,var(--bg-card,#fff) 98%,var(--bg-surface,#fff)),var(--bg-card,#fff));box-shadow:0 30px 90px rgba(0,0,0,.42);overflow:hidden;color:var(--text-1,#111)}.lw-close-head{padding:15px 16px 13px;border-bottom:1px solid var(--border,#d8e1ef);background:linear-gradient(90deg,var(--accent-glow,rgba(12,156,126,.16)),transparent 70%)}.lw-close-title{font-size:14px;font-weight:900}.lw-close-sub{font-size:12px;font-weight:600;color:var(--text-2,#4d617b);margin-top:4px}.lw-close-body{padding:16px;color:var(--text-2,#4d617b);font-size:12.5px;line-height:1.55}.lw-close-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid var(--border,#d8e1ef);background:color-mix(in srgb,var(--bg-surface,#fff) 70%,var(--bg-card,#fff))}.lw-close-btn{height:32px;border:1px solid var(--border,#d8e1ef);border-radius:var(--lw-pill-radius,999px);background:var(--bg-card,#fff);color:var(--text-2,#4d617b);padding:0 12px;font-family:var(--sans,Segoe UI,Arial);font-size:12.5px;font-weight:850;cursor:pointer}.lw-close-btn:hover{border-color:var(--accent,#0c9c7e);background:var(--accent-glow,rgba(12,156,126,.16));color:var(--accent,#0c9c7e)}.lw-close-btn.primary{background:var(--accent,#0c9c7e);color:var(--bg-deep,#fff);border-color:var(--accent,#0c9c7e)}';document.head.appendChild(css);e=document.createElement('div');e.id=id;e.className='lw-close-backdrop';e.innerHTML='<div class=\"lw-close-window\" role=\"dialog\" aria-modal=\"true\"><div class=\"lw-close-head\"><div class=\"lw-close-title\">Quitter l application ?</div><div class=\"lw-close-sub\">Confirmation WebUI</div></div><div class=\"lw-close-body\">La fermeture est demandee. Tu peux annuler et revenir a l interface, ou confirmer pour fermer la fenetre.</div><div class=\"lw-close-foot\"><button type=\"button\" class=\"lw-close-btn\" onclick=\"webuiDenyClose()\">Annuler</button><button type=\"button\" class=\"lw-close-btn primary\" onclick=\"webuiAllowClose()\">Quitter</button></div></div>';document.body.appendChild(e);return e};"
+    res = res $ "window.webuiRequestClose=function(params){params=params||{};var b=window.tobaBridge;if(b.closeGuard){var e=webuiEnsureCloseModal();e.classList.add('open');tobaBridgeSend({type:'event',name:'window_close_request',widgetId:'window',args:['window','request'],data:{id:'window',state:'request',source:params.source||'webui'},timestamp:Date.now()});return;}webuiAllowClose(params)};"
+    res = res $ "window.webuiAllowClose=function(params){var e=document.getElementById('lw_close_confirm');if(e)e.classList.remove('open');window.tobaBridge.closeApproved=true;window.tobaBridge.closing=true;tobaBridgeSend({type:'event',name:'window_close_confirm',widgetId:'window',args:['window','confirm'],data:{id:'window',state:'confirm'},timestamp:Date.now()});if(window.nativeWindowAction){try{window.nativeWindowAction('close')}catch(ex){}}else{try{window.close()}catch(ex){}}};"
+    res = res $ "window.webuiDenyClose=function(params){var e=document.getElementById('lw_close_confirm');if(e)e.classList.remove('open');window.tobaBridge.closeApproved=false;window.tobaBridge.closing=false;tobaBridgeStatus('close denied');tobaBridgeSend({type:'event',name:'window_close_cancel',widgetId:'window',args:['window','cancel'],data:{id:'window',state:'cancel'},timestamp:Date.now()});};"
+    res = res $ "window.addEventListener('beforeunload',function(ev){var b=window.tobaBridge;if(!b.closeGuard||b.closeApproved){b.closing=true;tobaBridgeSend({type:'event',name:'window_closing',widgetId:'window',args:['window','closing'],data:{id:'window',state:'closing',source:'native_close'},timestamp:Date.now()});return;}tobaBridgeSend({type:'event',name:'window_close_request',widgetId:'window',args:['window','request'],data:{id:'window',state:'request',source:'native_close'},timestamp:Date.now()});ev.preventDefault();ev.returnValue=b.closePrompt;return b.closePrompt;});"
+    res = res $ "window.addEventListener('pagehide',function(){window.tobaBridge.closing=true;try{tobaBridgeSend({type:'event',name:'window_closed',widgetId:'window',args:['window','closed'],data:{id:'window',state:'closed'},timestamp:Date.now()})}catch(ex){}});"
+    // Bordures de resize (WebView2 recouvre les bords -> le WM_NCHITTEST natif
+    // ne se declenche pas). 8 zones invisibles au mousedown -> resize natif.
+    res = res $ "window.webuiInitResizeBorders=function(){if(document.getElementById('lw_rz_wrap'))return;if(!window.nativeWindowAction)return;var css=document.createElement('style');css.textContent='.lw-rz{position:fixed;z-index:2147483000;background:transparent}.lw-rz-t{top:0;left:8px;right:8px;height:6px;cursor:ns-resize}.lw-rz-b{bottom:0;left:8px;right:8px;height:6px;cursor:ns-resize}.lw-rz-l{left:0;top:8px;bottom:8px;width:6px;cursor:ew-resize}.lw-rz-r{right:0;top:8px;bottom:8px;width:6px;cursor:ew-resize}.lw-rz-tl{top:0;left:0;width:10px;height:10px;cursor:nwse-resize}.lw-rz-tr{top:0;right:0;width:10px;height:10px;cursor:nesw-resize}.lw-rz-bl{bottom:0;left:0;width:10px;height:10px;cursor:nesw-resize}.lw-rz-br{bottom:0;right:0;width:10px;height:10px;cursor:nwse-resize}';document.head.appendChild(css);var wrap=document.createElement('div');wrap.id='lw_rz_wrap';var dirs=['t','b','l','r','tl','tr','bl','br'];dirs.forEach(function(d){var z=document.createElement('div');z.className='lw-rz lw-rz-'+d;z.addEventListener('mousedown',function(e){if(e.button!==0)return;e.preventDefault();nativeWindowAction('resize-'+d)});wrap.appendChild(z)});document.body.appendChild(wrap)};"
+    res = res $ "if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',webuiInitResizeBorders)}else{webuiInitResizeBorders()}"
+    res = res $ "tobaBridgeConnect();"
+    res = res $ "</script>"
+    return (res)
+}
+
+func: WithBridge(html, port) {
+    res = freplace(html, "</body>", BridgeScript(port) $ "</body>")
+    return (res)
+}

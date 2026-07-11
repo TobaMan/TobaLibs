@@ -1,0 +1,647 @@
+import : libwebui / desktopui
+import : libwebui / widget_core
+import : libwebui / widgets / date_picker
+import : libwebui / widgets / color_picker
+import : libwebui / widgets / audio_player
+import : libwebui / widgets / video_player
+import : libwebui / widgets / image_view
+import : libwebui / widgets / image_gallery
+import : libwebui / widgets / carousel
+import : libwebui / widgets / rich_text_editor
+import : libwebui / widgets / popup_window
+
+func: Styles() {
+    return (widget_core::Styles())
+}
+
+obj:Rating() {
+    self.html = " "
+    self.id = "rating"
+    self.label = "Rating"
+    self.value = 3
+    self.maxValue = 5
+    self.eventName = "rating_change"
+    self.disabled = 0
+
+    func:Setup(self, id, label, value, maxValue, eventName) {
+        self.id = id
+        self.label = label
+        self.value = value
+        self.maxValue = maxValue
+        self.eventName = eventName
+        return (self)
+    }
+
+    func:SetDisabled(self, disabled) {
+        self.disabled = disabled
+        return (self)
+    }
+
+    func:Close(self) {
+        self.html = widget_core::Styles() $ widget_core::Rating(self.id, self.label, self.value, self.maxValue, self.eventName)
+        if (self.disabled == 1) {
+            self.html = widget_core::DisableHtml(self.html)
+        }
+        return (self)
+    }
+}
+
+obj:Switch() {
+    self.html = " "
+    self.id = "switch"
+    self.label = "Switch"
+    self.checked = 0
+    self.eventName = "switch_change"
+    self.disabled = 0
+
+    func:Setup(self, id, label, checked, eventName) {
+        self.id = id
+        self.label = label
+        self.checked = checked
+        self.eventName = eventName
+        return (self)
+    }
+
+    func:SetDisabled(self, disabled) {
+        self.disabled = disabled
+        return (self)
+    }
+
+    func:Close(self) {
+        self.html = widget_core::Styles() $ widget_core::Switch(self.id, self.label, self.checked, self.eventName)
+        if (self.disabled == 1) {
+            self.html = widget_core::DisableHtml(self.html)
+        }
+        return (self)
+    }
+}
+
+// Toggle NU (sans carte) : le switch + texte On/Off inline. Meme evenement que
+// Switch mais reutilisable dans une cellule, une barre d'outils, etc.
+obj:Toggle() {
+    self.html = " "
+    self.id = "toggle"
+    self.label = " "
+    self.checked = 0
+    self.eventName = "toggle_change"
+
+    func:Setup(self, id, label, checked, eventName) {
+        self.id = id
+        self.label = label
+        self.checked = checked
+        self.eventName = eventName
+        return (self)
+    }
+
+    func:Close(self) {
+        self.html = widget_core::Styles() $ widget_core::Toggle(self.id, self.label, self.checked, self.eventName)
+        return (self)
+    }
+}
+
+obj:CopyField() {
+    self.html = " "
+    self.id = "copy_field"
+    self.label = "Copy"
+    self.value = "value"
+    self.eventName = "copy_value"
+    self.disabled = 0
+
+    func:Setup(self, id, label, value, eventName) {
+        self.id = id
+        self.label = label
+        self.value = value
+        self.eventName = eventName
+        return (self)
+    }
+
+    func:SetDisabled(self, disabled) {
+        self.disabled = disabled
+        return (self)
+    }
+
+    func:Close(self) {
+        self.html = widget_core::Styles() $ widget_core::CopyField(self.id, self.label, self.value, self.eventName)
+        if (self.disabled == 1) {
+            self.html = widget_core::DisableHtml(self.html)
+        }
+        return (self)
+    }
+}
+
+obj:ProgressSteps() {
+    self.html = " "
+    self.id = "steps"
+    self.label = "Steps"
+    self.steps = ("Start", "Middle", "Done")
+    self.current = 1
+    self.eventName = "step_select"
+    self.disabled = 0
+
+    func:Setup(self, id, label, steps, current, eventName) {
+        self.id = id
+        self.label = label
+        self.steps = steps
+        self.current = current
+        self.eventName = eventName
+        return (self)
+    }
+
+    func:SetDisabled(self, disabled) {
+        self.disabled = disabled
+        return (self)
+    }
+
+    func:Close(self) {
+        self.html = widget_core::Styles() $ widget_core::ProgressSteps(self.id, self.label, self.steps, self.current, self.eventName)
+        if (self.disabled == 1) {
+            self.html = widget_core::DisableHtml(self.html)
+        }
+        return (self)
+    }
+}
+
+obj:DatePicker() {
+    self.html = " "
+    self.id = "date_picker"
+    self.label = "Date"
+    self.value = "2026-06-26"
+    self.eventName = "date_change"
+    self.disabled = 0
+
+    func:Setup(self, id, label, value, eventName) {
+        self.id = id
+        self.label = label
+        self.value = value
+        self.eventName = eventName
+        return (self)
+    }
+
+    func:SetDisabled(self, disabled) {
+        self.disabled = disabled
+        return (self)
+    }
+
+    func:Close(self) {
+        w = date_picker::DatePicker()
+        w.Setup(self.id, self.label, self.value, self.eventName)
+        w.SetDisabled(self.disabled)
+        w.Close()
+        self.html = w.html
+        return (self)
+    }
+}
+
+obj:ColorPicker() {
+    self.html = " "
+    self.id = "color_picker"
+    self.label = "Couleur"
+    self.value = "#00d4aa"
+    self.swatches = ("#00d4aa", "#3563e9", "#d64f8c", "#ff8b3d", "#18181b")
+    self.eventName = "color_change"
+    self.disabled = 0
+
+    func:Setup(self, id, label, value, swatches, eventName) {
+        self.id = id
+        self.label = label
+        self.value = value
+        self.swatches = swatches
+        self.eventName = eventName
+        return (self)
+    }
+
+    func:SetDisabled(self, disabled) {
+        self.disabled = disabled
+        return (self)
+    }
+
+    func:Close(self) {
+        w = color_picker::ColorPicker()
+        w.Setup(self.id, self.label, self.value, self.swatches, self.eventName)
+        w.SetDisabled(self.disabled)
+        w.Close()
+        self.html = w.html
+        return (self)
+    }
+}
+
+obj:VideoPlayer() {
+    self.html = " "
+    self.id = "video_player"
+    self.title = "Video player"
+    self.source = " "
+    self.poster = " "
+    self.note = "Local HTML5 video widget"
+    self.disabled = 0
+
+    func:Setup(self, id, title, source, poster, note) {
+        self.id = id
+        self.title = title
+        self.source = source
+        self.poster = poster
+        self.note = note
+        return (self)
+    }
+
+    func:SetDisabled(self, disabled) {
+        self.disabled = disabled
+        return (self)
+    }
+
+    func:Close(self) {
+        w = video_player::VideoPlayer()
+        w.Setup(self.id, self.title, self.source, self.poster, self.note)
+        w.SetDisabled(self.disabled)
+        w.Close()
+        self.html = w.html
+        return (self)
+    }
+}
+
+obj:AudioPlayer() {
+    self.html = " "
+    self.id = "audio_player"
+    self.title = "Audio player"
+    self.source = " "
+    self.note = "Lecteur audio avec sliders webui"
+    self.disabled = 0
+
+    func:Setup(self, id, title, source, note) {
+        self.id = id
+        self.title = title
+        self.source = source
+        self.note = note
+        return (self)
+    }
+
+    func:SetDisabled(self, disabled) {
+        self.disabled = disabled
+        return (self)
+    }
+
+    func:Close(self) {
+        w = audio_player::AudioPlayer()
+        w.Setup(self.id, self.title, self.source, self.note)
+        w.SetDisabled(self.disabled)
+        w.Close()
+        self.html = w.html
+        return (self)
+    }
+}
+
+obj:ImageView() {
+    self.html = " "
+    self.id = "image_view"
+    self.title = "Image"
+    self.source = " "
+    self.alt = "Image"
+    self.caption = "Image themable"
+    self.fit = "cover"
+    self.disabled = 0
+
+    func:Setup(self, id, title, source, alt, caption) {
+        self.id = id
+        self.title = title
+        self.source = source
+        self.alt = alt
+        self.caption = caption
+        return (self)
+    }
+
+    func:SetFit(self, fit) {
+        self.fit = fit
+        return (self)
+    }
+
+    func:SetDisabled(self, disabled) {
+        self.disabled = disabled
+        return (self)
+    }
+
+    func:Close(self) {
+        w = image_view::ImageView()
+        w.Setup(self.id, self.title, self.source, self.alt, self.caption)
+        w.SetFit(self.fit)
+        w.SetDisabled(self.disabled)
+        w.Close()
+        self.html = w.html
+        return (self)
+    }
+}
+
+obj:ImageGallery() {
+    self.html = " "
+    self.id = "image_gallery"
+    self.title = "Image gallery"
+    self.note = "Selection de vignettes"
+    self.eventName = "image_gallery_select"
+    self.images = " "
+    self.firstSrc = " "
+    self.firstAlt = "Image"
+    self.firstCaption = " "
+    self.count = 0
+    self.columns = 2
+    self.disabled = 0
+
+    func:Setup(self, id, title, note, eventName) {
+        self.id = id
+        self.title = title
+        self.note = note
+        self.eventName = eventName
+        return (self)
+    }
+
+    func:SetColumns(self, columns) {
+        self.columns = columns
+        return (self)
+    }
+
+    func:AddImage(self, source, caption, alt) {
+        srcRaw = image_view::ImageSourceUrl(source)
+        src = desktopui::EscapeHtml(srcRaw)
+        cap = desktopui::EscapeHtml(caption)
+        safeAlt = desktopui::EscapeHtml(alt)
+        cls = "lw-gallery-thumb"
+        if (self.count == 0) {
+            cls = "lw-gallery-thumb active"
+            self.firstSrc = srcRaw
+            self.firstAlt = alt
+            self.firstCaption = caption
+        }
+        self.images = self.images $ "<button type='button' class='" $ cls $ "' data-src='" $ src $ "' data-caption='" $ cap $ "' data-alt='" $ safeAlt $ "' onclick=\"lwGalleryPick('" $ desktopui::EscapeJs(self.id) $ "',this)\"><img src='" $ src $ "' alt='" $ safeAlt $ "' loading='lazy'><span>" $ cap $ "</span></button>"
+        self.count = self.count + 1
+        return (self)
+    }
+
+    func:SetDisabled(self, disabled) {
+        self.disabled = disabled
+        return (self)
+    }
+
+    func:Close(self) {
+        hero = "<div class='lw-image-empty'>Ajoute des images avec AddImage(...).</div>"
+        if (self.count > 0) {
+            hero = "<img src='" $ desktopui::EscapeHtml(self.firstSrc) $ "' alt='" $ desktopui::EscapeHtml(self.firstAlt) $ "' loading='lazy' onclick=\"webuiEvent('image_gallery_open',{id:'" $ desktopui::EscapeJs(self.id) $ "',value:this.src})\">"
+        }
+        self.html = widget_core::Styles() $ image_view::ImageStyles() $ image_gallery::ImageGalleryScript()
+        self.html = self.html $ "<section id='" $ desktopui::EscapeHtml(self.id) $ "' class='ui-card lw-gallery-card' data-event='" $ desktopui::EscapeHtml(self.eventName) $ "'><div class='ui-card-head'><div class='ui-card-title'>" $ desktopui::EscapeHtml(self.title) $ "</div><div class='ui-card-sub'>" $ desktopui::EscapeHtml(self.note) $ "</div></div><div class='ui-card-body'><div class='lw-gallery-layout'><div><div class='lw-image-frame lw-gallery-main'>" $ hero $ "</div><div class='lw-image-caption'><span class='lw-gallery-current'>" $ desktopui::EscapeHtml(self.firstCaption) $ "</span><span class='lw-image-source'>" $ strnum(self.count) $ " images</span></div></div><div class='lw-gallery-thumbs' style='--lw-cols:" $ strnum(self.columns) $ "'>" $ self.images $ "</div></div></div></section>"
+        if (self.disabled == 1) {
+            self.html = widget_core::DisableHtml(self.html)
+        }
+        return (self)
+    }
+}
+
+obj:Carousel() {
+    self.html = " "
+    self.id = "carousel"
+    self.title = "Carousel"
+    self.note = "Slides image"
+    self.eventName = "carousel_change"
+    self.slides = " "
+    self.dots = " "
+    self.count = 0
+    self.autoplayMs = 0
+    self.disabled = 0
+
+    func:Setup(self, id, title, note, eventName) {
+        self.id = id
+        self.title = title
+        self.note = note
+        self.eventName = eventName
+        return (self)
+    }
+
+    func:SetAutoPlay(self, ms) {
+        self.autoplayMs = ms
+        return (self)
+    }
+
+    func:AddSlide(self, source, title, note) {
+        src = desktopui::EscapeHtml(image_view::ImageSourceUrl(source))
+        idx = self.count
+        self.slides = self.slides $ "<div class='lw-carousel-slide'><img src='" $ src $ "' alt='" $ desktopui::EscapeHtml(title) $ "' loading='lazy'><div class='lw-carousel-caption'><span>" $ desktopui::EscapeHtml(title) $ "<small>" $ desktopui::EscapeHtml(note) $ "</small></span></div></div>"
+        cls = "lw-carousel-dot"
+        if (idx == 0) {
+            cls = "lw-carousel-dot active"
+        }
+        self.dots = self.dots $ "<button type='button' class='" $ cls $ "' onclick=\"lwCarouselSet('" $ desktopui::EscapeJs(self.id) $ "'," $ strnum(idx) $ ")\"></button>"
+        self.count = self.count + 1
+        return (self)
+    }
+
+    func:SetDisabled(self, disabled) {
+        self.disabled = disabled
+        return (self)
+    }
+
+    func:Close(self) {
+        content = self.slides
+        if (self.count == 0) {
+            content = "<div class='lw-carousel-slide'><div class='lw-image-empty'>Ajoute des slides avec AddSlide(...).</div></div>"
+            self.count = 1
+        }
+        self.html = widget_core::Styles() $ image_view::ImageStyles() $ carousel::CarouselScript()
+        self.html = self.html $ "<section class='ui-card lw-carousel-card'><div class='ui-card-head'><div class='ui-card-title'>" $ desktopui::EscapeHtml(self.title) $ "</div><div class='ui-card-sub'>" $ desktopui::EscapeHtml(self.note) $ "</div></div><div class='ui-card-body'><div id='" $ desktopui::EscapeHtml(self.id) $ "' class='lw-carousel' data-index='0' data-count='" $ strnum(self.count) $ "' data-event='" $ desktopui::EscapeHtml(self.eventName) $ "' data-autoplay='" $ strnum(self.autoplayMs) $ "'><div class='lw-carousel-track'>" $ content $ "</div><button type='button' class='lw-carousel-btn lw-carousel-prev' onclick=\"lwCarouselGo('" $ desktopui::EscapeJs(self.id) $ "',-1)\">&#8249;</button><button type='button' class='lw-carousel-btn lw-carousel-next' onclick=\"lwCarouselGo('" $ desktopui::EscapeJs(self.id) $ "',1)\">&#8250;</button><div class='lw-carousel-dots'>" $ self.dots $ "</div></div></div></section>"
+        if (self.disabled == 1) {
+            self.html = widget_core::DisableHtml(self.html)
+        }
+        return (self)
+    }
+}
+
+obj:Chart() {
+    self.html = " "
+    self.id = "gallery_chart"
+    self.title = "Chart.js professional chart"
+    self.note = "Toba can push real-time points through the bridge"
+    self.disabled = 0
+
+    func:Setup(self, id, title, note) {
+        self.id = id
+        self.title = title
+        self.note = note
+        return (self)
+    }
+
+    func:SetDisabled(self, disabled) {
+        self.disabled = disabled
+        return (self)
+    }
+
+    func:Close(self) {
+        self.html = widget_core::Styles() $ widget_core::Chart(self.id, self.title, self.note)
+        if (self.disabled == 1) {
+            self.html = widget_core::DisableHtml(self.html)
+        }
+        return (self)
+    }
+}
+
+obj:CodeBlock() {
+    self.html = " "
+    self.id = "code_block"
+    self.title = "Code"
+    self.lang = "toba"
+    self.code = "func: Hello() {\n    return (\"hello\")\n}"
+    self.disabled = 0
+
+    func:Setup(self, id, title, lang, code) {
+        self.id = id
+        self.title = title
+        self.lang = lang
+        self.code = code
+        return (self)
+    }
+
+    func:SetDisabled(self, disabled) {
+        self.disabled = disabled
+        return (self)
+    }
+
+    func:Close(self) {
+        self.html = widget_core::Styles() $ widget_core::CodeBlock(self.id, self.title, self.lang, self.code)
+        if (self.disabled == 1) {
+            self.html = widget_core::DisableHtml(self.html)
+        }
+        return (self)
+    }
+}
+
+obj:MonacoEditor() {
+    self.html = " "
+    self.id = "monaco_editor"
+    self.title = "Monaco Editor"
+    self.lang = "toba"
+    self.code = "func: Hello() {\n    print(\"hello\")\n}"
+    self.eventName = "monaco_change"
+    self.loaderUrl = "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs/loader.min.js"
+    self.readOnly = 0
+    self.disabled = 0
+
+    func:Setup(self, id, title, lang, code, eventName) {
+        self.id = id
+        self.title = title
+        self.lang = lang
+        self.code = code
+        self.eventName = eventName
+        return (self)
+    }
+
+    func:SetLoaderUrl(self, loaderUrl) {
+        self.loaderUrl = loaderUrl
+        return (self)
+    }
+
+    func:SetReadOnly(self, readOnly) {
+        self.readOnly = readOnly
+        return (self)
+    }
+
+    func:SetDisabled(self, disabled) {
+        self.disabled = disabled
+        return (self)
+    }
+
+    func:Close(self) {
+        self.html = widget_core::Styles() $ widget_core::MonacoEditor(self.id, self.title, self.lang, self.code, self.eventName, self.loaderUrl, self.readOnly)
+        if (self.disabled == 1) {
+            self.html = widget_core::DisableHtml(self.html)
+        }
+        return (self)
+    }
+}
+
+obj:RichTextEditor() {
+    self.html = " "
+    self.id = "rich_text_editor"
+    self.title = "Rich Text Editor"
+    self.value = "<p>Hello <strong>Toba</strong></p>"
+    self.eventName = "rich_text_change"
+    self.loaderUrl = " "
+    self.readOnly = 0
+    self.disabled = 0
+
+    func:Setup(self, id, title, value, eventName) {
+        self.id = id
+        self.title = title
+        self.value = value
+        self.eventName = eventName
+        return (self)
+    }
+
+    func:SetLoaderUrl(self, loaderUrl) {
+        self.loaderUrl = loaderUrl
+        return (self)
+    }
+
+    func:SetReadOnly(self, readOnly) {
+        self.readOnly = readOnly
+        return (self)
+    }
+
+    func:SetDisabled(self, disabled) {
+        self.disabled = disabled
+        return (self)
+    }
+
+    func:Close(self) {
+        w = rich_text_editor::RichTextEditor()
+        w.Setup(self.id, self.title, self.value, self.eventName)
+        w.SetLoaderUrl(self.loaderUrl)
+        w.SetReadOnly(self.readOnly)
+        w.SetDisabled(self.disabled)
+        w.Close()
+        self.html = w.html
+        return (self)
+    }
+}
+
+obj:PopupWindow() {
+    self.html = " "
+    self.id = "popup_window"
+    self.title = "Popup Window"
+    self.subtitle = "Fenetre modale themable."
+    self.body = "<p>Contenu libre genere par Toba.</p>"
+    self.primaryText = "Valider"
+    self.primaryEvent = "popup_confirm"
+    self.secondaryText = "Annuler"
+    self.secondaryEvent = "popup_cancel"
+    self.disabled = 0
+
+    func:Setup(self, id, title, subtitle, bodyHtml) {
+        self.id = id
+        self.title = title
+        self.subtitle = subtitle
+        self.body = bodyHtml
+        return (self)
+    }
+
+    func:SetPrimary(self, text, eventName) {
+        self.primaryText = text
+        self.primaryEvent = eventName
+        return (self)
+    }
+
+    func:SetSecondary(self, text, eventName) {
+        self.secondaryText = text
+        self.secondaryEvent = eventName
+        return (self)
+    }
+
+    func:SetDisabled(self, disabled) {
+        self.disabled = disabled
+        return (self)
+    }
+
+    func:Close(self) {
+        w = popup_window::PopupWindow()
+        w.Setup(self.id, self.title, self.subtitle, self.body)
+        w.SetPrimary(self.primaryText, self.primaryEvent)
+        w.SetSecondary(self.secondaryText, self.secondaryEvent)
+        w.SetDisabled(self.disabled)
+        w.Close()
+        self.html = w.html
+        return (self)
+    }
+}

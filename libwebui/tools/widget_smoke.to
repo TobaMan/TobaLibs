@@ -1,0 +1,62 @@
+import : libwebui / widgets_extra
+import : libwebui / webui
+
+if (main()) {
+    rating = widgets_extra::Rating()
+    rating.Setup("quality_rating", "Qualite", 4, 5, "rating_change")
+    rating.Close()
+
+    sw = widgets_extra::Switch()
+    sw.Setup("auto_play", "Lecture automatique", 1, "switch_change")
+    sw.Close()
+
+    copy = widgets_extra::CopyField()
+    copy.Setup("voice_path", "Fichier voice", "C:/Toba/voices/demo.voice", "copy_value")
+    copy.Close()
+
+    steps = widgets_extra::ProgressSteps()
+    steps.Setup("clone_steps", "Pipeline clone", ("Audio", "Reference", "Voice", "Test"), 3, "step_select")
+    steps.Close()
+
+    date = widgets_extra::DatePicker()
+    date.Setup("delivery_date", "Date de livraison", "2026-06-26", "date_change")
+    date.Close()
+
+    color = widgets_extra::ColorPicker()
+    color.Setup("accent_color", "Couleur accent", "#00d4aa", ("#00d4aa", "#3563e9", "#d64f8c"), "color_change")
+    color.Close()
+
+    video = widgets_extra::VideoPlayer()
+    video.Setup("advanced_video_player", "Video player", "C:/Toba/modules/libwebui/sample_video.mp4", " ", "HTML5 video component with Toba events")
+    video.Close()
+
+    chart = widgets_extra::Chart()
+    chart.Setup("gallery_chart", "Chart.js professional chart", "Toba can push real-time points through the bridge")
+    chart.Close()
+
+    code = widgets_extra::CodeBlock()
+    code.Setup("smoke_code", "Toba code", "toba", "func: Smoke() {\n    return (1)\n}")
+    code.Close()
+
+    monaco = widgets_extra::MonacoEditor()
+    monaco.Setup("smoke_monaco", "Monaco smoke", "toba", "func: Smoke() {\n    print(\"ok\")\n}", "monaco_change")
+    monaco.Close()
+
+    disabled = widgets_extra::Rating()
+    disabled.Setup("disabled_rating", "Disabled", 1, 5, "disabled_rating")
+    disabled.SetDisabled(1)
+    disabled.Close()
+
+    panel = webui::Panel()
+    panel.Setup("smoke_panel", "Smoke", "fill", "Panel Fill smoke")
+    panel.Fill()
+    panel.Add(video)
+    panel.Close()
+
+    tabs = webui::TabView()
+    tabs.Add("video_tab", "Video", "1", 1, video)
+    tabs.Close()
+
+    html = rating.html $ sw.html $ copy.html $ steps.html $ date.html $ color.html $ video.html $ chart.html $ code.html $ monaco.html $ disabled.html $ panel.body $ tabs.html
+    print("widgets_extra_html_size=" $ strnum(size(html)) $ "\n")
+}

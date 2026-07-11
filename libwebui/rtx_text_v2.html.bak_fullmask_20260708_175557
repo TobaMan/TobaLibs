@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Texte RTX = lettres HTML illuminees</title>
+<style>
+  /* Meme recette que le lecteur audio : FOND CLAIR + blend MULTIPLY.
+     Les lettres sont VISIBLES et COLOREES (comme le bouton play bleu) ;
+     le RTX les illumine par-dessus. Le SDF donne la forme exacte de la lettre. */
+  body{margin:0;background:#eef2f7;font-family:system-ui;color:#111827;overflow:hidden}
+  .toolbar{position:fixed;top:0;left:0;right:0;z-index:5000;background:#111827;color:#fff;padding:10px 16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:13px}
+  .toolbar label{display:flex;gap:6px;align-items:center}
+  #status{margin-left:auto;font:11px monospace;opacity:.85}
+  /* Les LETTRES = de vrais elements HTML colores (comme les widgets .gc-rtx).
+     buildGlyphs() lit leur position/couleur/materiau depuis le DOM. */
+  #word{position:fixed;left:0;right:0;top:50%;transform:translateY(-50%);
+        display:flex;justify-content:center;align-items:center;gap:2vw;z-index:2;
+        pointer-events:none;font-family:'Arial Black',system-ui,sans-serif;font-weight:900}
+  /* La lettre HTML est VISIBLE par-dessus, dans sa couleur palette (semi-
+     transparente) : le glow RTX transparait dessous, comme le texte du player. */
+  .gc-glyph{font-size:32vh;line-height:1;color:currentColor}
+  /* Le canvas RTX (glow SDF) est SOUS le texte HTML (z-index plus bas). */
+  #rtxCanvas{position:fixed;inset:0;width:100%;height:100%;z-index:1;pointer-events:none;mix-blend-mode:multiply}
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <label>Texte <input type="text" id="txt" value="RTX" style="width:120px"></label>
+    <label>Materiau
+      <select id="mat"><option value="cycle" selected>par lettre</option><option value="emissive">emissive</option><option value="diffuse">diffuse</option><option value="glossy">glossy</option><option value="mirror">mirror</option></select>
+    </label>
+    <label>Emissive <input type="range" id="emis" min="0" max="8" step="0.2" value="3"></label>
+    <label>Front <input type="range" id="front" min="0" max="3" step="0.1" value="1.2"></label>
+    <label>Ambiance <input type="range" id="amb" min="0" max="1" step="0.05" value="0.2"></label>
+    <span id="status"></span>
+  </div>
+
+  <!-- Le mot : un span par lettre. buildGlyphs() les scanne (DOM -> SDF). -->
+  <div id="word"></div>
+
+  <canvas id="rtxCanvas"></canvas>
+  <canvas id="shapeCanvas" style="display:none"></canvas>
+  <canvas id="sdfCanvas" style="display:none"></canvas>
+
+  <script src="vendor/gridcraft/Raytracer_Engine_Realtime.js"></script>
+  <script>
+    let rtx=null;
+    const SDFN=96;           // taille d'une case atlas (px) - petit = DT rapide
+    const RANGE=44;          // +-px encodes (~ demi-case) -> la distance grandit
+                             // jusqu'au bord, pas de plateau plat = pas de carre
+
+    const PALETTE=['#2a78d6','#1baf7a','#eda100','#008300','#4a3aa7','#e34948','#e87ba4','#eb6834'];
+    const MAT_CYCLE=['emissive','glossy','diffuse','emissive','glossy','mirror'];
+    const MAT_CODE={diffuse:0,mirror:1,glass:2,glossy:3,emissive:4};
+
+    function hexToRgb(h){const n=parseInt(h.slice(1),16);return [(n>>16&255)/255,(n>>8&255)/255,(n&255)/255];}
+    function rgbStrToArr(s){const m=s.match(/\d+/g);return m?[m[0]/255,m[1]/255,m[2]/255]:[1,1,1];}
+
+    // (Re)construit les <span> lettres dans le DOM avec couleur + materiau.
+    function buildWord(){
+      const txt=(document.getElementById('txt').value||'A').replace(/\s/g,'');
+      const matSel=document.getElementById('mat').value;
+      const word=document.getElementById('word'); word.textContent='';
+      txt.split('').forEach((ch,k)=>{
+        const sp=document.createElement('span');
+        sp.className='gc-glyph'; sp.textContent=ch;
+        const col=PALETTE[k%PALETTE.length];
+        sp.dataset.rtxColor=col;
+        sp.style.color=col;                 // lettre HTML visible, meme couleur
+        sp.dataset.rtxMaterial = matSel==='cycle' ? MAT_CYCLE[k%MAT_CYCLE.length] : matSel;
+        word.appendChild(sp);
+      });
+    }
+
+    // SDF binaire d'un caractere dans une case CELLxCELL de l'atlas (r=distance).
+    function glyphSDF(ch, ctxOut, ox){
+      const CELL=SDFN;
+      const sc=document.getElementById('shapeCanvas'); sc.width=CELL; sc.height=CELL;
+      const x=sc.getContext('2d',{willReadFrequently:true});
+      x.fillStyle='#000'; x.fillRect(0,0,CELL,CELL);
+      // Reproduit EXACTEMENT le rendu CSS (font-size = hauteur line-box = CELL,
+      // line-height:1) : meme font-size et meme baseline -> la glyphe SDF occupe
+      // la case comme la lettre HTML occupe son rect. Baseline ~0.8*em (line-height:1).
+      x.fillStyle='#fff'; x.textAlign='center'; x.textBaseline='alphabetic';
+      x.font='900 '+CELL+"px 'Arial Black', system-ui, sans-serif";
+      x.fillText(ch, CELL/2, CELL*0.8);
+      const d=x.getImageData(0,0,CELL,CELL).data;
+      const inside=(i,j)=> (i>=0&&j>=0&&i<CELL&&j<CELL) && d[(j*CELL+i)*4] > 128;
+      const R=Math.ceil(RANGE);
+      const img=ctxOut.createImageData(CELL,CELL); const od=img.data;
+      for(let j=0;j<CELL;j++)for(let i=0;i<CELL;i++){
+        const ins=inside(i,j); let best=R+1;
+        for(let dj=-R;dj<=R;dj++)for(let di=-R;di<=R;di++){
+          if(inside(i+di,j+dj)!==ins){const dist=Math.sqrt(di*di+dj*dj); if(dist<best)best=dist;}
+        }
+        let sd=best; if(ins)sd=-sd;
+        const enc=Math.max(0,Math.min(1, sd/(2*RANGE)+0.5));
+        const v=Math.round(enc*255); const o=(j*CELL+i)*4;
+        od[o]=v; od[o+1]=v; od[o+2]=v; od[o+3]=255;
+      }
+      ctxOut.putImageData(img, ox, 0);
+    }
+
+    // Scanne les <span> lettres du DOM -> atlas SDF + rects ecran (comme le player).
+    function buildGlyphs(){
+      const spans=Array.from(document.querySelectorAll('.gc-glyph'));
+      const N=Math.max(1,spans.length);
+      const atlas=document.getElementById('sdfCanvas'); atlas.width=SDFN*N; atlas.height=SDFN;
+      const ac=atlas.getContext('2d',{willReadFrequently:true});
+      ac.clearRect(0,0,atlas.width,atlas.height);
+      const glyphs=[]; let rangeScreen=RANGE;
+      spans.forEach((sp,k)=>{
+        glyphSDF(sp.textContent, ac, k*SDFN);
+        const r=sp.getBoundingClientRect();
+        // une case atlas (SDFN px) couvre r.height px ecran -> convertit RANGE
+        // (px atlas) en px ecran pour que la SDF ait la bonne echelle a l'ecran.
+        rangeScreen = RANGE * (r.height / SDFN);
+        const matName=sp.dataset.rtxMaterial||'emissive';
+        glyphs.push({
+          rect:[r.left, r.top, r.width, r.height],   // position REELLE du span
+          uv:[k/N, 0, 1/N, 1],
+          color: hexToRgb(sp.dataset.rtxColor||'#3b82f6'),
+          mat: (MAT_CODE[matName]!==undefined?MAT_CODE[matName]:4)
+        });
+      });
+      return {atlas, glyphs, rangeScreen};
+    }
+
+    function refresh(){
+      if(!rtx)return;
+      const {atlas,glyphs,rangeScreen}=buildGlyphs();
+      rtx.setGlyphs(atlas, glyphs, rangeScreen, 0.2, 1.5);
+      document.getElementById('status').setAttribute('data-sdf', atlas.width+'x'+atlas.height+' n='+glyphs.length);
+    }
+    function rebuild(){ buildWord(); requestAnimationFrame(refresh); }
+
+    function ambientColor(){ const a=parseFloat(document.getElementById('amb').value); return [a,a,a]; }
+    function start(){
+      rtx=new window.RTX_Realtime('rtxCanvas',{ domSelector:'.__none__', renderScale:0.75, maxBounces:2,
+        temporalAlpha:0, denoiseEnabled:true, denoiseStrength:0.85, denoiseRadius:1.5,
+        bloomEnabled:true, settleProfile:'quality-burst' });
+      rtx.setBackgroundColor(ambientColor());
+      rtx.setEmissivePower(parseFloat(document.getElementById('emis').value));
+      rtx.setFrontEmission(parseFloat(document.getElementById('front').value));
+      rtx.setBloom(true,0.6,0.5);
+      rebuild();
+    }
+    document.getElementById('txt').oninput=rebuild;
+    document.getElementById('mat').onchange=rebuild;
+    document.getElementById('emis').oninput=e=>{if(rtx)rtx.setEmissivePower(parseFloat(e.target.value));};
+    document.getElementById('front').oninput=e=>{if(rtx)rtx.setFrontEmission(parseFloat(e.target.value));};
+    document.getElementById('amb').oninput=()=>{if(rtx)rtx.setBackgroundColor(ambientColor());};
+    // RESIZE : le texte est en vh/vw -> il bouge. On re-scanne les positions APRES
+    // le reflow (double rAF) et on debounce pour ne pas reconstruire l'atlas en
+    // rafale. -> RTX et lettres HTML restent alignes a toute taille de fenetre.
+    let resizeT=0;
+    window.addEventListener('resize',()=>{
+      clearTimeout(resizeT);
+      resizeT=setTimeout(()=>requestAnimationFrame(()=>requestAnimationFrame(refresh)),80);
+    });
+    setInterval(()=>{const st=document.getElementById('status');st.textContent='rtx='+(rtx?'on frame='+rtx.frameCount:'off')+' | sdf '+(st.getAttribute('data-sdf')||'?');},400);
+    window.addEventListener('load',()=>setTimeout(start,120));
+  </script>
+</body>
+</html>

@@ -1,0 +1,909 @@
+import : libwebui / desktopui
+
+func: TextOrEmpty(value) {
+    res = ""
+    if (isstr(value)) {
+        res = value
+    }
+    else {
+        if (isnum(value)) {
+            res = strnum(value)
+        }
+    }
+    return (res)
+}
+
+func: DateDay(value) {
+    s = TextOrEmpty(value)
+    res = "26"
+    if (size(s) >= 10) {
+        res = slice(s, 8, 10)
+    }
+    return (res)
+}
+
+func: DateMonth(value) {
+    s = TextOrEmpty(value)
+    res = "06"
+    if (size(s) >= 10) {
+        res = slice(s, 5, 7)
+    }
+    return (res)
+}
+
+func: DateYear(value) {
+    s = TextOrEmpty(value)
+    res = "2026"
+    if (size(s) >= 10) {
+        res = slice(s, 0, 4)
+    }
+    return (res)
+}
+
+func: DateDisplay(value) {
+    res = DateDay(value) $ "/" $ DateMonth(value) $ "/" $ DateYear(value)
+    return (res)
+}
+
+func: MonthName(mm) {
+    res = "Juin"
+    if (mm == "01") { res = "Janvier" }
+    if (mm == "02") { res = "Fevrier" }
+    if (mm == "03") { res = "Mars" }
+    if (mm == "04") { res = "Avril" }
+    if (mm == "05") { res = "Mai" }
+    if (mm == "06") { res = "Juin" }
+    if (mm == "07") { res = "Juillet" }
+    if (mm == "08") { res = "Aout" }
+    if (mm == "09") { res = "Septembre" }
+    if (mm == "10") { res = "Octobre" }
+    if (mm == "11") { res = "Novembre" }
+    if (mm == "12") { res = "Decembre" }
+    return (res)
+}
+
+func: Pad2(n) {
+    res = strnum(n)
+    if (n < 10) {
+        res = "0" $ res
+    }
+    return (res)
+}
+
+func: PopoverToggleJs() {
+    js = "(function(btn){if(!window.__lwPopOutside){window.__lwPopOutside=1;document.addEventListener('pointerdown',function(e){if(e.target.closest&&e.target.closest('.lw-pop-wrap'))return;var all=document.querySelectorAll('.lw-pop-wrap.open');for(var i=0;i<all.length;i++)all[i].classList.remove('open','drop-up','align-right')},true)}var w=btn.closest('.lw-pop-wrap');if(!w)return;var was=w.classList.contains('open');var all=document.querySelectorAll('.lw-pop-wrap.open');for(var i=0;i<all.length;i++){if(all[i]!==w)all[i].classList.remove('open','drop-up','align-right')}if(was){w.classList.remove('open','drop-up','align-right');return}w.classList.add('open');w.classList.remove('drop-up','align-right');var p=w.querySelector('.lw-pop-panel');if(!p)return;var b=btn.getBoundingClientRect();var r=p.getBoundingClientRect();var vw=window.innerWidth||document.documentElement.clientWidth;var vh=window.innerHeight||document.documentElement.clientHeight;var ct=8,cb=vh-8,el=w.parentElement;while(el&&el!==document.body){var cs=getComputedStyle(el);if(/auto|scroll|hidden/.test(cs.overflow+cs.overflowY)){var er=el.getBoundingClientRect();if(er.height>20){ct=Math.max(ct,er.top+8);cb=Math.min(cb,er.bottom-8)}}el=el.parentElement}var below=cb-b.bottom-8;var above=b.top-ct-8;if((below<r.height&&above>below)||w.getAttribute('data-popover')=='up')w.classList.add('drop-up');if(b.left+r.width>vw-8)w.classList.add('align-right')})(this)"
+    return (js)
+}
+
+func: MonthStepJs(id, delta) {
+    eid = desktopui::EscapeJs(id)
+    js = "var names=['Janvier','Fevrier','Mars','Avril','Mai','Juin','Juillet','Aout','Septembre','Octobre','Novembre','Decembre'];var w=document.getElementById('" $ eid $ "_wrap');var m=Number(w.getAttribute('data-month')||'1')+" $ strnum(delta) $ ";if(m<1)m=12;if(m>12)m=1;w.setAttribute('data-month',(m<10?'0':String())+m);document.getElementById('" $ eid $ "_month_title').textContent=names[m-1]"
+    return (js)
+}
+
+func: ColorApplyInlineJs(id, eventName, valueExpr, source) {
+    eid = desktopui::EscapeJs(id)
+    ev = desktopui::EscapeJs(eventName)
+    src = desktopui::EscapeJs(source)
+    js = "(function(v){var id='" $ eid $ "';var r=document.getElementById(id+'_wrap');if(!r)return;var p=document.getElementById(id+'_preview');var b=document.getElementById(id+'_big');var d=document.getElementById(id+'_display');var h=document.getElementById(id+'_hex');if(p)p.style.setProperty('--picked',v);if(b)b.style.setProperty('--picked',v);if(d)d.textContent=v;if(h)h.value=v;var xs=r.querySelectorAll('.lw-color-chip');for(var j=0;j<xs.length;j++)xs[j].classList.toggle('current',(xs[j].getAttribute('data-color')||String()).toLowerCase()==String(v).toLowerCase());webuiEvent('" $ ev $ "',{id:id,value:v,source:'" $ src $ "'})})(" $ valueExpr $ ")"
+    return (js)
+}
+
+func: ColorPlaneJs(id, eventName) {
+    eid = desktopui::EscapeJs(id)
+    ev = desktopui::EscapeJs(eventName)
+    js = "(function(e){var id='" $ eid $ "';var r=document.getElementById(id+'_wrap');if(!r)return;var rect=e.currentTarget.getBoundingClientRect();var clamp=function(v,a,b){return Math.max(a,Math.min(b,v))};var s=clamp((e.clientX-rect.left)/rect.width,0,1);var val=clamp(1-((e.clientY-rect.top)/rect.height),0,1);var hue=Number(r.getAttribute('data-hue')||170);r.setAttribute('data-sat',s);r.setAttribute('data-val',val);var t=r.querySelector('.lw-color-target');if(t){t.style.left=(s*100)+'%';t.style.top=((1-val)*100)+'%'}var hsv=function(h,s,v){var f=function(n){var k=(n+h/60)%6;return v-v*s*Math.max(Math.min(k,4-k,1),0)};var to=function(x){return Math.round(x*255).toString(16).padStart(2,'0')};return '#'+to(f(5))+to(f(3))+to(f(1))};var hex=hsv(hue,s,val);var p=document.getElementById(id+'_preview');var b=document.getElementById(id+'_big');var d=document.getElementById(id+'_display');var h=document.getElementById(id+'_hex');if(p)p.style.setProperty('--picked',hex);if(b)b.style.setProperty('--picked',hex);if(d)d.textContent=hex;if(h)h.value=hex;webuiEvent('" $ ev $ "',{id:id,value:hex,source:'plane'})})(event)"
+    return (js)
+}
+
+func: ColorHueJs(id, eventName) {
+    eid = desktopui::EscapeJs(id)
+    ev = desktopui::EscapeJs(eventName)
+    js = "(function(e){var id='" $ eid $ "';var r=document.getElementById(id+'_wrap');if(!r)return;var rect=e.currentTarget.getBoundingClientRect();var clamp=function(v,a,b){return Math.max(a,Math.min(b,v))};var hue=Math.round(clamp((e.clientX-rect.left)/rect.width,0,1)*360);r.setAttribute('data-hue',hue);var plane=r.querySelector('.lw-color-plane');if(plane)plane.style.setProperty('--hue',hue);var marker=r.querySelector('.lw-hue-marker');if(marker)marker.style.left=(hue/360*100)+'%';var s=Number(r.getAttribute('data-sat')||.76);var val=Number(r.getAttribute('data-val')||.82);var hsv=function(h,s,v){var f=function(n){var k=(n+h/60)%6;return v-v*s*Math.max(Math.min(k,4-k,1),0)};var to=function(x){return Math.round(x*255).toString(16).padStart(2,'0')};return '#'+to(f(5))+to(f(3))+to(f(1))};var hex=hsv(hue,s,val);var p=document.getElementById(id+'_preview');var b=document.getElementById(id+'_big');var d=document.getElementById(id+'_display');var h=document.getElementById(id+'_hex');if(p)p.style.setProperty('--picked',hex);if(b)b.style.setProperty('--picked',hex);if(d)d.textContent=hex;if(h)h.value=hex;webuiEvent('" $ ev $ "',{id:id,value:hex,source:'hue'})})(event)"
+    return (js)
+}
+
+func: MediaUrl(value) {
+    s = TextOrEmpty(value)
+    res = s
+    embedded = 0
+    b64Path = s $ ".b64"
+    if (size(s) > 0) {
+        if (fstype(b64Path) == 1) {
+            b64 = fsreadf(b64Path)
+            if (isstr(b64)) {
+                b64 = freplace(b64, "\n", "")
+                b64 = freplace(b64, "\r", "")
+                res = "data:video/mp4;base64," $ b64
+                embedded = 1
+            }
+        }
+    }
+    if ((embedded == 0) && (size(s) > 2)) {
+        if (slice(s, 1, 2) == ":") {
+            res = freplace(s, "\\", "/")
+            res = "file:///" $ res
+        }
+    }
+    return (res)
+}
+
+func: DisableHtml(html) {
+    res = html
+    res = freplace(res, "class='lw-x-widget", "class='lw-x-widget lw-disabled")
+    res = freplace(res, "class='lw-popup-widget", "class='lw-popup-widget lw-disabled")
+    res = freplace(res, "class='ui-card gallery-video-player", "class='ui-card gallery-video-player lw-disabled")
+    res = freplace(res, "class='ui-card lw-audio-player", "class='ui-card lw-audio-player lw-disabled")
+    res = freplace(res, "class='ui-card lw-image-card", "class='ui-card lw-image-card lw-disabled")
+    res = freplace(res, "class='ui-card lw-gallery-card", "class='ui-card lw-gallery-card lw-disabled")
+    res = freplace(res, "class='ui-card lw-carousel-card", "class='ui-card lw-carousel-card lw-disabled")
+    res = freplace(res, "class='ui-card gallery-chart-card", "class='ui-card gallery-chart-card lw-disabled")
+    res = freplace(res, "class='lw-code-widget", "class='lw-code-widget lw-disabled")
+    res = freplace(res, "class='lw-monaco-widget", "class='lw-monaco-widget lw-disabled")
+    res = freplace(res, "class='lw-rich-widget", "class='lw-rich-widget lw-disabled")
+    return (res)
+}
+
+func: CodeLangClass(lang) {
+    s = TextOrEmpty(lang)
+    res = "language-text"
+    if (s == "toba") { res = "language-toba" }
+    if (s == "js") { res = "language-js" }
+    if (s == "javascript") { res = "language-js" }
+    if (s == "html") { res = "language-html" }
+    if (s == "css") { res = "language-css" }
+    if (s == "json") { res = "language-json" }
+    if (s == "text") { res = "language-text" }
+    return (res)
+}
+
+func: CodeHighlightJs() {
+    js = "<script data-libwebui-code='1'>"
+    js = js $ "window.lwCodeEsc=function(s){return String(s).split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;')};"
+    js = js $ "window.lwCodePaint=function(code,lang){var s=lwCodeEsc(code);var kw=String();if(lang=='toba'){kw='func|obj|self|return|if|else|loop|for|break|import|main|print|sleep|isstr|isnum|size|strnum|slice'}else if(lang=='js'){kw='function|var|let|const|return|if|else|for|while|class|new|this|window|document'}else if(lang=='css'){kw='display|grid|flex|color|background|border|padding|margin|height|width|position'}else if(lang=='json'){kw='true|false|null'}if(kw.length>0){var re=new RegExp('\\\\b('+kw+')\\\\b','g');s=s.replace(re,'<span class=\"lw-code-kw\">$1</span>')}s=s.replace(/(&quot;[^&]*?&quot;|'[^']*?'|\"[^\"]*?\")/g,'<span class=\"lw-code-str\">$1</span>');s=s.replace(/(\\/\\/[^\\n]*)/g,'<span class=\"lw-code-com\">$1</span>');s=s.replace(/(# [^\\n]*)/g,'<span class=\"lw-code-com\">$1</span>');return s};"
+    js = js $ "window.lwCodeInit=function(){var xs=document.querySelectorAll('.lw-code-src');for(var i=0;i<xs.length;i++){var x=xs[i];if(x.getAttribute('data-painted'))continue;var raw=x.textContent||String();var lang=x.getAttribute('data-lang')||'text';x.innerHTML=lwCodePaint(raw,lang);x.setAttribute('data-painted','1')}};if(document.readyState=='loading'){document.addEventListener('DOMContentLoaded',lwCodeInit)}else{setTimeout(lwCodeInit,0)};"
+    js = js $ "</script>"
+    return (js)
+}
+
+func: CodeSpan(cls, text) {
+    res = "<span class='" $ cls $ "'>" $ desktopui::EscapeHtml(text) $ "</span>"
+    return (res)
+}
+
+func: IsAlpha(charValue) {
+    res = 0
+    if (charValue == "_") { res = 1 }
+    if (charValue == "a") { res = 1 }
+    if (charValue == "b") { res = 1 }
+    if (charValue == "c") { res = 1 }
+    if (charValue == "d") { res = 1 }
+    if (charValue == "e") { res = 1 }
+    if (charValue == "f") { res = 1 }
+    if (charValue == "g") { res = 1 }
+    if (charValue == "h") { res = 1 }
+    if (charValue == "i") { res = 1 }
+    if (charValue == "j") { res = 1 }
+    if (charValue == "k") { res = 1 }
+    if (charValue == "l") { res = 1 }
+    if (charValue == "m") { res = 1 }
+    if (charValue == "n") { res = 1 }
+    if (charValue == "o") { res = 1 }
+    if (charValue == "p") { res = 1 }
+    if (charValue == "q") { res = 1 }
+    if (charValue == "r") { res = 1 }
+    if (charValue == "s") { res = 1 }
+    if (charValue == "t") { res = 1 }
+    if (charValue == "u") { res = 1 }
+    if (charValue == "v") { res = 1 }
+    if (charValue == "w") { res = 1 }
+    if (charValue == "x") { res = 1 }
+    if (charValue == "y") { res = 1 }
+    if (charValue == "z") { res = 1 }
+    if (charValue == "A") { res = 1 }
+    if (charValue == "B") { res = 1 }
+    if (charValue == "C") { res = 1 }
+    if (charValue == "D") { res = 1 }
+    if (charValue == "E") { res = 1 }
+    if (charValue == "F") { res = 1 }
+    if (charValue == "G") { res = 1 }
+    if (charValue == "H") { res = 1 }
+    if (charValue == "I") { res = 1 }
+    if (charValue == "J") { res = 1 }
+    if (charValue == "K") { res = 1 }
+    if (charValue == "L") { res = 1 }
+    if (charValue == "M") { res = 1 }
+    if (charValue == "N") { res = 1 }
+    if (charValue == "O") { res = 1 }
+    if (charValue == "P") { res = 1 }
+    if (charValue == "Q") { res = 1 }
+    if (charValue == "R") { res = 1 }
+    if (charValue == "S") { res = 1 }
+    if (charValue == "T") { res = 1 }
+    if (charValue == "U") { res = 1 }
+    if (charValue == "V") { res = 1 }
+    if (charValue == "W") { res = 1 }
+    if (charValue == "X") { res = 1 }
+    if (charValue == "Y") { res = 1 }
+    if (charValue == "Z") { res = 1 }
+    return (res)
+}
+
+func: IsDigit(charValue) {
+    res = 0
+    if (charValue == "0") { res = 1 }
+    if (charValue == "1") { res = 1 }
+    if (charValue == "2") { res = 1 }
+    if (charValue == "3") { res = 1 }
+    if (charValue == "4") { res = 1 }
+    if (charValue == "5") { res = 1 }
+    if (charValue == "6") { res = 1 }
+    if (charValue == "7") { res = 1 }
+    if (charValue == "8") { res = 1 }
+    if (charValue == "9") { res = 1 }
+    return (res)
+}
+
+func: IsIdent(charValue) {
+    res = 0
+    if (IsAlpha(charValue) == 1) { res = 1 }
+    if (IsDigit(charValue) == 1) { res = 1 }
+    return (res)
+}
+
+func: IsTobaControl(word) {
+    res = 0
+    if (word == "if") { res = 1 }
+    if (word == "else") { res = 1 }
+    if (word == "for") { res = 1 }
+    if (word == "foreach") { res = 1 }
+    if (word == "loop") { res = 1 }
+    if (word == "break") { res = 1 }
+    if (word == "continue") { res = 1 }
+    if (word == "return") { res = 1 }
+    return (res)
+}
+
+func: IsTobaDecl(word) {
+    res = 0
+    if (word == "func") { res = 1 }
+    if (word == "obj") { res = 1 }
+    if (word == "enum") { res = 1 }
+    if (word == "import") { res = 1 }
+    return (res)
+}
+
+func: IsTobaBuiltin(word) {
+    res = 0
+    if (word == "main") { res = 1 }
+    if (word == "print") { res = 1 }
+    if (word == "sleep") { res = 1 }
+    if (word == "size") { res = 1 }
+    if (word == "sizeof") { res = 1 }
+    if (word == "slice") { res = 1 }
+    if (word == "str") { res = 1 }
+    if (word == "strnum") { res = 1 }
+    if (word == "numstr") { res = 1 }
+    if (word == "num") { res = 1 }
+    if (word == "isnum") { res = 1 }
+    if (word == "isstr") { res = 1 }
+    if (word == "ismap") { res = 1 }
+    if (word == "isobj") { res = 1 }
+    if (word == "isinst") { res = 1 }
+    if (word == "isfunc") { res = 1 }
+    if (word == "isenum") { res = 1 }
+    if (word == "isarch") { res = 1 }
+    if (word == "freplace") { res = 1 }
+    if (word == "fsreadf") { res = 1 }
+    if (word == "fsreadd") { res = 1 }
+    if (word == "fswritef") { res = 1 }
+    if (word == "fswrited") { res = 1 }
+    if (word == "fsrename") { res = 1 }
+    if (word == "fsremove") { res = 1 }
+    if (word == "fstype") { res = 1 }
+    if (word == "fspath") { res = 1 }
+    if (word == "dlopen") { res = 1 }
+    if (word == "dlclose") { res = 1 }
+    if (word == "dlcall") { res = 1 }
+    if (word == "dlstdcall") { res = 1 }
+    if (word == "dlcdecl") { res = 1 }
+    if (word == "ctoptr") { res = 1 }
+    if (word == "cfromptr") { res = 1 }
+    if (word == "cfreeptr") { res = 1 }
+    if (word == "cstring") { res = 1 }
+    if (word == "cstruct") { res = 1 }
+    if (word == "cpointer") { res = 1 }
+    return (res)
+}
+
+func: TobaWordClass(word) {
+    res = ""
+    if (IsTobaControl(word) == 1) { res = "lw-code-control" }
+    if (IsTobaDecl(word) == 1) { res = "lw-code-decl" }
+    if (word == "self") { res = "lw-code-self" }
+    if (IsTobaBuiltin(word) == 1) { res = "lw-code-fn" }
+    return (res)
+}
+
+func: IsTobaPairOp(ch, next) {
+    res = 0
+    if ((ch == ":") && (next == ":")) { res = 1 }
+    if ((ch == "=") && (next == "=")) { res = 1 }
+    if ((ch == "!") && (next == "=")) { res = 1 }
+    if ((ch == "<") && (next == "=")) { res = 1 }
+    if ((ch == ">") && (next == "=")) { res = 1 }
+    if ((ch == "&") && (next == "&")) { res = 1 }
+    if ((ch == "|") && (next == "|")) { res = 1 }
+    if ((ch == "<") && (next == ">")) { res = 1 }
+    if ((ch == "<") && (next == "<")) { res = 1 }
+    if ((ch == ">") && (next == ">")) { res = 1 }
+    return (res)
+}
+
+func: IsTobaSingleOp(ch) {
+    res = 0
+    if (ch == "=") { res = 1 }
+    if (ch == "+") { res = 1 }
+    if (ch == "-") { res = 1 }
+    if (ch == "*") { res = 1 }
+    if (ch == "/") { res = 1 }
+    if (ch == "%") { res = 1 }
+    if (ch == "$") { res = 1 }
+    if (ch == ".") { res = 1 }
+    if (ch == ":") { res = 1 }
+    if (ch == "<") { res = 1 }
+    if (ch == ">") { res = 1 }
+    if (ch == "!") { res = 1 }
+    if (ch == ",") { res = 1 }
+    if (ch == ";") { res = 1 }
+    return (res)
+}
+
+func: HighlightToba(code) {
+    s = TextOrEmpty(code)
+    res = ""
+    i = 0
+    n = size(s)
+    loop {
+        if (i >= n) { break }
+        ch = slice(s, i, i + 1)
+        next = ""
+        if ((i + 1) < n) {
+            next = slice(s, i + 1, i + 2)
+        }
+        if ((ch == "/") && (next == "/")) {
+            start = i
+            i = i + 2
+            loop {
+                if (i >= n) { break }
+                if (slice(s, i, i + 1) == "\n") { break }
+                i = i + 1
+            }
+            res = res $ CodeSpan("lw-code-com", slice(s, start, i))
+        }
+        else {
+            if ((ch == "\"") || (ch == "'")) {
+                quote = ch
+                start = i
+                i = i + 1
+                loop {
+                    if (i >= n) { break }
+                    c = slice(s, i, i + 1)
+                    if (c == "\\") {
+                        i = i + 2
+                    }
+                    else {
+                        i = i + 1
+                        if (c == quote) { break }
+                    }
+                }
+                res = res $ CodeSpan("lw-code-str", slice(s, start, i))
+            }
+            else {
+                if (IsDigit(ch) == 1) {
+                    start = i
+                    i = i + 1
+                    loop {
+                        if (i >= n) { break }
+                        c = slice(s, i, i + 1)
+                        if ((IsDigit(c) == 0) && (c != ".") && (c != "x") && (c != "X") && (c != "a") && (c != "b") && (c != "c") && (c != "d") && (c != "e") && (c != "f") && (c != "A") && (c != "B") && (c != "C") && (c != "D") && (c != "E") && (c != "F")) { break }
+                        i = i + 1
+                    }
+                    res = res $ CodeSpan("lw-code-num", slice(s, start, i))
+                }
+                else {
+                    if (IsAlpha(ch) == 1) {
+                        start = i
+                        i = i + 1
+                        loop {
+                            if (i >= n) { break }
+                            if (IsIdent(slice(s, i, i + 1)) == 0) { break }
+                            i = i + 1
+                        }
+                        word = slice(s, start, i)
+                        cls = TobaWordClass(word)
+                        if (size(cls) > 0) {
+                            res = res $ CodeSpan(cls, word)
+                        }
+                        else {
+                            res = res $ desktopui::EscapeHtml(word)
+                        }
+                    }
+                    else {
+                        if (IsTobaPairOp(ch, next) == 1) {
+                            res = res $ CodeSpan("lw-code-op", ch $ next)
+                            i = i + 2
+                        }
+                        else {
+                            if (IsTobaSingleOp(ch) == 1) {
+                                res = res $ CodeSpan("lw-code-op", ch)
+                            }
+                            else {
+                                res = res $ desktopui::EscapeHtml(ch)
+                            }
+                            i = i + 1
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return (res)
+}
+
+func: HighlightGeneric(code, lang) {
+    res = desktopui::EscapeHtml(code)
+    return (res)
+}
+
+func: HighlightCode(code, lang) {
+    s = TextOrEmpty(lang)
+    res = desktopui::EscapeHtml(code)
+    if (s == "toba") {
+        res = HighlightToba(code)
+    }
+    if (s != "toba") {
+        res = HighlightGeneric(code, s)
+    }
+    return (res)
+}
+
+func: Styles() {
+    css = "<style data-libwebui-extra='1'>"
+    css = css $ ".lw-disabled{opacity:.55;filter:saturate(.72);pointer-events:none;user-select:none}.lw-disabled *{cursor:not-allowed!important}.lw-x-widget{border:1px solid var(--border);border-radius:var(--lw-radius);background:color-mix(in srgb,var(--bg-card) 94%,var(--bg-hover));padding:12px;display:grid;gap:10px}.lw-x-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.lw-x-label{font-family:var(--sans);font-size:12.5px;font-weight:850;color:var(--text-1);line-height:1.2}.lw-x-note{font-family:var(--sans);font-size:11.5px;color:var(--text-3);line-height:1.35;font-weight:600}.lw-x-btn{height:32px;border:1px solid var(--border);border-radius:var(--lw-radius);background:var(--bg-card);color:var(--text-2);padding:0 12px;font-family:var(--sans);font-size:12.5px;font-weight:850;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;line-height:1;user-select:none}.lw-x-btn:hover,.lw-x-btn.active{border-color:var(--accent);background:var(--accent-glow);color:var(--accent)}.lw-x-btn:focus-visible,.lw-star:focus-visible,.lw-step:focus-visible,.lw-switch:focus-visible,.lw-date-day:focus-visible,.lw-color-chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}"
+    css = css $ ".lw-rating-stars{display:inline-flex;align-items:center;gap:2px;border:1px solid var(--border);border-radius:var(--lw-pill-radius);padding:3px;background:color-mix(in srgb,var(--bg-hover) 20%,var(--bg-card));width:max-content}.lw-star{width:30px;height:28px;border:0;border-radius:var(--lw-radius);background:transparent;color:var(--text-3);font-family:Segoe UI Symbol,Arial,sans-serif;font-size:18px;font-weight:900;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;user-select:none}.lw-star.active,.lw-star:hover{color:var(--accent);background:var(--accent-glow)}.lw-switch-row{display:flex;align-items:center;justify-content:space-between;gap:12px}.lw-switch{width:50px;height:28px;border:1px solid var(--border);border-radius:999px;background:var(--bg-hover);padding:2px;cursor:pointer;display:inline-flex;align-items:center;transition:.16s;flex:0 0 auto}.lw-switch span{width:22px;height:22px;border-radius:999px;background:var(--text-2);transition:.16s}.lw-switch.on{background:var(--accent-glow);border-color:var(--accent)}.lw-switch.on span{transform:translateX(22px);background:var(--accent)}.lw-toggle{display:inline-flex;align-items:center;gap:9px}.lw-toggle-label{font-weight:650;color:var(--text-1)}.lw-toggle-state{font-family:var(--mono);font-size:11px;color:var(--text-2);min-width:24px}.lw-checkbox{display:inline-flex;align-items:center;gap:8px;border:0;background:transparent;cursor:pointer;padding:2px 0;font:inherit;color:var(--text-1)}.lw-checkbox-box{flex:0 0 auto;width:18px;height:18px;border:1.5px solid var(--border);border-radius:5px;background:var(--bg-card);display:inline-flex;align-items:center;justify-content:center;transition:.14s}.lw-checkbox-box:after{content:' ';width:9px;height:9px;border-radius:2px;background:var(--accent);transform:scale(0);transition:.14s}.lw-checkbox.on .lw-checkbox-box{border-color:var(--accent);background:var(--accent-glow)}.lw-checkbox.on .lw-checkbox-box:after{transform:scale(1)}.lw-checkbox-label{font-weight:600;color:var(--text-1)}.lw-checkbox:hover .lw-checkbox-box{border-color:var(--accent)}"
+    css = css $ ".lw-copy-field{display:flex;align-items:center;gap:0;border:1px solid var(--border);border-radius:var(--lw-pill-radius);background:color-mix(in srgb,var(--bg-hover) 20%,var(--bg-card));overflow:hidden}.lw-copy-value{flex:1;min-width:0;height:34px;display:flex;align-items:center;padding:0 11px;font-family:var(--mono);font-size:12px;color:var(--text-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lw-copy-field .lw-x-btn{height:34px;border:0;border-left:1px solid var(--border);border-radius:0}.lw-steps{display:flex;align-items:center;gap:0;overflow:auto;padding:0;width:max-content;max-width:100%;border:1px solid var(--border);border-radius:var(--lw-pill-radius);background:var(--bg-card)}.lw-step{height:32px;border:0;border-left:1px solid var(--border);background:transparent;color:var(--text-2);padding:0 13px;font-family:var(--sans);font-size:12.5px;font-weight:850;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;line-height:1;user-select:none}.lw-step:first-child{border-left:0}.lw-step.done{color:var(--accent);background:var(--accent-glow)}.lw-step.current{color:var(--bg-deep);background:var(--accent)}"
+    css = css $ ".lw-pop-wrap{position:relative;width:max-content;max-width:100%}.lw-pop-wrap.open{z-index:300}.lw-pop-trigger{height:36px;border:1px solid var(--border);border-radius:10px;background:var(--bg-card);color:var(--text-1);font-family:var(--mono);font-size:12.5px;font-weight:700;letter-spacing:.4px;padding:0 12px;display:inline-flex;align-items:center;gap:10px;cursor:pointer;transition:border-color .12s}.lw-pop-trigger:hover{border-color:var(--accent)}.lw-pop-trigger .lw-color-preview{width:22px;height:22px;border-radius:6px}.lw-pop-trigger:hover{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}.lw-pop-trigger:after{content:' ';width:7px;height:7px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg);opacity:.7;margin-top:-4px}.lw-pop-panel{display:none;position:absolute;left:0;top:calc(100% + 8px);z-index:301;width:252px;border:1px solid var(--border-glow);border-radius:var(--lw-radius);background:color-mix(in srgb,var(--bg-card) 98%,transparent);box-shadow:0 16px 46px rgba(0,0,0,.30);padding:10px}.lw-pop-wrap.open .lw-pop-panel{display:grid;gap:8px}.lw-pop-wrap.drop-up .lw-pop-panel{top:auto;bottom:calc(100% + 8px)}.lw-pop-wrap.align-right .lw-pop-panel{left:auto;right:0}.lw-date-panel{width:218px}.lw-date-head{display:flex;align-items:center;justify-content:space-between;gap:6px}.lw-date-head .lw-x-btn{width:30px;height:28px;padding:0}.lw-date-title{font-weight:900;color:var(--text-1);font-size:12px;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis;text-align:center}.lw-date-monthbar{display:grid;grid-template-columns:30px minmax(0,1fr) 30px;align-items:center;gap:6px}.lw-date-monthbar .lw-date-title{height:28px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--lw-radius);background:var(--bg-card);padding:0 8px}.lw-date-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}.lw-date-week{height:18px;display:flex;align-items:center;justify-content:center;color:var(--text-3);font-size:9px;font-weight:900;text-transform:uppercase}.lw-date-day{height:25px;border:1px solid transparent;border-radius:var(--lw-radius);background:transparent;color:var(--text-2);font-size:12px;font-weight:850;cursor:pointer;padding:0}.lw-date-day:hover{border-color:var(--accent);background:var(--accent-glow);color:var(--accent)}.lw-date-day.current{background:var(--accent);color:var(--bg-deep)}"
+    css = css $ ".lw-color-panel{width:250px;padding:12px;gap:10px}.lw-color-row{display:flex;align-items:center;gap:8px;flex-wrap:nowrap}.lw-color-preview{width:30px;height:30px;flex:0 0 auto;border:1px solid var(--border);border-radius:7px;background:var(--picked,#00d4aa)}.lw-color-hex{height:34px;flex:1 1 auto;min-width:0;border:1px solid var(--border);border-radius:9px;background:var(--bg-card);color:var(--text-1);font-family:var(--mono);font-size:12.5px;font-weight:700;letter-spacing:.5px;padding:0 11px;outline:none;text-transform:uppercase}.lw-color-hex:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}.lw-color-plane{position:relative;height:150px;border:0;border-radius:10px;background:linear-gradient(to top,#000,transparent),linear-gradient(to right,#fff,hsl(var(--hue,170),100%,50%));cursor:crosshair;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}.lw-color-target{position:absolute;left:76%;top:18%;width:16px;height:16px;border:3px solid #fff;border-radius:999px;box-shadow:0 0 0 1.5px rgba(0,0,0,.35),0 2px 6px rgba(0,0,0,.35);transform:translate(-50%,-50%);pointer-events:none}.lw-hue-strip{position:relative;height:14px;border:0;border-radius:999px;background:linear-gradient(to right,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00);cursor:pointer;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}.lw-hue-marker{position:absolute;top:50%;left:47%;width:14px;height:14px;border:3px solid #fff;border-radius:999px;box-shadow:0 0 0 1px rgba(0,0,0,.25),0 2px 5px rgba(0,0,0,.3);transform:translate(-50%,-50%);pointer-events:none}.lw-color-grid{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between}.lw-color-chip{width:30px;height:30px;flex:0 0 auto;border:0;border-radius:999px;background:var(--swatch);cursor:pointer;box-shadow:0 0 0 1px rgba(0,0,0,.08);transition:transform .12s,box-shadow .12s}.lw-color-chip:hover{transform:scale(1.08)}.lw-color-chip.current{box-shadow:0 0 0 2px var(--bg-card),0 0 0 4px var(--accent)}"
+    css = css $ ".lw-code-widget{border:1px solid var(--border);border-radius:var(--lw-radius);background:color-mix(in srgb,var(--bg-card) 96%,var(--bg-surface));overflow:hidden;display:grid;grid-template-rows:auto minmax(0,1fr)}.lw-code-head{height:38px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 12px;border-bottom:1px solid var(--border);background:color-mix(in srgb,var(--bg-surface) 80%,var(--bg-card))}.lw-code-title{font-size:12.5px;font-weight:850;color:var(--text-1)}.lw-code-lang{height:22px;border:1px solid var(--border);border-radius:var(--lw-pill-radius);padding:0 8px;display:inline-flex;align-items:center;font-family:var(--mono);font-size:10.5px;color:var(--accent);background:var(--accent-glow);text-transform:uppercase}.lw-code-src{margin:0;min-height:92px;max-height:360px;overflow:auto;padding:12px 14px;background:color-mix(in srgb,var(--bg-deep) 92%,#000);color:var(--text-1);font-family:var(--mono);font-size:12px;line-height:1.55;white-space:pre-wrap;tab-size:4}.lw-code-decl{color:#d64f8c;font-weight:850}.lw-code-control{color:var(--accent);font-weight:850}.lw-code-self{color:#ff8b3d;font-weight:850}.lw-code-fn{color:var(--user);font-weight:800}.lw-code-num{color:#9b7cff;font-weight:800}.lw-code-op{color:var(--text-2);font-weight:850}.lw-code-str{color:#0c9c7e;font-weight:700}.lw-code-com{color:var(--text-3);font-style:italic}"
+    css = css $ ".lw-monaco-widget{border:1px solid var(--border);border-radius:var(--lw-radius);background:color-mix(in srgb,var(--bg-card) 96%,var(--bg-surface));overflow:hidden;display:grid;grid-template-rows:auto minmax(0,1fr);min-height:260px}.lw-monaco-head{height:40px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 12px;border-bottom:1px solid var(--border);background:color-mix(in srgb,var(--bg-surface) 80%,var(--bg-card))}.lw-monaco-title{font-size:12.5px;font-weight:850;color:var(--text-1)}.lw-monaco-actions{display:flex;align-items:center;gap:6px}.lw-monaco-status{height:22px;border:1px solid var(--border);border-radius:var(--lw-pill-radius);padding:0 8px;display:inline-flex;align-items:center;font-family:var(--mono);font-size:10.5px;color:var(--accent);background:var(--accent-glow);text-transform:uppercase}.lw-monaco-host{display:none;min-height:220px;height:100%;background:#1e1e1e}.lw-monaco-textarea{width:100%;min-height:220px;height:100%;resize:vertical;border:0;outline:none;padding:12px 14px;background:color-mix(in srgb,var(--bg-deep) 92%,#000);color:var(--text-1);font-family:var(--mono);font-size:12px;line-height:1.55;tab-size:4}.lw-monaco-widget[data-ready='monaco'] .lw-monaco-host{display:block}.lw-monaco-widget[data-ready='monaco'] .lw-monaco-textarea{display:none}.lw-monaco-widget[data-readonly='1'] .lw-monaco-textarea{opacity:.86}"
+    css = css $ ".lw-rich-widget{border:1px solid var(--border);border-radius:var(--lw-radius);background:color-mix(in srgb,var(--bg-card) 96%,var(--bg-surface));overflow:hidden;display:grid;grid-template-rows:auto minmax(0,1fr);min-height:250px}.lw-rich-head{height:40px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 12px;border-bottom:1px solid var(--border);background:color-mix(in srgb,var(--bg-surface) 80%,var(--bg-card))}.lw-rich-title{font-size:12.5px;font-weight:850;color:var(--text-1)}.lw-rich-actions{display:flex;align-items:center;gap:6px}.lw-rich-status{height:22px;border:1px solid var(--border);border-radius:var(--lw-pill-radius);padding:0 8px;display:inline-flex;align-items:center;font-family:var(--mono);font-size:10.5px;color:var(--accent);background:var(--accent-glow);text-transform:uppercase}.lw-rich-host{min-height:210px;display:grid;grid-template-rows:auto minmax(0,1fr);background:var(--bg-card)}.lw-rich-toolbar,.pell-actionbar{display:flex;align-items:center;gap:4px;flex-wrap:wrap;padding:7px;border-bottom:1px solid var(--border);background:color-mix(in srgb,var(--bg-hover) 24%,var(--bg-card))}.lw-rich-btn,.pell-button{height:30px;min-width:30px;border:1px solid var(--border);border-radius:var(--lw-radius);background:var(--bg-card);color:var(--text-2);font-family:var(--sans);font-size:12px;font-weight:850;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0 9px}.lw-rich-btn:hover,.lw-rich-btn.active,.pell-button:hover,.pell-button-selected{border-color:var(--accent);background:var(--accent-glow);color:var(--accent)}.lw-rich-area,.pell-content{min-height:170px;overflow:auto;padding:14px;background:color-mix(in srgb,var(--bg-card) 96%,var(--bg-surface));color:var(--text-1);font-family:var(--sans);font-size:13.5px;line-height:1.55;outline:none}.lw-rich-area:focus,.pell-content:focus{box-shadow:inset 0 0 0 2px var(--accent-glow)}.lw-rich-area h1,.pell-content h1{font-size:22px;line-height:1.2;margin:0 0 10px}.lw-rich-area h2,.pell-content h2{font-size:18px;line-height:1.25;margin:0 0 8px}.lw-rich-area p,.pell-content p{margin:0 0 8px}.lw-rich-area blockquote,.pell-content blockquote{margin:8px 0;padding:8px 12px;border-left:3px solid var(--accent);background:var(--accent-glow);color:var(--text-2)}.lw-rich-area code,.pell-content code{font-family:var(--mono);font-size:12px;background:color-mix(in srgb,var(--bg-deep) 86%,#000);border:1px solid var(--border);border-radius:var(--lw-radius);padding:1px 4px}.lw-rich-source{display:none}.lw-rich-widget[data-readonly='1'] .lw-rich-toolbar,.lw-rich-widget[data-readonly='1'] .pell-actionbar{display:none}.lw-rich-widget[data-readonly='1'] .lw-rich-area,.lw-rich-widget[data-readonly='1'] .pell-content{opacity:.9}"
+    css = css $ ".lw-rich-widget .ql-toolbar.ql-snow{border:0;border-bottom:1px solid var(--border);background:color-mix(in srgb,var(--bg-hover) 24%,var(--bg-card));font-family:var(--sans);padding:7px}.lw-rich-widget .ql-container.ql-snow{border:0;background:color-mix(in srgb,var(--bg-card) 96%,var(--bg-surface));color:var(--text-1);font-family:var(--sans);font-size:13.5px;min-height:170px}.lw-rich-widget .ql-editor{min-height:170px;line-height:1.55;color:var(--text-1)}.lw-rich-widget .ql-editor.ql-blank:before{color:var(--text-3);font-style:normal}.lw-rich-widget .ql-snow .ql-stroke{stroke:var(--text-2)}.lw-rich-widget .ql-snow .ql-fill{fill:var(--text-2)}.lw-rich-widget .ql-snow .ql-picker{color:var(--text-2)}.lw-rich-widget .ql-snow .ql-picker-options{background:var(--bg-card);border-color:var(--border);box-shadow:0 14px 36px rgba(0,0,0,.24)}.lw-rich-widget .ql-toolbar button,.lw-rich-widget .ql-toolbar .ql-picker-label{border-radius:var(--lw-radius)}.lw-rich-widget .ql-toolbar button:hover,.lw-rich-widget .ql-toolbar button.ql-active,.lw-rich-widget .ql-toolbar .ql-picker-label:hover,.lw-rich-widget .ql-toolbar .ql-picker-label.ql-active{background:var(--accent-glow);color:var(--accent)}.lw-rich-widget .ql-toolbar button:hover .ql-stroke,.lw-rich-widget .ql-toolbar button.ql-active .ql-stroke{stroke:var(--accent)}.lw-rich-widget .ql-toolbar button:hover .ql-fill,.lw-rich-widget .ql-toolbar button.ql-active .ql-fill{fill:var(--accent)}"
+    css = css $ ".lw-popup-widget{display:flex;align-items:flex-start;gap:10px}.lw-popup-trigger{width:max-content}.lw-popup-backdrop{display:none;position:fixed;inset:0;z-index:1200;align-items:center;justify-content:center;padding:24px;background:color-mix(in srgb,#020617 58%,transparent);backdrop-filter:blur(9px)}.lw-popup-backdrop.open{display:flex}.lw-popup-window{width:min(560px,calc(100vw - 32px));max-height:calc(100vh - 48px);display:grid;grid-template-rows:auto minmax(0,1fr) auto;border:1px solid var(--border-glow);border-radius:calc(var(--lw-radius) + 6px);background:linear-gradient(180deg,color-mix(in srgb,var(--bg-card) 98%,var(--bg-surface)),var(--bg-card));box-shadow:0 30px 90px rgba(0,0,0,.42),0 0 0 1px color-mix(in srgb,var(--accent) 10%,transparent);overflow:hidden;transform:translateY(6px) scale(.98);opacity:.98}.lw-popup-backdrop.open .lw-popup-window{animation:lwPopupIn .14s ease-out both}.lw-popup-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:15px 16px 13px;border-bottom:1px solid var(--border);background:linear-gradient(90deg,var(--accent-glow),transparent 70%)}.lw-popup-title{font-size:14px;font-weight:900;color:var(--text-1);line-height:1.2}.lw-popup-subtitle{font-size:12px;font-weight:600;color:var(--text-2);line-height:1.35;margin-top:4px}.lw-popup-close{width:30px;height:30px;border:1px solid var(--border);border-radius:var(--lw-pill-radius);background:color-mix(in srgb,var(--bg-card) 88%,transparent);color:var(--text-2);cursor:pointer;font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center}.lw-popup-close:hover{border-color:var(--accent);background:var(--accent-glow);color:var(--accent)}.lw-popup-body{padding:16px;overflow:auto;color:var(--text-2);font-size:12.5px;line-height:1.55}.lw-popup-body strong{color:var(--text-1)}.lw-popup-body .lw-popup-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:12px}.lw-popup-body .lw-popup-metric{border:1px solid var(--border);border-radius:var(--lw-radius);background:var(--bg-surface);padding:10px}.lw-popup-body .lw-popup-metric b{display:block;color:var(--accent);font-size:16px;margin-bottom:3px}.lw-popup-foot{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid var(--border);background:color-mix(in srgb,var(--bg-surface) 70%,var(--bg-card))}@keyframes lwPopupIn{from{transform:translateY(12px) scale(.97);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}"
+    css = css $ "</style>"
+    return (css)
+}
+
+func: WidgetStart(id, label, note) {
+    html = "<section id='" $ desktopui::EscapeHtml(id) $ "' class='lw-x-widget'><div class='lw-x-head'><div><div class='lw-x-label'>" $ desktopui::EscapeHtml(label) $ "</div>"
+    if (size(note) > 0) {
+        if (note != " ") {
+            html = html $ "<div class='lw-x-note'>" $ desktopui::EscapeHtml(note) $ "</div>"
+        }
+    }
+    html = html $ "</div></div>"
+    return (html)
+}
+
+func: WidgetEnd() {
+    return ("</section>")
+}
+
+func: DropdownList(id, label, options, values, events, activeValue, extraClass) {
+    safeId = desktopui::EscapeHtml(id)
+    safeLabel = desktopui::EscapeHtml(label)
+    cls = "tm-dropdown " $ desktopui::EscapeHtml(extraClass)
+    html = "<div id='" $ safeId $ "' class='" $ cls $ "'><button type='button' class='tm-drop-btn' onclick='tmDrop(this)'>" $ safeLabel $ "</button><div class='tm-drop-menu'>"
+    i = for (0, size(options), 1) {
+        text = TextOrEmpty(options[i])
+        value = text
+        if (size(values) > i) {
+            value = TextOrEmpty(values[i])
+        }
+        eventName = "dropdown_select"
+        if (size(events) > i) {
+            eventName = TextOrEmpty(events[i])
+        }
+        itemCls = "tm-drop-option"
+        if (value == activeValue) {
+            itemCls = "tm-drop-option active"
+        }
+        js = "var d=this.closest('.tm-dropdown');if(d)d.classList.remove('open');webuiEvent('" $ desktopui::EscapeJs(eventName) $ "',{id:'" $ desktopui::EscapeJs(id) $ "',value:'" $ desktopui::EscapeJs(value) $ "',label:'" $ desktopui::EscapeJs(text) $ "'})"
+        html = html $ "<button type='button' class='" $ itemCls $ "' data-value='" $ desktopui::EscapeHtml(value) $ "' onclick=\"" $ js $ "\">" $ desktopui::EscapeHtml(text) $ "</button>"
+    }
+    html = html $ "</div></div>"
+    return (html)
+}
+
+func: ThemeDropdown() {
+    labels = ("Light Modern", "Ocean Dark", "Ember Dark", "Forest Dark", "Rose Light", "Dracula Dark", "Nord Light", "Graphite Dark", "shadcn Light", "shadcn Dark")
+    values = ("light_modern", "ocean_dark", "ember_dark", "forest_dark", "rose_light", "dracula_dark", "nord_light", "graphite_dark", "shadcn_light", "shadcn_dark")
+    events = ("theme_light_modern", "theme_ocean_dark", "theme_ember_dark", "theme_forest_dark", "theme_rose_light", "theme_dracula_dark", "theme_nord_light", "theme_graphite_dark", "theme_shadcn_light", "theme_shadcn_dark")
+    html = DropdownList("theme_dropdown", "Light Modern", labels, values, events, "light_modern", "tm-theme-dropdown")
+    html = freplace(html, "data-value='", "data-theme='")
+    i = for (0, size(values), 1) {
+        html = freplace(html, "webuiEvent('" $ events[i] $ "',{id:'theme_dropdown',value:'" $ values[i] $ "',label:'" $ labels[i] $ "'})", "tmPickTheme(this,'" $ values[i] $ "')")
+    }
+    return (html)
+}
+
+func: ActionDropdown() {
+    labels = ("Recharger la page", "Debug JS (console)", "Plein ecran", "Copier le HTML", "Journal des events", "Pause refresh", "Reset view")
+    values = ("reload", "debug", "fullscreen", "copy_html", "events", "pause", "reset")
+    events = ("action_reload", "action_debug", "action_fullscreen", "action_copy_html", "action_events", "action_pause", "action_reset")
+    html = DropdownList("action_dropdown", "Actions", labels, values, events, " ", "tm-action-dropdown")
+    html = freplace(html, "webuiEvent('action_reload',{id:'action_dropdown',value:'reload',label:'Recharger la page'})", "lwActReload()")
+    html = freplace(html, "webuiEvent('action_debug',{id:'action_dropdown',value:'debug',label:'Debug JS (console)'})", "lwActDebug()")
+    html = freplace(html, "webuiEvent('action_fullscreen',{id:'action_dropdown',value:'fullscreen',label:'Plein ecran'})", "lwActFullscreen()")
+    html = freplace(html, "webuiEvent('action_copy_html',{id:'action_dropdown',value:'copy_html',label:'Copier le HTML'})", "lwActCopyHtml()")
+    html = freplace(html, "webuiEvent('action_events',{id:'action_dropdown',value:'events',label:'Journal des events'})", "lwActToggleEvents()")
+    html = freplace(html, "webuiEvent('action_pause',{id:'action_dropdown',value:'pause',label:'Pause refresh'})", "tmPickAction(this,'pause')")
+    html = freplace(html, "webuiEvent('action_reset',{id:'action_dropdown',value:'reset',label:'Reset view'})", "tmPickAction(this,'reset')")
+    closeButton = "<button type='button' class='tm-drop-option' data-value='close' onclick=\"var d=this.closest('.tm-dropdown');if(d)d.classList.remove('open');lwActRequestClose()\">Quitter</button>"
+    html = freplace(html, "</div></div>", closeButton $ "</div></div>")
+    return (html)
+}
+
+func: Rating(id, label, value, maxValue, eventName) {
+    current = value
+    maxCount = maxValue
+    if (maxCount < 1) {
+        maxCount = 5
+    }
+    eid = desktopui::EscapeJs(id)
+    ev = desktopui::EscapeJs(eventName)
+    html = WidgetStart(id, label, "Selection numerique avec etat local instantane.")
+    html = html $ "<div class='lw-rating-stars' role='group' aria-label='" $ desktopui::EscapeHtml(label) $ "'>"
+    i = for (1, maxCount + 1, 1) {
+        cls = "lw-star"
+        if (i <= current) {
+            cls = "lw-star active"
+        }
+        js = "var v=" $ strnum(i) $ ";var xs=this.parentNode.querySelectorAll('.lw-star');for(var j=0;j<xs.length;j++){xs[j].classList.toggle('active',j<v)}webuiEvent('" $ ev $ "',{id:'" $ eid $ "',value:v})"
+        html = html $ "<button type='button' class='" $ cls $ "' title='" $ strnum(i) $ "' onclick=\"" $ js $ "\">&#9733;</button>"
+    }
+    html = html $ "</div>" $ WidgetEnd()
+    return (html)
+}
+
+func: Switch(id, label, checked, eventName) {
+    cls = "lw-switch"
+    state = "false"
+    text = "Off"
+    if (checked == 1) {
+        cls = "lw-switch on"
+        state = "true"
+        text = "On"
+    }
+    html = WidgetStart(id, label, "Etat binaire avec state on/off.")
+    html = html $ "<div class='lw-switch-row'><span class='lw-x-note'>" $ text $ "</span><button type='button' class='" $ cls $ "' role='switch' aria-checked='" $ state $ "' onclick=\"var on=!this.classList.contains('on');this.classList.toggle('on',on);this.setAttribute('aria-checked',on?'true':'false');webuiEvent('" $ desktopui::EscapeJs(eventName) $ "',{id:'" $ desktopui::EscapeJs(id) $ "',value:on?'on':'off',state:on?'on':'off'})\"><span></span></button></div>"
+    html = html $ WidgetEnd()
+    return (html)
+}
+
+// Toggle NU (pas de carte) : juste le switch + un texte On/Off inline qui se
+// met a jour au clic. Reutilisable dans une cellule de tableau, une barre, etc.
+// label = texte optionnel a gauche (" " pour aucun).
+func: Toggle(id, label, checked, eventName) {
+    cls = "lw-switch"
+    state = "false"
+    text = "Off"
+    if (checked == 1) {
+        cls = "lw-switch on"
+        state = "true"
+        text = "On"
+    }
+    safeId = desktopui::EscapeHtml(id)
+    lab = ""
+    if (size(label) > 0) {
+        if (label != " ") {
+            lab = "<span class='lw-toggle-label'>" $ desktopui::EscapeHtml(label) $ "</span>"
+        }
+    }
+    // onclick : bascule la classe, met a jour aria + le texte On/Off (le bug
+    // du Switch d'origine : le texte ne changeait jamais), puis emet l'event.
+    onclick = "var on=!this.classList.contains('on');this.classList.toggle('on',on);this.setAttribute('aria-checked',on?'true':'false');var t=document.getElementById('" $ safeId $ "_txt');if(t)t.textContent=on?'On':'Off';webuiEvent('" $ desktopui::EscapeJs(eventName) $ "',{id:'" $ safeId $ "',value:on?'on':'off',state:on?'on':'off'})"
+    html = "<span class='lw-toggle' id='" $ safeId $ "'>" $ lab
+    html = html $ "<span id='" $ safeId $ "_txt' class='lw-toggle-state'>" $ text $ "</span>"
+    html = html $ "<button type='button' class='" $ cls $ "' role='switch' aria-checked='" $ state $ "' onclick=\"" $ onclick $ "\"><span></span></button>"
+    html = html $ "</span>"
+    return (html)
+}
+
+// Checkbox : vraie case a cocher compacte (carre + coche). Emet le meme event que
+// Toggle ({value:'on'|'off'}). Plus discrete qu'un Switch pour un panneau dense.
+func: Checkbox(id, label, checked, eventName) {
+    cls = "lw-checkbox"
+    state = "false"
+    if (checked == 1) {
+        cls = "lw-checkbox on"
+        state = "true"
+    }
+    safeId = desktopui::EscapeHtml(id)
+    lab = ""
+    if (size(label) > 0) {
+        if (label != " ") {
+            lab = "<span class='lw-checkbox-label'>" $ desktopui::EscapeHtml(label) $ "</span>"
+        }
+    }
+    onclick = "var on=!this.classList.contains('on');this.classList.toggle('on',on);this.setAttribute('aria-checked',on?'true':'false');webuiEvent('" $ desktopui::EscapeJs(eventName) $ "',{id:'" $ safeId $ "',value:on?'on':'off',state:on?'on':'off'})"
+    html = "<button type='button' class='" $ cls $ "' id='" $ safeId $ "' role='checkbox' aria-checked='" $ state $ "' onclick=\"" $ onclick $ "\"><span class='lw-checkbox-box'></span>" $ lab $ "</button>"
+    return (html)
+}
+
+func: CopyField(id, label, value, eventName) {
+    safe = desktopui::EscapeHtml(value)
+    jsValue = "document.getElementById('" $ desktopui::EscapeJs(id) $ "_value').textContent"
+    html = WidgetStart(id, label, "Champ copiable avec notification evenement.")
+    html = html $ "<div class='lw-copy-field'><span id='" $ desktopui::EscapeHtml(id) $ "_value' class='lw-copy-value' title='" $ safe $ "'>" $ safe $ "</span><button type='button' class='lw-x-btn' onclick=\"var v=" $ jsValue $ ";if(navigator.clipboard)navigator.clipboard.writeText(v);webuiEvent('" $ desktopui::EscapeJs(eventName) $ "',{id:'" $ desktopui::EscapeJs(id) $ "',value:v})\">Copier</button></div>"
+    html = html $ WidgetEnd()
+    return (html)
+}
+
+func: ProgressSteps(id, label, steps, current, eventName) {
+    eid = desktopui::EscapeJs(id)
+    ev = desktopui::EscapeJs(eventName)
+    html = WidgetStart(id, label, "Etapes cliquables avec progression instantanee.")
+    html = html $ "<div class='lw-steps'>"
+    i = for (0, size(steps), 1) {
+        idx = i + 1
+        cls = "lw-step"
+        if (idx < current) {
+            cls = "lw-step done"
+        }
+        if (idx == current) {
+            cls = "lw-step current"
+        }
+        js = "var v=" $ strnum(idx) $ ";var xs=this.parentNode.querySelectorAll('.lw-step');for(var j=0;j<xs.length;j++){xs[j].classList.toggle('done',j<v-1);xs[j].classList.toggle('current',j==v-1)}webuiEvent('" $ ev $ "',{id:'" $ eid $ "',value:v})"
+        html = html $ "<button type='button' class='" $ cls $ "' onclick=\"" $ js $ "\">" $ desktopui::EscapeHtml(steps[i]) $ "</button>"
+    }
+    html = html $ "</div>" $ WidgetEnd()
+    return (html)
+}
+
+func: PopupScript() {
+    js = "<script data-libwebui-popup='1'>"
+    js = js $ "if(!window.__lwPopup){window.__lwPopup=1;window.lwPopupOpen=function(id){var e=document.getElementById(id+'_overlay');if(!e)return;e.classList.add('open');e.setAttribute('aria-hidden','false');if(window.webuiEvent)webuiEvent('popup_open',{id:id,state:'open'})};"
+    js = js $ "window.lwPopupClose=function(id){var e=document.getElementById(id+'_overlay');if(!e)return;e.classList.remove('open');e.setAttribute('aria-hidden','true');if(window.webuiEvent)webuiEvent('popup_close',{id:id,state:'closed'})};"
+    js = js $ "document.addEventListener('keydown',function(e){if(e.key!='Escape')return;var xs=document.querySelectorAll('.lw-popup-backdrop.open');if(xs.length>0){var top=xs[xs.length-1];var id=(top.id||String()).replace(/_overlay$/,String());if(window.lwPopupClose)lwPopupClose(id)}})}"
+    js = js $ "</script>"
+    return (js)
+}
+
+func: PopupWindow(id, title, subtitle, bodyHtml, primaryText, primaryEvent, secondaryText, secondaryEvent) {
+    safeId = desktopui::EscapeHtml(id)
+    eid = desktopui::EscapeJs(id)
+    openJs = "var e=document.getElementById('" $ eid $ "_overlay');if(e){e.classList.add('open');e.setAttribute('aria-hidden','false')}if(window.webuiEvent)webuiEvent('popup_open',{id:'" $ eid $ "',state:'open'})"
+    closeJs = "var e=document.getElementById('" $ eid $ "_overlay');if(e){e.classList.remove('open');e.setAttribute('aria-hidden','true')}if(window.webuiEvent)webuiEvent('popup_close',{id:'" $ eid $ "',state:'closed'})"
+    html = PopupScript()
+    html = html $ "<section id='" $ safeId $ "' class='lw-popup-widget'><button type='button' class='lw-x-btn lw-popup-trigger' onclick=\"" $ openJs $ "\"><span data-icon='sparkles'></span>Ouvrir popup</button>"
+    html = html $ "<div id='" $ safeId $ "_overlay' class='lw-popup-backdrop' aria-hidden='true' onclick=\"if(event.target==this){" $ closeJs $ "}\"><div class='lw-popup-window' role='dialog' aria-modal='true' aria-labelledby='" $ safeId $ "_title'>"
+    html = html $ "<div class='lw-popup-head'><div><div id='" $ safeId $ "_title' class='lw-popup-title'>" $ desktopui::EscapeHtml(title) $ "</div>"
+    if (size(TextOrEmpty(subtitle)) > 0) {
+        if (subtitle != " ") {
+            html = html $ "<div class='lw-popup-subtitle'>" $ desktopui::EscapeHtml(subtitle) $ "</div>"
+        }
+    }
+    html = html $ "</div><button type='button' class='lw-popup-close' aria-label='Fermer' onclick=\"" $ closeJs $ "\">x</button></div>"
+    html = html $ "<div class='lw-popup-body'>" $ TextOrEmpty(bodyHtml) $ "</div><div class='lw-popup-foot'>"
+    if (size(TextOrEmpty(secondaryText)) > 0) {
+        if (secondaryText != " ") {
+            html = html $ "<button type='button' class='lw-x-btn' onclick=\"if(window.webuiEvent)webuiEvent('" $ desktopui::EscapeJs(secondaryEvent) $ "',{id:'" $ eid $ "',action:'secondary'});" $ closeJs $ "\">" $ desktopui::EscapeHtml(secondaryText) $ "</button>"
+        }
+    }
+    if (size(TextOrEmpty(primaryText)) > 0) {
+        if (primaryText != " ") {
+            html = html $ "<button type='button' class='lw-x-btn active' onclick=\"if(window.webuiEvent)webuiEvent('" $ desktopui::EscapeJs(primaryEvent) $ "',{id:'" $ eid $ "',action:'primary'});" $ closeJs $ "\">" $ desktopui::EscapeHtml(primaryText) $ "</button>"
+        }
+    }
+    html = html $ "</div></div></div></section>"
+    return (html)
+}
+
+func: DatePicker(id, label, value, eventName) {
+    eid = desktopui::EscapeJs(id)
+    ev = desktopui::EscapeJs(eventName)
+    day = DateDay(value)
+    month = DateMonth(value)
+    year = DateYear(value)
+    display = DateDisplay(value)
+    html = WidgetStart(id, label, "Calendrier custom integre a libwebui.")
+    html = html $ "<div id='" $ desktopui::EscapeHtml(id) $ "_wrap' class='lw-pop-wrap' data-popover='up' data-month='" $ month $ "'><button type='button' class='lw-pop-trigger' onclick=\"" $ PopoverToggleJs() $ "\"><span id='" $ desktopui::EscapeHtml(id) $ "_display'>" $ desktopui::EscapeHtml(display) $ "</span></button>"
+    html = html $ "<div class='lw-pop-panel lw-date-panel'><div class='lw-date-monthbar'><button type='button' class='lw-x-btn' onclick=\"" $ MonthStepJs(id, -1) $ "\">-</button><div class='lw-date-title' id='" $ desktopui::EscapeHtml(id) $ "_month_title'>" $ MonthName(month) $ "</div><button type='button' class='lw-x-btn' onclick=\"" $ MonthStepJs(id, 1) $ "\">+</button></div>"
+    html = html $ "<div class='lw-date-head'><button type='button' class='lw-x-btn' onclick=\"var y=document.getElementById('" $ eid $ "_year');y.textContent=String(Number(y.textContent)-1)\">-</button><div class='lw-date-title'><span id='" $ desktopui::EscapeHtml(id) $ "_year'>" $ year $ "</span></div><button type='button' class='lw-x-btn' onclick=\"var y=document.getElementById('" $ eid $ "_year');y.textContent=String(Number(y.textContent)+1)\">+</button></div>"
+    html = html $ "<div class='lw-date-grid'><span class='lw-date-week'>Lu</span><span class='lw-date-week'>Ma</span><span class='lw-date-week'>Me</span><span class='lw-date-week'>Je</span><span class='lw-date-week'>Ve</span><span class='lw-date-week'>Sa</span><span class='lw-date-week'>Di</span>"
+    i = for (1, 32, 1) {
+        dd = Pad2(i)
+        cls = "lw-date-day"
+        if (dd == day) {
+            cls = "lw-date-day current"
+        }
+        js = "var y=document.getElementById('" $ eid $ "_year').textContent;var d='" $ dd $ "';var m=document.getElementById('" $ eid $ "_wrap').getAttribute('data-month')||'" $ month $ "';var v=y+'-'+m+'-'+d;document.getElementById('" $ eid $ "_display').textContent=d+'/'+m+'/'+y;var xs=this.parentNode.querySelectorAll('.lw-date-day');for(var j=0;j<xs.length;j++)xs[j].classList.remove('current');this.classList.add('current');document.getElementById('" $ eid $ "_wrap').classList.remove('open');webuiEvent('" $ ev $ "',{id:'" $ eid $ "',value:v})"
+        html = html $ "<button type='button' class='" $ cls $ "' onclick=\"" $ js $ "\">" $ strnum(i) $ "</button>"
+    }
+    html = html $ "</div></div></div>" $ WidgetEnd()
+    return (html)
+}
+
+func: ColorPicker(id, label, value, swatches, eventName) {
+    color = TextOrEmpty(value)
+    if (size(color) == 0) {
+        color = "#00d4aa"
+    }
+    eid = desktopui::EscapeJs(id)
+    ev = desktopui::EscapeJs(eventName)
+    safe = desktopui::EscapeHtml(color)
+    html = WidgetStart(id, label, "Palette custom avec saturation, teinte, hex et swatches.")
+    html = html $ "<div id='" $ desktopui::EscapeHtml(id) $ "_wrap' class='lw-pop-wrap' data-hue='170' data-sat='.76' data-val='.82'><button type='button' class='lw-pop-trigger' onclick=\"" $ PopoverToggleJs() $ "\"><span id='" $ desktopui::EscapeHtml(id) $ "_preview' class='lw-color-preview' style='--picked:" $ safe $ "'></span><span id='" $ desktopui::EscapeHtml(id) $ "_display'>" $ safe $ "</span></button>"
+    html = html $ "<div class='lw-pop-panel lw-color-panel'><div class='lw-color-plane' style='--hue:170' onclick=\"" $ ColorPlaneJs(id, eventName) $ "\"><span class='lw-color-target'></span></div><div class='lw-hue-strip' onclick=\"" $ ColorHueJs(id, eventName) $ "\"><span class='lw-hue-marker'></span></div><div class='lw-color-row'><span id='" $ desktopui::EscapeHtml(id) $ "_big' class='lw-color-preview' style='--picked:" $ safe $ "'></span><input id='" $ desktopui::EscapeHtml(id) $ "_hex' class='lw-color-hex' value='" $ safe $ "' onchange=\"" $ ColorApplyInlineJs(id, eventName, "this.value", "hex") $ "\"></div><div class='lw-color-grid'>"
+    i = for (0, size(swatches), 1) {
+        sw = desktopui::EscapeHtml(swatches[i])
+        cls = "lw-color-chip"
+        if (swatches[i] == color) {
+            cls = "lw-color-chip current"
+        }
+        js = ColorApplyInlineJs(id, eventName, "'" $ desktopui::EscapeJs(swatches[i]) $ "'", "swatch")
+        html = html $ "<button type='button' class='" $ cls $ "' data-color='" $ sw $ "' style='--swatch:" $ sw $ "' title='" $ sw $ "' onclick=\"" $ js $ "\"></button>"
+    }
+    html = html $ "</div></div></div>" $ WidgetEnd()
+    return (html)
+}
+
+func: VideoPlayer(id, title, source, posterPath, note) {
+    safeId = desktopui::EscapeHtml(id)
+    eid = desktopui::EscapeJs(id)
+    mediaSource = MediaUrl(source)
+    src = desktopui::EscapeHtml(mediaSource)
+    poster = ""
+    if (size(TextOrEmpty(posterPath)) > 0) {
+        if (posterPath != " ") {
+            poster = " poster='" $ desktopui::EscapeHtml(posterPath) $ "'"
+        }
+    }
+    empty = ""
+    if (size(TextOrEmpty(source)) == 0) {
+        empty = "<div class='gallery-video-empty'>No playable local source selected yet.<br>Set a real mp4/webm path in Toba with VideoPlayer.Setup(...).</div>"
+    }
+    video = "<video id='" $ safeId $ "' preload='metadata'" $ poster $ " onclick=\"webuiVideoToggle(this.id)\" onplay=\"webuiEvent('video_play',{id:this.id,value:this.currentTime});webuiVideoSync(this.id)\" onpause=\"webuiEvent('video_pause',{id:this.id,value:this.currentTime});webuiVideoSync(this.id)\" onended=\"webuiEvent('video_ended',{id:this.id,state:'ended'});webuiVideoSync(this.id)\" onloadedmetadata=\"webuiEvent('video_loaded',{id:this.id,value:this.duration});webuiVideoSync(this.id)\" onerror=\"webuiEvent('video_error',{id:this.id,value:this.error?this.error.code:'error'});webuiVideoSync(this.id)\" ontimeupdate=\"webuiVideoSync(this.id);if(Math.floor(this.currentTime)%5==0)window.__lastVideoTick==Math.floor(this.currentTime)?0:(window.__lastVideoTick=Math.floor(this.currentTime),webuiEvent('video_time',{id:this.id,value:this.currentTime}))\"><source src='" $ src $ "' type='video/mp4'></video>"
+    controls = "<div class='gallery-video-osd'><input class='gallery-video-progress' type='range' min='0' max='100' value='0' oninput=\"webuiVideoSeek('" $ eid $ "',this.value)\"><div class='gallery-video-controls'><button type='button' class='gallery-video-btn' data-video-play='1' onclick=\"webuiVideoToggle('" $ eid $ "')\"><span class='gallery-video-play-icon' data-icon='play'></span><span class='gallery-video-pause-icon' data-icon='pause'></span></button><div class='gallery-video-time'>0:00 / --:--</div><button type='button' class='gallery-video-btn' onclick=\"webuiVideoMute('" $ eid $ "')\"><span data-icon='volume'></span></button><button type='button' class='gallery-video-btn' onclick=\"webuiVideoFull('" $ eid $ "')\"><span data-icon='maximize'></span></button><button type='button' class='gallery-video-btn' onclick=\"var v=document.getElementById('" $ eid $ "');v.currentTime=0;webuiVideoSync(v.id);webuiEvent('video_seek_start',{id:v.id,value:0})\">0</button></div></div>"
+    html = "<section class='ui-card gallery-video-player lw-fill-widget'><div class='ui-card-head'><div class='ui-card-title'>" $ desktopui::EscapeHtml(title) $ "</div><div class='ui-card-sub'>" $ desktopui::EscapeHtml(note) $ "</div></div><div class='ui-card-body'><div class='gallery-video-stage'>" $ video $ empty $ controls $ "</div><div class='gallery-video-meta'>" $ desktopui::EscapeHtml(source) $ "</div></div></section>"
+    return (html)
+}
+
+func: Chart(id, title, note) {
+    cid = desktopui::EscapeHtml(id)
+    html = "<section class='ui-card gallery-chart-card lw-fill-widget'><div class='ui-card-head'><div class='ui-card-title'>" $ desktopui::EscapeHtml(title) $ "</div><div class='ui-card-sub'>" $ desktopui::EscapeHtml(note) $ "</div></div><div class='ui-card-body'><div class='gallery-chart-wrap'><canvas id='" $ cid $ "'></canvas></div><div class='gallery-row'><button type='button' class='ui-btn primary' onclick=\"webuiEvent('chart_add_point')\"><span data-icon='plus'></span>Add Toba point</button><button type='button' class='ui-btn' onclick=\"webuiEvent('chart_add_burst')\">Burst 5</button><button type='button' class='ui-btn' onclick=\"webuiEvent('chart_start_stream')\">Start stream</button><button type='button' class='ui-btn' onclick=\"webuiEvent('chart_stop_stream')\">Stop</button><button type='button' class='ui-btn danger' onclick=\"webuiEvent('chart_reset')\">Reset</button></div><div id='gallery_chart_status' class='gallery-note'>Click a button: Toba receives the event, generates values, and updates the chart.</div></div></section>"
+    return (html)
+}
+
+func: CodeBlock(id, title, lang, code) {
+    cid = desktopui::EscapeHtml(id)
+    safeTitle = desktopui::EscapeHtml(title)
+    safeLang = desktopui::EscapeHtml(lang)
+    cls = CodeLangClass(lang)
+    painted = HighlightCode(code, lang)
+    html = "<section id='" $ cid $ "' class='lw-code-widget'><div class='lw-code-head'><div class='lw-code-title'>" $ safeTitle $ "</div><div class='lw-code-lang'>" $ safeLang $ "</div></div><pre class='lw-code-src " $ cls $ "' data-lang='" $ safeLang $ "'><code>" $ painted $ "</code></pre></section>"
+    return (html)
+}
+
+func: MonacoScript(loaderUrl) {
+    url = TextOrEmpty(loaderUrl)
+    if (size(url) == 0) {
+        url = "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs/loader.min.js"
+    }
+    vendor = ""
+    vendorPath = "C:/Toba/modules/libwebui/vendor/monaco_toba.js"
+    if (fstype(vendorPath) == 1) {
+        vendor = fsreadf(vendorPath)
+    }
+    else {
+        if (fstype("modules/libwebui/vendor/monaco_toba.js") == 1) {
+            vendor = fsreadf("modules/libwebui/vendor/monaco_toba.js")
+        }
+    }
+    safeUrl = desktopui::EscapeJs(url)
+    js = "<script data-libwebui-monaco='1'>"
+    js = js $ "window.lwMonacoDefaultLoader='" $ safeUrl $ "';"
+    js = js $ "</script>"
+    if (size(vendor) > 0) {
+        js = js $ "<script data-libwebui-monaco-vendor='1'>" $ vendor $ "</script>"
+    }
+    else {
+        js = js $ "<script data-libwebui-monaco-vendor='1'>document.addEventListener('DOMContentLoaded',function(){var xs=document.querySelectorAll('.lw-monaco-status');for(var i=0;i<xs.length;i++)xs[i].textContent='Vendor missing'});</script>"
+    }
+    return (js)
+}
+
+func: MonacoEditor(id, title, lang, code, eventName, loaderUrl, readOnly) {
+    cid = desktopui::EscapeHtml(id)
+    eid = desktopui::EscapeJs(id)
+    safeTitle = desktopui::EscapeHtml(title)
+    safeLang = desktopui::EscapeHtml(lang)
+    safeEvent = desktopui::EscapeHtml(eventName)
+    safeCode = desktopui::EscapeHtml(code)
+    ro = "0"
+    roAttr = ""
+    if (readOnly == 1) {
+        ro = "1"
+        roAttr = " readonly"
+    }
+    html = MonacoScript(loaderUrl)
+    html = html $ "<section id='" $ cid $ "' class='lw-monaco-widget' data-lang='" $ safeLang $ "' data-event='" $ safeEvent $ "' data-loader-url='" $ desktopui::EscapeHtml(loaderUrl) $ "' data-readonly='" $ ro $ "'><div class='lw-monaco-head'><div class='lw-monaco-title'>" $ safeTitle $ "</div><div class='lw-monaco-actions'><span class='lw-monaco-status'>Loading</span><button type='button' class='lw-x-btn' onclick=\"lwMonacoFormat('" $ eid $ "')\">Format</button><button type='button' class='lw-x-btn' onclick=\"lwMonacoCopy('" $ eid $ "')\">Copier</button></div></div><div class='lw-monaco-host'></div><textarea class='lw-monaco-textarea' spellcheck='false'" $ roAttr $ " oninput=\"webuiEvent('" $ desktopui::EscapeJs(eventName) $ "',{id:'" $ eid $ "',value:this.value,language:'" $ desktopui::EscapeJs(lang) $ "',source:'textarea'})\">" $ safeCode $ "</textarea></section>"
+    return (html)
+}
+
+func: RichVendorFile(name) {
+    path = "C:/Toba/modules/libwebui/vendor/" $ name
+    res = ""
+    if (fstype(path) == 1) {
+        res = fsreadf(path)
+    }
+    else {
+        path = "modules/libwebui/vendor/" $ name
+        if (fstype(path) == 1) {
+            res = fsreadf(path)
+        }
+    }
+    return (res)
+}
+
+func: RichTextScript(loaderUrl) {
+    quillJs = RichVendorFile("quill.js")
+    quillCss = RichVendorFile("quill.snow.css")
+    html = ""
+    if (size(quillCss) > 0) {
+        html = html $ "<style data-libwebui-quill-css='1'>" $ quillCss $ "</style>"
+    }
+    if (size(quillJs) > 0) {
+        html = html $ "<script data-libwebui-quill-vendor='1'>" $ quillJs $ "</script>"
+    }
+    url = TextOrEmpty(loaderUrl)
+    safeUrl = desktopui::EscapeJs(url)
+    js = "<script data-libwebui-rich-text='1'>"
+    js = js $ "window.lwRichQuillUrl=window.lwRichQuillUrl||'" $ safeUrl $ "';"
+    js = js $ "window.lwRichEmit=function(w,html,source){var ev=w.getAttribute('data-event')||'rich_text_change';var id=w.id||'rich_text';var s=w.querySelector('.lw-rich-source');if(s)s.value=html;if(window.webuiEvent)webuiEvent(ev,{id:id,value:html,source:source||'editor'})};"
+    js = js $ "window.lwRichFallback=function(w){var h=w.querySelector('.lw-rich-host');if(!h||h.getAttribute('data-ready'))return;h.setAttribute('data-ready','fallback');var src=w.querySelector('.lw-rich-source');var val=src?src.value:String();var ro=w.getAttribute('data-readonly')=='1';var tools=[['B','bold'],['I','italic'],['U','underline'],['S','strikeThrough'],['H1','formatBlock','H1'],['H2','formatBlock','H2'],['P','formatBlock','P'],['UL','insertUnorderedList'],['OL','insertOrderedList'],['Quote','formatBlock','BLOCKQUOTE'],['Code','formatBlock','PRE'],['Link','createLink'],['Clear','removeFormat']];var bar=document.createElement('div');bar.className='lw-rich-toolbar';var area=document.createElement('div');area.className='lw-rich-area';area.contentEditable=ro?'false':'true';area.innerHTML=val;for(var i=0;i<tools.length;i++){var t=tools[i];var b=document.createElement('button');b.type='button';b.className='lw-rich-btn';b.textContent=t[0];b.title=t[1];b.dataset.cmd=t[1];if(t[2])b.dataset.arg=t[2];b.onclick=function(e){e.preventDefault();var cmd=this.dataset.cmd,arg=this.dataset.arg||null;if(cmd=='createLink'){arg=prompt('URL','https://');if(!arg)return}area.focus();document.execCommand(cmd,false,arg);lwRichEmit(w,area.innerHTML,'fallback')};if(!ro)bar.appendChild(b)}area.addEventListener('input',function(){lwRichEmit(w,area.innerHTML,'fallback')});if(!ro)h.appendChild(bar);h.appendChild(area);var st=w.querySelector('.lw-rich-status');if(st)st.textContent='Fallback'};"
+    js = js $ "window.lwRichInitOne=function(w){if(!w)return;if(w.getAttribute('data-rich-ready')&&w.getAttribute('data-rich-ready')!='loading')return;w.setAttribute('data-rich-ready','loading');var h=w.querySelector('.lw-rich-host');var src=w.querySelector('.lw-rich-source');var st=w.querySelector('.lw-rich-status');var ro=w.getAttribute('data-readonly')=='1';var html=src?src.value:String();if(window.Quill&&h){try{h.innerHTML=String();h.setAttribute('data-ready','quill');var box=document.createElement('div');box.className='lw-quill-editor';h.appendChild(box);var toolbar=ro?false:[['bold','italic','underline','strike'],[{header:[1,2,3,false]}],[{list:'ordered'},{list:'bullet'}],['blockquote','code-block'],['link','clean']];var q=new Quill(box,{theme:'snow',readOnly:ro,modules:{toolbar:toolbar},placeholder:'Ecris ici...'});q.root.innerHTML=html;w.__lwQuill=q;w.setAttribute('data-rich-ready','quill');q.on('text-change',function(){lwRichEmit(w,q.root.innerHTML,'quill')});if(st)st.textContent='Quill';lwRichEmit(w,q.root.innerHTML,'quill_init');return}catch(ex){w.setAttribute('data-rich-ready','error');if(st)st.textContent='Fallback'}}lwRichFallback(w);w.setAttribute('data-rich-ready','fallback')};"
+    js = js $ "window.lwRichInit=function(){var xs=document.querySelectorAll('.lw-rich-widget');for(var i=0;i<xs.length;i++)lwRichInitOne(xs[i])};"
+    js = js $ "window.lwRichCopy=function(id){var w=document.getElementById(id);if(!w)return;var s=w.querySelector('.lw-rich-source');var v=s?s.value:String();try{if(navigator.clipboard)navigator.clipboard.writeText(v)}catch(e){}if(window.webuiToast)webuiToast('HTML copie',String(v.length)+' caracteres');lwRichEmit(w,v,'copy')};"
+    js = js $ "window.lwRichClear=function(id){var w=document.getElementById(id);if(!w)return;if(w.__lwQuill){w.__lwQuill.setText(String());lwRichEmit(w,w.__lwQuill.root.innerHTML,'clear');return}var a=w.querySelector('.lw-rich-area');if(a)a.innerHTML=String();lwRichEmit(w,String(),'clear')};"
+    js = js $ "if(!window.__lwRichLoader){window.__lwRichLoader=1;var start=function(){if(window.Quill||!window.lwRichQuillUrl){lwRichInit();setTimeout(lwRichInit,250);setTimeout(lwRichInit,1200);setTimeout(lwRichInit,3200);return}var s=document.createElement('script');s.src=window.lwRichQuillUrl;s.onload=lwRichInit;s.onerror=lwRichInit;document.head.appendChild(s);setTimeout(lwRichInit,250);setTimeout(lwRichInit,1200);setTimeout(lwRichInit,3200)};if(document.readyState=='loading')document.addEventListener('DOMContentLoaded',start);else setTimeout(start,0)}else{if(document.readyState=='loading')document.addEventListener('DOMContentLoaded',lwRichInit);else setTimeout(lwRichInit,0)};"
+    js = js $ "</script>"
+    html = html $ js
+    return (html)
+}
+
+func: RichTextEditor(id, title, value, eventName, loaderUrl, readOnly) {
+    cid = desktopui::EscapeHtml(id)
+    eid = desktopui::EscapeJs(id)
+    safeTitle = desktopui::EscapeHtml(title)
+    safeValue = desktopui::EscapeHtml(value)
+    safeEvent = desktopui::EscapeHtml(eventName)
+    rawValue = TextOrEmpty(value)
+    ro = "0"
+    ce = "true"
+    if (readOnly == 1) {
+        ro = "1"
+        ce = "false"
+    }
+    editJs = "var w=this.closest('.lw-rich-widget');var s=w.querySelector('.lw-rich-source');if(s)s.value=this.innerHTML;if(window.webuiEvent)webuiEvent('" $ desktopui::EscapeJs(eventName) $ "',{id:'" $ eid $ "',value:this.innerHTML,source:'native'})"
+    cmdJs = "var w=this.closest('.lw-rich-widget');var a=w.querySelector('.lw-rich-area');if(a)a.focus();document.execCommand(this.getAttribute('data-cmd'),false,this.getAttribute('data-arg')||null);if(a){var s=w.querySelector('.lw-rich-source');if(s)s.value=a.innerHTML;if(window.webuiEvent)webuiEvent('" $ desktopui::EscapeJs(eventName) $ "',{id:'" $ eid $ "',value:a.innerHTML,source:'native_toolbar'})}"
+    toolbar = ""
+    if (readOnly != 1) {
+        toolbar = "<div class='lw-rich-toolbar'><button type='button' class='lw-rich-btn' data-cmd='bold' onclick=\"" $ cmdJs $ "\">B</button><button type='button' class='lw-rich-btn' data-cmd='italic' onclick=\"" $ cmdJs $ "\">I</button><button type='button' class='lw-rich-btn' data-cmd='underline' onclick=\"" $ cmdJs $ "\">U</button><button type='button' class='lw-rich-btn' data-cmd='strikeThrough' onclick=\"" $ cmdJs $ "\">S</button><button type='button' class='lw-rich-btn' data-cmd='formatBlock' data-arg='H1' onclick=\"" $ cmdJs $ "\">H1</button><button type='button' class='lw-rich-btn' data-cmd='formatBlock' data-arg='H2' onclick=\"" $ cmdJs $ "\">H2</button><button type='button' class='lw-rich-btn' data-cmd='insertUnorderedList' onclick=\"" $ cmdJs $ "\">UL</button><button type='button' class='lw-rich-btn' data-cmd='insertOrderedList' onclick=\"" $ cmdJs $ "\">OL</button><button type='button' class='lw-rich-btn' data-cmd='formatBlock' data-arg='BLOCKQUOTE' onclick=\"" $ cmdJs $ "\">Quote</button><button type='button' class='lw-rich-btn' data-cmd='removeFormat' onclick=\"" $ cmdJs $ "\">Clear</button></div>"
+    }
+    native = "<div class='lw-rich-host' data-ready='native'>" $ toolbar $ "<div class='lw-rich-area' contenteditable='" $ ce $ "' oninput=\"" $ editJs $ "\">" $ rawValue $ "</div></div>"
+    html = RichTextScript(loaderUrl)
+    html = html $ "<section id='" $ cid $ "' class='lw-rich-widget' data-event='" $ safeEvent $ "' data-loader-url='" $ desktopui::EscapeHtml(loaderUrl) $ "' data-readonly='" $ ro $ "' onclick=\"if(window.lwRichInitOne)lwRichInitOne(this)\" onmouseenter=\"if(window.lwRichInitOne)lwRichInitOne(this)\"><div class='lw-rich-head'><div class='lw-rich-title'>" $ safeTitle $ "</div><div class='lw-rich-actions'><span class='lw-rich-status'>Native</span><button type='button' class='lw-x-btn' onclick=\"lwRichCopy('" $ eid $ "')\">Copier HTML</button><button type='button' class='lw-x-btn' onclick=\"lwRichClear('" $ eid $ "')\">Vider</button></div></div><textarea class='lw-rich-source'>" $ safeValue $ "</textarea>" $ native $ "</section>"
+    return (html)
+}

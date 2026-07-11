@@ -1,0 +1,31 @@
+import : libwebui / widget_core
+
+obj:CodeBlock() {
+    self.html = " "
+    self.id = "code_block"
+    self.title = "Code"
+    self.lang = "toba"
+    self.code = "func: Hello() {\n    return (\"hello\")\n}"
+    self.disabled = 0
+
+    func:Setup(self, id, title, lang, code) {
+        self.id = id
+        self.title = title
+        self.lang = lang
+        self.code = code
+        return (self)
+    }
+
+    func:SetDisabled(self, disabled) {
+        self.disabled = disabled
+        return (self)
+    }
+
+    func:Close(self) {
+        self.html = widget_core::Styles() $ widget_core::CodeBlock(self.id, self.title, self.lang, self.code)
+        if (self.disabled == 1) {
+            self.html = widget_core::DisableHtml(self.html)
+        }
+        return (self)
+    }
+}

@@ -1,0 +1,83 @@
+import : libwebui / effects / core
+
+func: __module_ready() {
+    return (1)
+}
+
+func: Styles() {
+    return (core::Styles())
+}
+
+func: Script() {
+    return (core::Script())
+}
+
+func: Assets() {
+    return (core::Assets())
+}
+
+func: CursorGlow() {
+    return (core::CursorGlow())
+}
+
+func: EnableClickSparks() {
+    return (core::EnableClickSparks())
+}
+
+func: Wrap(html, effects) {
+    return (core::Wrap(html, effects))
+}
+
+func: Panel(id, html, effects) {
+    return (core::Panel(id, html, effects))
+}
+
+func: ShinyText(text) {
+    return (core::ShinyText(text))
+}
+
+func: GradientText(text) {
+    return (core::GradientText(text))
+}
+
+func: BlurText(text) {
+    return (core::BlurText(text))
+}
+
+func: ScrambleText(id, text) {
+    return (core::ScrambleText(id, text))
+}
+
+func: Badge(text, effect) {
+    return (core::Badge(text, effect))
+}
+
+func: Apply(selector, effects) {
+    return (core::Apply(selector, effects))
+}
+
+obj:EffectBox() {
+    self.box = core::EffectBox()
+    self.html = ""
+
+    func:Setup(self, id, effects) {
+        self.box.Setup(id, effects)
+        return (self)
+    }
+
+    func:AddHtml(self, html) {
+        self.box.AddHtml(html)
+        return (self)
+    }
+
+    func:AddText(self, text) {
+        self.box.AddText(text)
+        return (self)
+    }
+
+    func:Close(self) {
+        self.box.Close()
+        self.html = self.box.html
+        return (self)
+    }
+}

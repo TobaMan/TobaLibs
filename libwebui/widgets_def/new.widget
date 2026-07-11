@@ -1,0 +1,5 @@
+name=BadgeCounter
+category=Display
+description=Petit compteur avec badge et evenement de clic.
+props=id,label,value,eventName
+events=badge_counter_click

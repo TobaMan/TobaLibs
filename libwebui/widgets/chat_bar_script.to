@@ -1,0 +1,6 @@
+import : libwebui / widgets
+
+func: ChatBarScript() {
+    return (widgets::ChatBarScript())
+}
+

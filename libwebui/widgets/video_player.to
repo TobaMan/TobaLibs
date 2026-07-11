@@ -1,0 +1,55 @@
+import : libwebui / desktopui
+import : libwebui / widget_core
+
+func: RenderVideoPlayer(id, title, source, posterPath, note) {
+    safeId = desktopui::EscapeHtml(id)
+    eid = desktopui::EscapeJs(id)
+    mediaSource = widget_core::MediaUrl(source)
+    src = desktopui::EscapeHtml(mediaSource)
+    poster = ""
+    if (size(widget_core::TextOrEmpty(posterPath)) > 0) {
+        if (posterPath != " ") {
+            poster = " poster='" $ desktopui::EscapeHtml(posterPath) $ "'"
+        }
+    }
+    empty = ""
+    if (size(widget_core::TextOrEmpty(source)) == 0) {
+        empty = "<div class='gallery-video-empty'>No playable local source selected yet.<br>Set a real mp4/webm path in Toba with VideoPlayer.Setup(...).</div>"
+    }
+    video = "<video id='" $ safeId $ "' preload='metadata'" $ poster $ " onclick=\"webuiVideoToggle(this.id)\" onplay=\"webuiEvent('video_play',{id:this.id,value:this.currentTime});webuiVideoSync(this.id)\" onpause=\"webuiEvent('video_pause',{id:this.id,value:this.currentTime});webuiVideoSync(this.id)\" onended=\"webuiEvent('video_ended',{id:this.id,state:'ended'});webuiVideoSync(this.id)\" onloadedmetadata=\"webuiEvent('video_loaded',{id:this.id,value:this.duration});webuiVideoSync(this.id)\" onerror=\"webuiEvent('video_error',{id:this.id,value:this.error?this.error.code:'error'});webuiVideoSync(this.id)\" ontimeupdate=\"webuiVideoSync(this.id);if(Math.floor(this.currentTime)%5==0)window.__lastVideoTick==Math.floor(this.currentTime)?0:(window.__lastVideoTick=Math.floor(this.currentTime),webuiEvent('video_time',{id:this.id,value:this.currentTime}))\"><source src='" $ src $ "' type='video/mp4'></video>"
+    controls = "<div class='gallery-video-osd'><input class='gallery-video-progress' type='range' min='0' max='100' value='0' oninput=\"webuiVideoSeek('" $ eid $ "',this.value)\"><div class='gallery-video-controls'><button type='button' class='gallery-video-btn' data-video-play='1' onclick=\"webuiVideoToggle('" $ eid $ "')\"><span class='gallery-video-play-icon' data-icon='play'></span><span class='gallery-video-pause-icon' data-icon='pause'></span></button><div class='gallery-video-time'>0:00 / --:--</div><button type='button' class='gallery-video-btn' onclick=\"webuiVideoMute('" $ eid $ "')\"><span data-icon='volume'></span></button><button type='button' class='gallery-video-btn' onclick=\"webuiVideoFull('" $ eid $ "')\"><span data-icon='maximize'></span></button><button type='button' class='gallery-video-btn' onclick=\"var v=document.getElementById('" $ eid $ "');v.currentTime=0;webuiVideoSync(v.id);webuiEvent('video_seek_start',{id:v.id,value:0})\">0</button></div></div>"
+    html = "<section class='ui-card gallery-video-player lw-fill-widget'><div class='ui-card-head'><div class='ui-card-title'>" $ desktopui::EscapeHtml(title) $ "</div><div class='ui-card-sub'>" $ desktopui::EscapeHtml(note) $ "</div></div><div class='ui-card-body'><div class='gallery-video-stage'>" $ video $ empty $ controls $ "</div><div class='gallery-video-meta'>" $ desktopui::EscapeHtml(source) $ "</div></div></section>"
+    return (html)
+}
+
+obj:VideoPlayer() {
+    self.html = " "
+    self.id = "video_player"
+    self.title = "Video player"
+    self.source = " "
+    self.poster = " "
+    self.note = "Local HTML5 video widget"
+    self.disabled = 0
+
+    func:Setup(self, id, title, source, poster, note) {
+        self.id = id
+        self.title = title
+        self.source = source
+        self.poster = poster
+        self.note = note
+        return (self)
+    }
+
+    func:SetDisabled(self, disabled) {
+        self.disabled = disabled
+        return (self)
+    }
+
+    func:Close(self) {
+        self.html = widget_core::Styles() $ RenderVideoPlayer(self.id, self.title, self.source, self.poster, self.note)
+        if (self.disabled == 1) {
+            self.html = widget_core::DisableHtml(self.html)
+        }
+        return (self)
+    }
+}

@@ -1,0 +1,132 @@
+import : libstring / string
+
+func: TrimText(value) {
+    res = string::Trim(value)
+    res = string::Replace(res, "\r", "")
+    res = string::Replace(res, "\n", "")
+    return (res)
+}
+
+func: GetDefValue(raw, key, fallback) {
+    res = fallback
+    prefix = key $ "="
+    pos = find(raw, prefix)
+    if (size(pos) > 0) {
+        start = pos[0] + size(prefix)
+        finish = size(raw)
+        i = for (start, size(raw), 1) {
+            ch = slice(raw, i, i + 1)
+            if (ch == "\n") {
+                finish = i
+                break
+            }
+        }
+        res = TrimText(slice(raw, start, finish))
+    }
+    return (res)
+}
+
+func: FirstEvent(events, fallback) {
+    res = fallback
+    txt = TrimText(events)
+    comma = find(txt, ",")
+    if (size(comma) > 0) {
+        res = TrimText(slice(txt, 0, comma[0]))
+    }
+    else {
+        if (size(txt) > 0) {
+            res = txt
+        }
+    }
+    return (res)
+}
+
+func: SafeLower(name) {
+    res = string::Lower(name)
+    res = string::Replace(res, " ", "_")
+    res = string::Replace(res, "-", "_")
+    return (res)
+}
+
+func: BuildWidgetSource(name, eventName) {
+    src = "import : libwebui / desktopui\n"
+    src = src $ "import : libwebui / widget_core\n\n"
+    src = src $ "func: Render" $ name $ "(id, label, value, eventName) {\n"
+    src = src $ "    html = widget_core::WidgetStart(id, label, \"Widget genere.\")\n"
+    src = src $ "    html = html $ \"<button type='button' class='lw-x-btn' onclick=\\\"webuiEvent('\" $ eventName $ \"',{id:'\" $ desktopui::EscapeJs(id) $ \"',value:'\" $ desktopui::EscapeJs(value) $ \"'})\\\">\" $ desktopui::EscapeHtml(value) $ \"</button>\"\n"
+    src = src $ "    html = html $ widget_core::WidgetEnd()\n"
+    src = src $ "    return (html)\n"
+    src = src $ "}\n\n"
+    src = src $ "obj:" $ name $ "() {\n"
+    src = src $ "    self.html = \" \"\n"
+    src = src $ "    self.id = \"" $ SafeLower(name) $ "\"\n"
+    src = src $ "    self.label = \"" $ name $ "\"\n"
+    src = src $ "    self.value = \"value\"\n"
+    src = src $ "    self.eventName = \"" $ eventName $ "\"\n\n"
+    src = src $ "    func:Setup(self, id, label, value, eventName) {\n"
+    src = src $ "        self.id = id\n"
+    src = src $ "        self.label = label\n"
+    src = src $ "        self.value = value\n"
+    src = src $ "        self.eventName = eventName\n"
+    src = src $ "        return (self)\n"
+    src = src $ "    }\n\n"
+    src = src $ "    func:Close(self) {\n"
+    src = src $ "        self.html = widget_core::Styles() $ Render" $ name $ "(self.id, self.label, self.value, self.eventName)\n"
+    src = src $ "        return (self)\n"
+    src = src $ "    }\n"
+    src = src $ "}\n"
+    return (src)
+}
+
+func: BuildDoc(name, category, description, eventName) {
+    doc = "# " $ name $ "\n\n"
+    doc = doc $ "Categorie: " $ category $ "\n\n"
+    doc = doc $ description $ "\n\n"
+    doc = doc $ "Evenement: `" $ eventName $ "`\n\n"
+    doc = doc $ "Payload conseille: `{id,value}`\n\n"
+    doc = doc $ "Usage:\n\n```toba\n"
+    doc = doc $ "widget = " $ name $ "()\n"
+    doc = doc $ "widget.Setup(\"" $ SafeLower(name) $ "\", \"" $ name $ "\", \"value\", \"" $ eventName $ "\")\n"
+    doc = doc $ "widget.Close()\n"
+    doc = doc $ "panel.Add(widget)\n"
+    doc = doc $ "```\n"
+    return (doc)
+}
+
+func: BuildExample(name, eventName) {
+    ex = "import : libwebui / webui\n"
+    ex = ex $ "import : libwebui / eventbus\n"
+    ex = ex $ "import : libwebui / generated / " $ SafeLower(name) $ "_widget\n\n"
+    ex = ex $ "if (main()) {\n"
+    ex = ex $ "    page = webui::CompactPage()\n"
+    ex = ex $ "    page.SetTitle(\"" $ name $ " example\")\n"
+    ex = ex $ "    page.SetPort(19210)\n"
+    ex = ex $ "    widget = " $ SafeLower(name) $ "_widget::" $ name $ "()\n"
+    ex = ex $ "    widget.Setup(\"" $ SafeLower(name) $ "\", \"" $ name $ "\", \"value\", \"" $ eventName $ "\")\n"
+    ex = ex $ "    widget.Close()\n"
+    ex = ex $ "    page.Add(widget)\n"
+    ex = ex $ "    page.ShowReliable(\"C:/Toba/modules/libwebui/examples/" $ SafeLower(name) $ "_debug.html\")\n"
+    ex = ex $ "    loop {\n"
+    ex = ex $ "        evt = eventbus::Poll(20)\n"
+    ex = ex $ "        if (evt.HasEvent()) { print(evt.Name() $ \" => \" $ evt.Value() $ \"\\n\") }\n"
+    ex = ex $ "        sleep(0.02)\n"
+    ex = ex $ "    }\n"
+    ex = ex $ "}\n"
+    return (ex)
+}
+
+if (main()) {
+    defPath = "C:/Toba/modules/libwebui/widgets_def/new.widget"
+    raw = fsreadf(defPath)
+    name = GetDefValue(raw, "name", "NewWidget")
+    category = GetDefValue(raw, "category", "Custom")
+    description = GetDefValue(raw, "description", "Widget genere.")
+    events = GetDefValue(raw, "events", SafeLower(name) $ "_change")
+    eventName = FirstEvent(events, SafeLower(name) $ "_change")
+    safe = SafeLower(name)
+
+    fswritef("C:/Toba/modules/libwebui/generated/" $ safe $ "_widget.to", BuildWidgetSource(name, eventName))
+    fswritef("C:/Toba/modules/libwebui/docs/" $ name $ ".md", BuildDoc(name, category, description, eventName))
+    fswritef("C:/Toba/modules/libwebui/examples/" $ safe $ "_example.to", BuildExample(name, eventName))
+    print("Widget generated: " $ name $ "\n")
+}

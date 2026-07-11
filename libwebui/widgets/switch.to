@@ -1,0 +1,31 @@
+import : libwebui / widget_core
+
+obj:Switch() {
+    self.html = " "
+    self.id = "switch"
+    self.label = "Switch"
+    self.checked = 0
+    self.eventName = "switch_change"
+    self.disabled = 0
+
+    func:Setup(self, id, label, checked, eventName) {
+        self.id = id
+        self.label = label
+        self.checked = checked
+        self.eventName = eventName
+        return (self)
+    }
+
+    func:SetDisabled(self, disabled) {
+        self.disabled = disabled
+        return (self)
+    }
+
+    func:Close(self) {
+        self.html = widget_core::Styles() $ widget_core::Switch(self.id, self.label, self.checked, self.eventName)
+        if (self.disabled == 1) {
+            self.html = widget_core::DisableHtml(self.html)
+        }
+        return (self)
+    }
+}

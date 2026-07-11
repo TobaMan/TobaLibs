@@ -1,0 +1,11 @@
+import : libwebui / simpleui
+import : libtts / clone
+import : libtts / tts
+
+if (main()) {
+    app = simpleui::Window()
+    app.Setup("Probe")
+    app.SetPort(19234)
+    app.SetWindow(640, 260, 220, 140)
+    print("setup ok\n")
+}

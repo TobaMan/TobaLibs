@@ -1,0 +1,66 @@
+/*
+    libwebui / jsx
+
+    SafeJs : neutralise DEFINITIVEMENT les pieges de strings Toba quand on injecte
+    du JS/CSS/HTML inline dans un .to, sans avoir a verifier les '' a chaque fois.
+
+    PRINCIPE : on n'ecrit JAMAIS le motif piege dans le .to. On ecrit un TOKEN sur
+    (uniquement des lettres entre @@...@@, que Toba ne transforme jamais), et SafeJs
+    le reconvertit en vrai caractere APRES que Toba a lu la string.
+
+    Tokens disponibles :
+      @@Q@@     -> "   (guillemet double)
+      @@SQ@@    -> '   (apostrophe simple)
+      @@BT@@    -> `   (backtick, template literal JS)
+      @@SL@@    -> //  (double slash : URLs, protocoles)
+      @@BS@@    -> \   (antislash)
+      @@NL@@    -> retour a la ligne reel
+      @@EMPTY@@ ->     (chaine vide : rien)
+
+    Usage :
+      js = "var s=@@Q@@hello@@Q@@;var url=@@Q@@https:@@SL@@x.com@@Q@@;var e=@@EMPTY@@;"
+      panel.AddHtml("<script>" $ jsx::SafeJs(js) $ "</script>")
+
+    -> Plus jamais de '' corrompu, plus de guillemets casses, plus de // avale.
+       On peut ecrire tout le JS avec @@Q@@ pour les strings JS et ne pas se soucier
+       des apostrophes/guillemets/slashes.
+*/
+
+func: __module_ready() {
+    return (1)
+}
+
+// Remplace TOUTES les occurrences de 'find' par 'repl' dans 's' (freplace en boucle
+// -> global, quel que soit le comportement de freplace sur les occurrences).
+func: ReplaceAll(s, token, repl) {
+    out = s
+    loop {
+        nxt = freplace(out, token, repl)
+        if (nxt == out) {
+            break
+        }
+        out = nxt
+    }
+    return (out)
+}
+
+// Convertit les tokens surs en vrais caracteres. Ordre : @@BS@@ d'abord (l'antislash
+// ne doit pas re-declencher un echappement), puis les autres.
+func: SafeJs(js) {
+    quote = "\""
+    bslash = "\\"
+    apos = "'"
+    backtick = "`"
+    slash2 = "//"
+    newline = "
+"
+    out = js
+    out = ReplaceAll(out, "@@BS@@", bslash)
+    out = ReplaceAll(out, "@@Q@@", quote)
+    out = ReplaceAll(out, "@@SQ@@", apos)
+    out = ReplaceAll(out, "@@BT@@", backtick)
+    out = ReplaceAll(out, "@@SL@@", slash2)
+    out = ReplaceAll(out, "@@NL@@", newline)
+    out = ReplaceAll(out, "@@EMPTY@@", "")
+    return (out)
+}

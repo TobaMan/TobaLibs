@@ -1,0 +1,159 @@
+import : libwebui / desktopui
+
+func: __module_ready() {
+    return (1)
+}
+
+func: TextOrEmpty(value) {
+    res = ""
+    if (isstr(value)) {
+        res = value
+    }
+    else {
+        if (isnum(value)) {
+            res = strnum(value)
+        }
+    }
+    return (res)
+}
+
+func: Styles() {
+    css = "<style data-libwebui-effects='1'>"
+    css = css $ ".lwfx-host{position:relative;isolation:isolate}.lwfx-wrap{position:relative;display:inline-block}.lwfx-panel{position:relative;overflow:hidden;border:1px solid var(--border,#d8e1ef);border-radius:var(--lw-radius,8px);background:var(--bg-card,#fff);color:var(--text-1,#102033)}"
+    css = css $ ".lwfx-shiny{display:inline-block;background:linear-gradient(110deg,var(--text-1,#102033) 0%,var(--text-1,#102033) 36%,color-mix(in srgb,var(--accent,#00a383) 72%,white) 50%,var(--text-1,#102033) 64%,var(--text-1,#102033) 100%);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:lwfx-shine 2.6s linear infinite}.lwfx-gradient{display:inline-block;background:linear-gradient(90deg,var(--accent,#00a383),#3b82f6,#d946ef,var(--accent,#00a383));background-size:220% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:lwfx-flow 5s ease infinite}"
+    css = css $ ".lwfx-blur{display:inline-block;filter:blur(12px);opacity:0;transform:translateY(8px);animation:lwfx-blur-in .72s cubic-bezier(.2,.8,.2,1) forwards}.lwfx-blur span{display:inline-block}.lwfx-float{animation:lwfx-float 5.6s ease-in-out infinite}.lwfx-pulse{animation:lwfx-pulse 2.4s ease-in-out infinite}.lwfx-pop{transition:transform .18s ease,box-shadow .18s ease}.lwfx-pop:hover{transform:translateY(-2px) scale(1.01);box-shadow:0 14px 40px color-mix(in srgb,var(--accent,#00a383) 16%,transparent)}"
+    css = css $ ".lwfx-spotlight{position:relative;overflow:hidden}.lwfx-spotlight:before{content:' ';position:absolute;inset:-1px;background:radial-gradient(360px circle at var(--lwfx-x,50%) var(--lwfx-y,50%),color-mix(in srgb,var(--accent,#00a383) 24%,transparent),transparent 45%);opacity:0;transition:opacity .22s ease;pointer-events:none;z-index:0}.lwfx-spotlight:hover:before{opacity:1}.lwfx-spotlight>*{position:relative;z-index:1}"
+    css = css $ ".lwfx-border{position:relative}.lwfx-border:after{content:' ';position:absolute;inset:0;border-radius:inherit;padding:1px;background:linear-gradient(120deg,transparent,var(--accent,#00a383),#3b82f6,transparent);background-size:240% 240%;animation:lwfx-border-flow 4s linear infinite;pointer-events:none;-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}"
+    css = css $ ".lwfx-magnetic{transition:transform .12s ease;will-change:transform}.lwfx-tilt{transform-style:preserve-3d;transition:transform .18s ease,box-shadow .18s ease;will-change:transform;box-shadow:0 6px 18px rgba(0,0,0,.10)}.lwfx-tilt:hover{box-shadow:0 26px 60px color-mix(in srgb,var(--accent,#00a383) 22%,rgba(0,0,0,.28))}.lwfx-reveal{opacity:0;transform:translateY(14px);transition:opacity .55s ease,transform .55s ease}.lwfx-reveal.in,.tm-panel.active .lwfx-reveal,.gallery-tab-panel.active .lwfx-reveal{opacity:1;transform:translateY(0)}"
+    css = css $ ".lwfx-cursor-glow{position:fixed;left:0;top:0;width:220px;height:220px;border-radius:999px;background:radial-gradient(circle,color-mix(in srgb,var(--accent,#00a383) 18%,transparent),transparent 62%);pointer-events:none;transform:translate(-50%,-50%);z-index:9998;opacity:0;transition:opacity .2s ease;mix-blend-mode:screen}.lwfx-spark{position:fixed;width:8px;height:8px;border-radius:999px;background:var(--accent,#00a383);pointer-events:none;z-index:9999;animation:lwfx-spark .55s ease-out forwards}.lwfx-scan{position:relative;overflow:hidden}.lwfx-scan:after{content:' ';position:absolute;top:0;bottom:0;left:0;width:38%;background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--accent,#00a383) 42%,transparent),transparent);transform:translateX(-140%);animation:lwfx-scan 2.4s ease-in-out infinite;pointer-events:none;z-index:2}"
+    css = css $ ".lwfx-scramble{font-family:var(--mono,Consolas,monospace);letter-spacing:.02em}.lwfx-badge{display:inline-flex;align-items:center;gap:6px;border:1px solid color-mix(in srgb,var(--accent,#00a383) 38%,var(--border,#d8e1ef));border-radius:var(--lw-pill-radius,999px);padding:5px 10px;background:color-mix(in srgb,var(--accent,#00a383) 10%,transparent);color:var(--accent,#00a383);font-weight:850}"
+    // Effets supplementaires (inspires de reactbits.dev)
+    css = css $ ".lwfx-glare{position:relative;overflow:hidden}.lwfx-glare:before{content:' ';position:absolute;top:-60%;left:-60%;width:60%;height:220%;background:linear-gradient(115deg,transparent,color-mix(in srgb,white 55%,transparent),transparent);transform:translateX(-60%) rotate(8deg);opacity:0;transition:opacity .1s ease;pointer-events:none;z-index:3}.lwfx-glare:hover:before{opacity:1;animation:lwfx-glare .8s ease}"
+    css = css $ ".lwfx-star-border{position:relative;border-radius:inherit}.lwfx-star-border:after{content:' ';position:absolute;inset:0;border-radius:inherit;padding:1.5px;background:conic-gradient(from var(--lwfx-a,0deg),transparent 0 70%,var(--accent,#00a383) 85%,#fff 92%,transparent 100%);animation:lwfx-star 3.2s linear infinite;-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}"
+    css = css $ ".lwfx-glitch{position:relative;color:var(--text-1,#102033)}.lwfx-glitch:hover{animation:lwfx-glitch .35s steps(2) infinite}"
+    css = css $ ".lwfx-gradient-bg{background:linear-gradient(120deg,color-mix(in srgb,var(--accent,#00a383) 22%,var(--bg-card,#fff)),var(--bg-card,#fff),color-mix(in srgb,#3b82f6 18%,var(--bg-card,#fff)));background-size:200% 200%;animation:lwfx-flow 8s ease infinite}"
+    css = css $ ".lwfx-underline{position:relative}.lwfx-underline:after{content:' ';position:absolute;left:0;bottom:-2px;height:2px;width:0;background:linear-gradient(90deg,var(--accent,#00a383),#3b82f6);transition:width .3s ease}.lwfx-underline:hover:after{width:100%}"
+    css = css $ "@keyframes lwfx-shine{0%{background-position:210% 0}100%{background-position:-10% 0}}@keyframes lwfx-flow{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}@keyframes lwfx-blur-in{to{filter:blur(0);opacity:1;transform:translateY(0)}}@keyframes lwfx-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}@keyframes lwfx-pulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent,#00a383) 0%,transparent)}50%{box-shadow:0 0 0 8px color-mix(in srgb,var(--accent,#00a383) 14%,transparent)}}@keyframes lwfx-border-flow{to{background-position:240% 0}}@keyframes lwfx-spark{to{opacity:0;transform:translate(var(--dx),var(--dy)) scale(.2)}}@keyframes lwfx-scan{0%{transform:translateX(-140%)}55%,100%{transform:translateX(360%)}}"
+    css = css $ "@keyframes lwfx-glare{to{transform:translateX(320%) rotate(8deg)}}@keyframes lwfx-star{to{--lwfx-a:360deg}}@keyframes lwfx-glitch{0%{text-shadow:2px 0 #3b82f6,-2px 0 #d946ef;transform:translate(0)}50%{text-shadow:-2px 0 #3b82f6,2px 0 #d946ef;transform:translate(1px,-1px)}100%{text-shadow:2px 0 #3b82f6,-2px 0 #d946ef;transform:translate(0)}}"
+    css = css $ "@property --lwfx-a{syntax:\"<angle>\";initial-value:0deg;inherits:false}"
+    css = css $ "@media (prefers-reduced-motion:reduce){.lwfx-shiny,.lwfx-gradient,.lwfx-blur,.lwfx-float,.lwfx-pulse,.lwfx-border:after,.lwfx-scan:after,.lwfx-star-border:after,.lwfx-gradient-bg{animation:none}.lwfx-reveal{transition:none}.lwfx-magnetic,.lwfx-tilt,.lwfx-pop{transition:none}}"
+    css = css $ "</style>"
+    return (css)
+}
+
+func: Script() {
+    js = "<script data-libwebui-effects='1'>"
+    js = js $ "window.__lwfxCursorGlowOn=false;"
+    js = js $ "window.lwfxInit=window.lwfxInit||function(root){root=root||document;if(window.__lwfxReady)return;window.__lwfxReady=1;document.addEventListener('pointermove',function(e){document.querySelectorAll('.lwfx-spotlight').forEach(function(el){var r=el.getBoundingClientRect();el.style.setProperty('--lwfx-x',(e.clientX-r.left)+'px');el.style.setProperty('--lwfx-y',(e.clientY-r.top)+'px')});if(!window.__lwfxCursorGlowOn)return;var g=document.querySelector('.lwfx-cursor-glow');if(g){g.style.left=e.clientX+'px';g.style.top=e.clientY+'px';g.style.opacity='1'}});document.addEventListener('pointerleave',function(){var g=document.querySelector('.lwfx-cursor-glow');if(g)g.style.opacity='0'})};"
+    // Toggle utilisateur du glow curseur : desactive par defaut (le halo ne
+    // suit la souris que si l'utilisateur l'active). Bridge event standard.
+    js = js $ "window.lwfxSetCursorGlow=function(on){window.__lwfxCursorGlowOn=!!on;document.body.classList.toggle('lwfx-click-sparks',!!on);if(!on){var g=document.querySelector('.lwfx-cursor-glow');if(g)g.style.opacity='0'}};"
+    js = js $ "window.addEventListener('toba:event',function(e){var d=e.detail||{};if(d.name==='fx_cursor_glow_toggle'){var v=(d.data&&d.data.value)||String();lwfxSetCursorGlow(v==='on')}});"
+    js = js $ "document.addEventListener('pointermove',function(e){document.querySelectorAll('.lwfx-magnetic').forEach(function(el){var r=el.getBoundingClientRect();var dx=e.clientX-(r.left+r.width/2),dy=e.clientY-(r.top+r.height/2);var d=Math.sqrt(dx*dx+dy*dy);var power=Number(el.getAttribute('data-lwfx-strength')||10);if(d<140){el.style.transform='translate('+dx/140*power+'px,'+dy/140*power+'px)'}else{el.style.transform=String()}});document.querySelectorAll('.lwfx-tilt').forEach(function(el){var r=el.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom){el.style.transform=String();return}var rx=((e.clientY-r.top)/r.height-.5)*-8;var ry=((e.clientX-r.left)/r.width-.5)*8;el.style.transform='perspective(700px) rotateX('+rx+'deg) rotateY('+ry+'deg)'})});"
+    js = js $ "document.addEventListener('pointerdown',function(e){if(!document.body.classList.contains('lwfx-click-sparks'))return;for(var i=0;i<8;i++){var s=document.createElement('span');s.className='lwfx-spark';var a=(Math.PI*2/8)*i;var d=22+Math.random()*22;s.style.left=e.clientX+'px';s.style.top=e.clientY+'px';s.style.setProperty('--dx',Math.cos(a)*d+'px');s.style.setProperty('--dy',Math.sin(a)*d+'px');document.body.appendChild(s);setTimeout((function(x){return function(){x.remove()}})(s),650)}});"
+    js = js $ "var showReveals=function(scope){(scope||document).querySelectorAll('.lwfx-reveal').forEach(function(el){el.classList.add('in')})};var io='IntersectionObserver'in window?new IntersectionObserver(function(items){items.forEach(function(it){if(it.isIntersecting){it.target.classList.add('in');io.unobserve(it.target)}})},{threshold:.14}):0;document.querySelectorAll('.lwfx-reveal').forEach(function(el){if(el.closest('.tm-panel.active,.gallery-tab-panel.active')){el.classList.add('in')}else if(io){io.observe(el)}else{el.classList.add('in')}});"
+    // scramble : fonction rejouable (une passe d'animation sur chaque cible du scope)
+    js = js $ "window.lwfxScramble=window.lwfxScramble||function(scope){(scope||document).querySelectorAll('[data-lwfx-scramble]').forEach(function(el){var text=el.getAttribute('data-lwfx-text')||el.textContent;var chars='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&';var tick=0;clearInterval(el.__lwfxTimer);el.__lwfxTimer=setInterval(function(){tick++;var out=String();for(var i=0;i<text.length;i++){out+=i<tick/2?text[i]:chars[Math.floor(Math.random()*chars.length)]}el.textContent=out;if(tick>text.length*2){el.textContent=text;clearInterval(el.__lwfxTimer);if(window.webuiEvent)webuiEvent('effect_scramble_done',{id:el.id||'scramble',value:text})}},34)})};"
+    // blur : rejoue l'animation d'apparition en re-declenchant la classe
+    js = js $ "window.lwfxReplayBlur=window.lwfxReplayBlur||function(scope){(scope||document).querySelectorAll('.lwfx-blur').forEach(function(el){el.style.animation='none';void el.offsetWidth;el.style.animation=String()})};"
+    js = js $ "window.lwfxPlay=window.lwfxPlay||function(scope){showReveals(scope);lwfxScramble(scope);lwfxReplayBlur(scope);if(window.lwfxInit)lwfxInit(scope)};"
+    // au changement d'onglet : rejouer tous les effets one-shot dans le panel ouvert
+    // Rejoue les effets one-shot au changement d'onglet. Deux formats d'event
+    // existent selon le layout : 'panel_show' {id} (widgets) et 'show_<id>' (runtime).
+    js = js $ "window.addEventListener('toba:event',function(e){var d=e.detail||{};var pid=null;if(d.name=='panel_show'){pid=(d.data&&d.data.id)||d.widgetId}else if(d.name&&d.name.indexOf('show_')==0){pid=d.name.slice(5)}if(pid){setTimeout(function(){var p=document.getElementById('panel_'+pid);if(p)lwfxPlay(p)},50)}});"
+    js = js $ "lwfxScramble(document);"
+    js = js $ "if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){lwfxInit(document)})}else{lwfxInit(document)}"
+    js = js $ "</script>"
+    return (js)
+}
+
+func: Assets() {
+    return (Styles() $ Script())
+}
+
+func: CursorGlow() {
+    return ("<div class='lwfx-cursor-glow'></div>")
+}
+
+// N'active plus rien tout seul : le switch utilisateur (fx_cursor_glow_toggle)
+// pilote a la fois le glow curseur et les etincelles au clic.
+func: EnableClickSparks() {
+    return (" ")
+}
+
+func: ClassList(effects) {
+    base = TextOrEmpty(effects)
+    res = ""
+    if (size(base) > 0) {
+        res = " " $ base
+    }
+    return (res)
+}
+
+func: Wrap(html, effects) {
+    res = "<div class='lwfx-host" $ desktopui::EscapeHtml(ClassList(effects)) $ "'>" $ html $ "</div>"
+    return (res)
+}
+
+func: Panel(id, html, effects) {
+    res = "<section id='" $ desktopui::EscapeHtml(id) $ "' class='lwfx-panel" $ desktopui::EscapeHtml(ClassList(effects)) $ "'>" $ html $ "</section>"
+    return (res)
+}
+
+func: ShinyText(text) {
+    return ("<span class='lwfx-shiny'>" $ desktopui::EscapeHtml(text) $ "</span>")
+}
+
+func: GradientText(text) {
+    return ("<span class='lwfx-gradient'>" $ desktopui::EscapeHtml(text) $ "</span>")
+}
+
+func: BlurText(text) {
+    return ("<span class='lwfx-blur'>" $ desktopui::EscapeHtml(text) $ "</span>")
+}
+
+func: ScrambleText(id, text) {
+    safe = desktopui::EscapeHtml(text)
+    res = "<span id='" $ desktopui::EscapeHtml(id) $ "' class='lwfx-scramble' data-lwfx-scramble='1' data-lwfx-text='" $ safe $ "'>" $ safe $ "</span>"
+    return (res)
+}
+
+func: Badge(text, effect) {
+    res = "<span class='lwfx-badge" $ desktopui::EscapeHtml(ClassList(effect)) $ "'>" $ desktopui::EscapeHtml(text) $ "</span>"
+    return (res)
+}
+
+func: Apply(selector, effects) {
+    sel = desktopui::EscapeJs(selector)
+    cls = desktopui::EscapeJs(effects)
+    js = "<script>document.querySelectorAll('" $ sel $ "').forEach(function(el){('" $ cls $ "').split(/\\s+/).forEach(function(c){if(c)el.classList.add(c)})});if(window.lwfxInit)lwfxInit(document)</script>"
+    return (js)
+}
+
+obj:EffectBox() {
+    self.html = ""
+    self.id = "effect_box"
+    self.effects = "lwfx-spotlight lwfx-border"
+    self.body = ""
+
+    func:Setup(self, id, effects) {
+        self.id = id
+        self.effects = effects
+        return (self)
+    }
+
+    func:AddHtml(self, html) {
+        self.body = self.body $ html
+        return (self)
+    }
+
+    func:AddText(self, text) {
+        self.body = self.body $ "<p>" $ desktopui::EscapeHtml(text) $ "</p>"
+        return (self)
+    }
+
+    func:Close(self) {
+        self.html = Panel(self.id, self.body, self.effects)
+        return (self)
+    }
+}

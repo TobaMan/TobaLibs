@@ -1,0 +1,6 @@
+import : libwebui / widgets
+
+func: MetricsScript(port, firstMetrics) {
+    return (widgets::MetricsScript(port, firstMetrics))
+}
+

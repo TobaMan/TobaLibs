@@ -1,0 +1,28 @@
+import : libwebui / desktopui
+import : libwebui / widgets
+import : libwebui / effects
+
+body = "<!doctype html><html><head><meta charset='utf-8'><title>libwebui effects demo</title>"
+body = body $ widgets::Styles()
+body = body $ effects::Assets()
+body = body $ "<style>.fx-demo{min-height:100vh;padding:28px;background:var(--bg-deep);color:var(--text-1);font-family:var(--sans,Segoe UI,Arial)}.fx-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.fx-card{padding:18px;min-height:150px}.fx-title{font-size:28px;font-weight:900;margin:0 0 14px}.fx-note{color:var(--text-2);font-size:13px;line-height:1.5}.fx-actions{display:flex;gap:8px;margin-top:16px}@media(max-width:900px){.fx-grid{grid-template-columns:1fr}}</style>"
+body = body $ "</head><body data-theme='light_modern'>"
+body = body $ effects::CursorGlow()
+body = body $ effects::EnableClickSparks()
+body = body $ "<main class='fx-demo'>"
+body = body $ "<h1 class='fx-title'>" $ effects::GradientText("libwebui effects") $ "</h1>"
+body = body $ "<p class='fx-note'>Effets autonomes inspires des UI modernes, sans React, compatibles avec les themes libwebui.</p>"
+body = body $ "<div class='fx-grid'>"
+body = body $ effects::Panel("fx_one", "<div class='fx-card'><h2>" $ effects::ShinyText("Shiny text") $ "</h2><p class='fx-note'>Spotlight, border flow and hover pop.</p>" $ effects::Badge("animated", "lwfx-pulse") $ "</div>", "lwfx-spotlight lwfx-border lwfx-pop lwfx-reveal")
+body = body $ effects::Panel("fx_two", "<div class='fx-card'><h2>" $ effects::ScrambleText("fx_scramble", "SCRAMBLE") $ "</h2><p class='fx-note'>Text reveal style for status labels and command output.</p></div>", "lwfx-spotlight lwfx-tilt lwfx-reveal")
+body = body $ effects::Panel("fx_three", "<div class='fx-card'><h2>" $ effects::BlurText("Blur reveal") $ "</h2><p class='fx-note'>Soft entrance and scan overlay.</p><div class='fx-actions'><button class='ui-btn primary lwfx-magnetic' onclick=\"webuiEvent('effects_demo_click',{id:'effects'})\">Action</button></div></div>", "lwfx-scan lwfx-border lwfx-reveal")
+body = body $ "</div>"
+body = body $ "</main>"
+body = body $ widgets::ActionScript()
+body = body $ "</body></html>"
+
+win = desktopui::ShowBrowser(body, 1)
+desktopui::SetWindow(win, 1100, 720, 140, 80)
+loop {
+    sleep(1)
+}

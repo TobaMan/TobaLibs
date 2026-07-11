@@ -1,0 +1,19 @@
+import : libwebui / widgets
+
+obj:MetricsDashboard() {
+    self.core = widgets::MetricsDashboard()
+
+    func:AddChart(self, chartId, title, value, detail) {
+        self.core.AddChart(chartId, title, value, detail)
+        return (self)
+    }
+
+    func:AddGpuTable(self, rows) {
+        self.core.AddGpuTable(rows)
+        return (self)
+    }
+
+    func:Render(self) {
+        return (self.core.Render())
+    }
+}

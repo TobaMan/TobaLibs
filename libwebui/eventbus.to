@@ -1,0 +1,177 @@
+import : libwebui / desktopui
+import : libjson / json
+
+func: JsonEscape(value) {
+    s = desktopui::TextOrEmpty(value)
+    res = s
+    res = freplace(res, "\\", "\\\\")
+    res = freplace(res, "\n", "\\n")
+    res = freplace(res, "\r", "")
+    return (res)
+}
+
+obj:UiEvent() {
+    self.raw = ""
+    self.dataRaw = "{}"
+    self.name = ""
+    self.widgetId = ""
+
+    func:FromJson(self, raw) {
+        safeRaw = desktopui::TextOrEmpty(raw)
+        self.raw = safeRaw
+        self.name = ""
+        self.widgetId = ""
+        self.dataRaw = "{}"
+        if (size(safeRaw) > 0) {
+            self.name = json::GetString(safeRaw, "name", " ")
+            self.widgetId = json::GetString(safeRaw, "widgetId", " ")
+            self.dataRaw = json::GetRaw(safeRaw, "data", "{}")
+        }
+        return (self)
+    }
+
+    func:Is(self, name) {
+        res = 0
+        if (self.name == name) {
+            res = 1
+        }
+        return (res)
+    }
+
+    func:HasEvent(self) {
+        res = 0
+        if (self.name != "") {
+            if (self.name != " ") {
+                res = 1
+            }
+        }
+        return (res)
+    }
+
+    func:Name(self) {
+        return (self.name)
+    }
+
+    func:WidgetId(self) {
+        return (self.widgetId)
+    }
+
+    func:Get(self, key, fallback) {
+        res = json::GetString(self.dataRaw, key, fallback)
+        return (res)
+    }
+
+    func:GetNumber(self, key, fallback) {
+        res = json::GetNumber(self.dataRaw, key, fallback)
+        return (res)
+    }
+
+    func:Arg(self, idx, fallback) {
+        res = json::GetArrayString(self.raw, "args", idx, fallback)
+        return (res)
+    }
+
+    func:State(self) {
+        fallback = self.Arg(1, " ")
+        res = self.Get("state", fallback)
+        return (res)
+    }
+
+    func:Value(self) {
+        fallback = self.Arg(1, " ")
+        res = self.Get("value", fallback)
+        return (res)
+    }
+}
+
+obj:UiCommand() {
+    self.action = " "
+    self.payload = "{}"
+
+    func:Setup(self, action) {
+        self.action = action
+        self.payload = "{}"
+        return (self)
+    }
+
+    func:SetJson(self, payload) {
+        self.payload = payload
+        return (self)
+    }
+
+    func:Json(self) {
+        return (self.payload)
+    }
+
+    func:Execute(self) {
+        res = desktopui::BridgeExecute(self.action, self.payload)
+        return (res)
+    }
+}
+
+func: New(raw) {
+    evt = UiEvent()
+    evt.FromJson(raw)
+    return (evt)
+}
+
+func: Poll(timeoutMs) {
+    raw = desktopui::BridgePoll(timeoutMs)
+    evt = UiEvent()
+    evt.FromJson(raw)
+    return (evt)
+}
+
+func: Command(action) {
+    cmd = UiCommand()
+    cmd.Setup(action)
+    return (cmd)
+}
+
+func: Notify(title, text) {
+    cmd = Command("webuiNotify")
+    payload = "{\"title\":\"" $ JsonEscape(title) $ "\",\"text\":\"" $ JsonEscape(text) $ "\"}"
+    cmd.SetJson(payload)
+    res = cmd.Execute()
+    return (res)
+}
+
+func: ChartAddPoint(label, value, secondary) {
+    payload = "{\"label\":\"" $ JsonEscape(label) $ "\",\"value\":\"" $ JsonEscape(strnum(value)) $ "\",\"secondary\":\"" $ JsonEscape(strnum(secondary)) $ "\"}"
+    cmd = Command("webuiChartAddPoint")
+    cmd.SetJson(payload)
+    res = cmd.Execute()
+    return (res)
+}
+
+func: ChartReset() {
+    cmd = Command("webuiChartReset")
+    res = cmd.Execute()
+    return (res)
+}
+
+func: SetCloseGuard(enabled, prompt) {
+    state = "false"
+    if (enabled == 1) {
+        state = "true"
+    }
+    cmd = Command("webuiSetCloseGuard")
+    payload = "{\"enabled\":" $ state $ ",\"prompt\":\"" $ JsonEscape(prompt) $ "\"}"
+    cmd.SetJson(payload)
+    res = cmd.Execute()
+    return (res)
+}
+
+func: AllowClose() {
+    cmd = Command("webuiAllowClose")
+    cmd.SetJson("{}")
+    res = cmd.Execute()
+    return (res)
+}
+
+func: DenyClose() {
+    cmd = Command("webuiDenyClose")
+    cmd.SetJson("{}")
+    res = cmd.Execute()
+    return (res)
+}

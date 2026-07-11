@@ -1,0 +1,50 @@
+import : libwebui / widgets
+
+obj:Dashboard() {
+    self.core = widgets::Dashboard()
+
+    func:SetTitle(self, title) {
+        self.core.SetTitle(title)
+        return (self)
+    }
+
+    func:SetFooter(self, footer) {
+        self.core.SetFooter(footer)
+        return (self)
+    }
+
+    func:AddThemeSelector(self) {
+        self.core.AddThemeSelector()
+        return (self)
+    }
+
+    func:AddActionMenu(self) {
+        self.core.AddActionMenu()
+        return (self)
+    }
+
+    func:AddKpi(self, kpiId, title, value, note) {
+        self.core.AddKpi(kpiId, title, value, note)
+        return (self)
+    }
+
+    func:AddMetric(self, metricId, title, value, note) {
+        self.core.AddMetric(metricId, title, value, note)
+        return (self)
+    }
+
+    func:AddTable(self, panelId, title, value, note, rows) {
+        self.core.AddTable(panelId, title, value, note, rows)
+        return (self)
+    }
+
+    func:AddHtml(self, panelId, title, value, note, contentHtml) {
+        self.core.AddHtml(panelId, title, value, note, contentHtml)
+        return (self)
+    }
+
+    func:Render(self) {
+        return (self.core.Render())
+    }
+}
+

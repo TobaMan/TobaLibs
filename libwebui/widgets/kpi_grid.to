@@ -1,0 +1,6 @@
+import : libwebui / widgets
+
+func: KpiGrid(items) {
+    return (widgets::KpiGrid(items))
+}
+

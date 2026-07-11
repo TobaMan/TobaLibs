@@ -1,0 +1,56 @@
+import : libwebui / desktopui
+import : libwebui / widget_core
+
+func: RenderColorPicker(id, label, value, swatches, eventName) {
+    color = widget_core::TextOrEmpty(value)
+    if (size(color) == 0) {
+        color = "#00d4aa"
+    }
+    safe = desktopui::EscapeHtml(color)
+    html = widget_core::WidgetStart(id, label, "Palette custom avec saturation, teinte, hex et swatches.")
+    html = html $ "<div id='" $ desktopui::EscapeHtml(id) $ "_wrap' class='lw-pop-wrap' data-hue='170' data-sat='.76' data-val='.82'><button type='button' class='lw-pop-trigger' onclick=\"" $ widget_core::PopoverToggleJs() $ "\"><span id='" $ desktopui::EscapeHtml(id) $ "_preview' class='lw-color-preview' style='--picked:" $ safe $ "'></span><span id='" $ desktopui::EscapeHtml(id) $ "_display'>" $ safe $ "</span></button>"
+    html = html $ "<div class='lw-pop-panel lw-color-panel'><div class='lw-color-plane' style='--hue:170' onclick=\"" $ widget_core::ColorPlaneJs(id, eventName) $ "\"><span class='lw-color-target'></span></div><div class='lw-hue-strip' onclick=\"" $ widget_core::ColorHueJs(id, eventName) $ "\"><span class='lw-hue-marker'></span></div><div class='lw-color-row'><span id='" $ desktopui::EscapeHtml(id) $ "_big' class='lw-color-preview' style='--picked:" $ safe $ "'></span><input id='" $ desktopui::EscapeHtml(id) $ "_hex' class='lw-color-hex' value='" $ safe $ "' onchange=\"" $ widget_core::ColorApplyInlineJs(id, eventName, "this.value", "hex") $ "\"></div><div class='lw-color-grid'>"
+    i = for (0, size(swatches), 1) {
+        sw = desktopui::EscapeHtml(swatches[i])
+        cls = "lw-color-chip"
+        if (swatches[i] == color) {
+            cls = "lw-color-chip current"
+        }
+        js = widget_core::ColorApplyInlineJs(id, eventName, "'" $ desktopui::EscapeJs(swatches[i]) $ "'", "swatch")
+        html = html $ "<button type='button' class='" $ cls $ "' data-color='" $ sw $ "' style='--swatch:" $ sw $ "' title='" $ sw $ "' onclick=\"" $ js $ "\"></button>"
+    }
+    html = html $ "</div></div></div>" $ widget_core::WidgetEnd()
+    return (html)
+}
+
+obj:ColorPicker() {
+    self.html = " "
+    self.id = "color_picker"
+    self.label = "Couleur"
+    self.value = "#00d4aa"
+    self.swatches = ("#00d4aa", "#3563e9", "#d64f8c", "#ff8b3d", "#18181b")
+    self.eventName = "color_change"
+    self.disabled = 0
+
+    func:Setup(self, id, label, value, swatches, eventName) {
+        self.id = id
+        self.label = label
+        self.value = value
+        self.swatches = swatches
+        self.eventName = eventName
+        return (self)
+    }
+
+    func:SetDisabled(self, disabled) {
+        self.disabled = disabled
+        return (self)
+    }
+
+    func:Close(self) {
+        self.html = widget_core::Styles() $ RenderColorPicker(self.id, self.label, self.value, self.swatches, self.eventName)
+        if (self.disabled == 1) {
+            self.html = widget_core::DisableHtml(self.html)
+        }
+        return (self)
+    }
+}

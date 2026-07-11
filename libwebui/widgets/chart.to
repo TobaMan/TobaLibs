@@ -1,0 +1,29 @@
+import : libwebui / widget_core
+
+obj:Chart() {
+    self.html = " "
+    self.id = "gallery_chart"
+    self.title = "Chart.js professional chart"
+    self.note = "Toba can push real-time points through the bridge"
+    self.disabled = 0
+
+    func:Setup(self, id, title, note) {
+        self.id = id
+        self.title = title
+        self.note = note
+        return (self)
+    }
+
+    func:SetDisabled(self, disabled) {
+        self.disabled = disabled
+        return (self)
+    }
+
+    func:Close(self) {
+        self.html = widget_core::Styles() $ widget_core::Chart(self.id, self.title, self.note)
+        if (self.disabled == 1) {
+            self.html = widget_core::DisableHtml(self.html)
+        }
+        return (self)
+    }
+}

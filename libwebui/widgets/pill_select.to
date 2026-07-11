@@ -1,0 +1,6 @@
+import : libwebui / widgets
+
+func: PillSelect(selectId, label, optionsHtml, onChangeJs) {
+    return (widgets::PillSelect(selectId, label, optionsHtml, onChangeJs))
+}
+

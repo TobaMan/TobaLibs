@@ -1,0 +1,6 @@
+import : libwebui / widgets
+
+func: Kpi(kpiId, label, value, note) {
+    return (widgets::Kpi(kpiId, label, value, note))
+}
+

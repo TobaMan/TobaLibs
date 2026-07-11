@@ -1,0 +1,6 @@
+import : libwebui / widgets
+
+func: GpuMetricRow(gpuName, usedMb, totalMb, percent, tempC) {
+    return (widgets::GpuMetricRow(gpuName, usedMb, totalMb, percent, tempC))
+}
+

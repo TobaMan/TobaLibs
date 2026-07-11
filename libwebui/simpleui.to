@@ -1,0 +1,283 @@
+import : libwebui / desktopui
+import : libwebui / eventbus
+import : libwebui / uiutil
+import : libjson / json
+
+func: DefaultDebugPath(title) {
+    safe = uiutil::TextOrEmpty(title)
+    safe = freplace(safe, " ", "_")
+    safe = freplace(safe, ":", "_")
+    safe = freplace(safe, "/", "_")
+    safe = freplace(safe, "\\", "_")
+    return ("C:/Toba/modules/libwebui/examples/" $ safe $ "_simple_debug.html")
+}
+
+func: DefaultEvent(prefix, id) {
+    return (uiutil::TextOrEmpty(prefix) $ "_" $ uiutil::TextOrEmpty(id))
+}
+
+func: EventName(raw) {
+    return (json::GetString(raw, "name", ""))
+}
+
+func: EventData(raw) {
+    return (json::GetRaw(raw, "data", "{}"))
+}
+
+func: EventValue(raw) {
+    return (json::GetString(EventData(raw), "value", ""))
+}
+
+func: Styles() {
+    css = "<style>"
+    css = css $ ":root{--bg:#f4f7fb;--surface:#fff;--card:#fff;--hover:#eef3fb;--border:#d8e1ef;--text:#1c2b3f;--muted:#71829a;--accent:#0c9c7e;--glow:rgba(12,156,126,.16);--radius:6px;--mono:'Consolas','JetBrains Mono',monospace;--sans:'Segoe UI',Arial,sans-serif}"
+    css = css $ "body[data-theme='shadcn_dark']{--bg:#09090b;--surface:#0f0f12;--card:#111113;--hover:#1f1f23;--border:#27272a;--text:#fafafa;--muted:#a1a1aa;--accent:#fafafa;--glow:rgba(250,250,250,.1)}"
+    css = css $ "*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13px}.su-page{min-height:100vh;display:grid;grid-template-rows:44px 1fr 28px}.su-head,.su-foot{display:flex;align-items:center;background:var(--surface);border-color:var(--border)}.su-head{justify-content:space-between;padding:0 14px;border-bottom:1px solid var(--border);font-weight:800}.su-foot{padding:0 14px;border-top:1px solid var(--border);color:var(--muted);font-size:12px}.su-main{padding:14px;overflow:auto}.su-wrap{max-width:980px;margin:0 auto;display:flex;flex-direction:column;gap:12px}.su-field{display:flex;align-items:center;width:100%;min-height:36px;border:1px solid var(--border);border-radius:var(--radius);background:var(--card);padding:3px;overflow:hidden}.su-field:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--glow)}.su-label{font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.12em;padding:0 10px;white-space:nowrap}.su-sep{width:1px;height:18px;background:var(--border);flex:0 0 1px}.su-input,.su-select{min-width:0;flex:1;height:28px;border:0;outline:0;background:transparent;color:var(--text);padding:0 10px;font-family:var(--sans);font-size:12.5px}.su-value{min-width:0;flex:1;height:28px;display:flex;align-items:center;padding:0 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.su-btn{height:30px;border:0;background:transparent;color:var(--text);font-weight:800;padding:0 13px;cursor:pointer}.su-btn:hover{background:var(--hover);color:var(--accent)}.su-btn.primary{background:var(--accent);color:var(--bg)}.su-toolbar{display:flex;align-items:center;gap:0;border:1px solid var(--border);border-radius:var(--radius);background:var(--card);padding:3px;width:max-content;max-width:100%;overflow:hidden}.su-toolbar.right{margin-left:auto}.su-toolbar .su-btn{border-radius:0}.su-toolbar .su-btn:first-child{border-top-left-radius:var(--radius);border-bottom-left-radius:var(--radius)}.su-toolbar .su-btn:last-child{border-top-right-radius:var(--radius);border-bottom-right-radius:var(--radius)}.su-theme{height:28px;border:1px solid var(--border);border-radius:var(--radius);background:var(--card);color:var(--text);font-family:var(--mono);font-size:12px;padding:0 8px}.su-toast-root{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:8px;z-index:999}.su-toast{min-width:240px;max-width:360px;border:1px solid var(--border);border-radius:var(--radius);background:var(--card);box-shadow:0 18px 50px rgba(0,0,0,.24);padding:10px 12px}.su-toast-title{font-weight:800}.su-toast-text{color:var(--muted);font-size:12px;margin-top:2px}"
+    css = css $ "</style>"
+    return (css)
+}
+
+func: Script() {
+    js = "<script>"
+    js = js $ "window.suTheme=function(v){document.body.setAttribute('data-theme',v);webuiEvent('theme_change',{id:'theme',value:v})};"
+    js = js $ "window.webuiNotify=function(p){p=p||{};var r=document.getElementById('su_toasts');if(!r)return;var t=document.createElement('div');t.className='su-toast';var title=String(p.title||'Info');var text=String(p.text||String());t.innerHTML='<div class=\"su-toast-title\">'+title+'</div><div class=\"su-toast-text\">'+text+'</div>';r.appendChild(t);setTimeout(function(){if(t.parentNode)t.parentNode.removeChild(t)},2600);webuiEvent('toast',{id:'toast',title:title,text:text})};"
+    js = js $ "window.webuiSetFilePicker=function(p){p=p||{};var id=String(p.id||String());var path=String(p.path||p.value||String());var e=document.getElementById(id+'_value');if(e){e.textContent=path;e.title=path}var root=document.getElementById(id);if(root)root.setAttribute('data-path',path)};"
+    js = js $ "window.addEventListener('load',function(){webuiEvent('webui_loaded',{id:'webui_loaded'})});"
+    js = js $ "</script>"
+    return (js)
+}
+
+func: OptionHtml(value, selected) {
+    sel = ""
+    if (value == selected) {
+        sel = " selected"
+    }
+    return ("<option value='" $ desktopui::EscapeHtml(value) $ "'" $ sel $ ">" $ desktopui::EscapeHtml(value) $ "</option>")
+}
+
+obj:Window() {
+    self.title = "Toba Tool"
+    self.footer = "libwebui simpleui"
+    self.port = 19192
+    self.debugPath = "C:/Toba/modules/libwebui/examples/simpleui_debug.html"
+    self.width = 720
+    self.height = 520
+    self.x = 160
+    self.y = 100
+    self.usePosition = 0
+    self.body = " "
+    self.toolbar = " "
+    self.toolbarRight = 0
+
+    func:Setup(self, title) {
+        self.title = title
+        self.debugPath = DefaultDebugPath(title)
+        return (self)
+    }
+
+    func:SetTitle(self, title) {
+        self.title = title
+        return (self)
+    }
+
+    func:SetFooter(self, footer) {
+        self.footer = footer
+        return (self)
+    }
+
+    func:SetPort(self, port) {
+        self.port = port
+        return (self)
+    }
+
+    func:SetDebugPath(self, path) {
+        self.debugPath = uiutil::NormalizePath(path)
+        return (self)
+    }
+
+    func:NoDebug(self) {
+        self.debugPath = ""
+        return (self)
+    }
+
+    func:SetWindow(self, width, height, x, y) {
+        self.width = width
+        self.height = height
+        self.x = x
+        self.y = y
+        self.usePosition = 1
+        return (self)
+    }
+
+    func:SetSize(self, width, height) {
+        self.width = width
+        self.height = height
+        self.usePosition = 0
+        return (self)
+    }
+
+    func:SetPosition(self, x, y) {
+        self.x = x
+        self.y = y
+        self.usePosition = 1
+        return (self)
+    }
+
+    func:Normal(self) {
+        return (self)
+    }
+
+    func:Maximized(self) {
+        self.width = 1480
+        self.height = 900
+        self.usePosition = 0
+        return (self)
+    }
+
+    func:ThemeSelector(self, enabled) {
+        return (self)
+    }
+
+    func:Text(self, id, label, value) {
+        return (self.TextEvent(id, label, value, DefaultEvent("change", id)))
+    }
+
+    func:TextEvent(self, id, label, value, eventName) {
+        eid = desktopui::EscapeJs(eventName)
+        hid = desktopui::EscapeHtml(id)
+        html = "<div id='" $ hid $ "' class='su-field'><span class='su-label'>" $ desktopui::EscapeHtml(label) $ "</span><span class='su-sep'></span><input id='" $ hid $ "_input' class='su-input' value='" $ desktopui::EscapeHtml(value) $ "' onchange=\"webuiEvent('" $ eid $ "',{id:'" $ desktopui::EscapeJs(id) $ "',value:this.value})\"></div>"
+        self.body = self.body $ html
+        return (self)
+    }
+
+    func:Select(self, id, label, options, value) {
+        return (self.SelectEvent(id, label, options, DefaultEvent("change", id)))
+    }
+
+    func:SelectEvent(self, id, label, options, eventName) {
+        eid = desktopui::EscapeJs(eventName)
+        hid = desktopui::EscapeHtml(id)
+        items = ""
+        i = for (0, size(options), 1) {
+            items = items $ OptionHtml(options[i], options[0])
+        }
+        html = "<div id='" $ hid $ "' class='su-field'><span class='su-label'>" $ desktopui::EscapeHtml(label) $ "</span><span class='su-sep'></span><select id='" $ hid $ "_input' class='su-select' onchange=\"webuiEvent('" $ eid $ "',{id:'" $ desktopui::EscapeJs(id) $ "',value:this.value})\">" $ items $ "</select></div>"
+        self.body = self.body $ html
+        return (self)
+    }
+
+    func:File(self, id, label, value, accept) {
+        return (self.FileEvent(id, label, value, accept, DefaultEvent("pick", id)))
+    }
+
+    func:FileEvent(self, id, label, value, accept, eventName) {
+        hid = desktopui::EscapeHtml(id)
+        eid = desktopui::EscapeJs(eventName)
+        html = "<div id='" $ hid $ "' class='su-field' data-path='" $ desktopui::EscapeHtml(value) $ "'><span class='su-label'>" $ desktopui::EscapeHtml(label) $ "</span><span class='su-sep'></span><span id='" $ hid $ "_value' class='su-value'>" $ desktopui::EscapeHtml(value) $ "</span><button type='button' class='su-btn primary' onclick=\"webuiEvent('" $ eid $ "',{id:'" $ desktopui::EscapeJs(id) $ "',value:document.getElementById('" $ desktopui::EscapeJs(id) $ "').getAttribute('data-path'),accept:'" $ desktopui::EscapeJs(accept) $ "'})\">Choisir</button></div>"
+        self.body = self.body $ html
+        return (self)
+    }
+
+    func:ActionsRight(self) {
+        self.toolbarRight = 1
+        return (self)
+    }
+
+    func:Button(self, id, text, icon, kind) {
+        return (self.ButtonEvent(id, text, icon, id, kind))
+    }
+
+    func:ButtonEvent(self, id, text, icon, eventName, kind) {
+        cls = "su-btn"
+        if (kind == "primary") { cls = "su-btn primary" }
+        self.toolbar = self.toolbar $ "<button id='" $ desktopui::EscapeHtml(id) $ "' type='button' class='" $ cls $ "' onclick=\"webuiEvent('" $ desktopui::EscapeJs(eventName) $ "',{id:'" $ desktopui::EscapeJs(id) $ "',label:'" $ desktopui::EscapeJs(text) $ "'})\">" $ desktopui::EscapeHtml(text) $ "</button>"
+        return (self)
+    }
+
+    func:IconButton(self, id, icon) {
+        return (self.ButtonEvent(id, icon, icon, id, " "))
+    }
+
+    func:Add(self, widget) {
+        self.body = self.body $ widget.html
+        return (self)
+    }
+
+    func:AddHtml(self, html) {
+        self.body = self.body $ html
+        return (self)
+    }
+
+    func:Build(self) {
+        if (self.toolbar != " ") {
+            cls = "su-toolbar"
+            if (self.toolbarRight == 1) { cls = "su-toolbar right" }
+            self.body = self.body $ "<div class='" $ cls $ "'>" $ self.toolbar $ "</div>"
+            self.toolbar = " "
+        }
+        return (self)
+    }
+
+    func:Render(self) {
+        self.Build()
+        theme = "<select class='su-theme' onchange='suTheme(this.value)'><option value='light_modern'>Light Modern</option><option value='shadcn_dark'>shadcn Dark</option></select>"
+        html = "<!doctype html><html><head><meta charset='utf-8'><title>" $ desktopui::EscapeHtml(self.title) $ "</title>" $ Styles() $ "</head><body data-theme='light_modern'><div class='su-page'><header class='su-head'><span>" $ desktopui::EscapeHtml(self.title) $ "</span>" $ theme $ "</header><main class='su-main'><div class='su-wrap'>" $ self.body $ "</div></main><footer class='su-foot'>" $ desktopui::EscapeHtml(self.footer) $ "</footer></div><div id='su_toasts' class='su-toast-root'></div>" $ Script() $ "</body></html>"
+        html = desktopui::WithBridge(html, self.port)
+        return (html)
+    }
+
+    func:Show(self) {
+        return (self.ShowAsync())
+    }
+
+    func:ShowAsync(self) {
+        selectedPort = desktopui::BridgeStartReliable(self.port, 40)
+        if (selectedPort != 0) {
+            self.port = selectedPort
+        }
+        html = self.Render()
+        if (size(self.debugPath) > 0) {
+            fswritef(self.debugPath, html)
+        }
+        win = desktopui::ShowBrowser(html, 1)
+        if (self.usePosition == 1) {
+            desktopui::SetWindow(win, self.width, self.height, self.x, self.y)
+        }
+        else {
+            desktopui::SetSizeOnly(win, self.width, self.height)
+        }
+        return (win)
+    }
+
+    func:Poll(self, timeoutMs) {
+        return (eventbus::Poll(timeoutMs))
+    }
+
+    func:PollRaw(self, timeoutMs) {
+        return (desktopui::BridgePoll(timeoutMs))
+    }
+
+    func:EventName(self, raw) {
+        return (EventName(raw))
+    }
+
+    func:EventValue(self, raw) {
+        return (EventValue(raw))
+    }
+
+    func:SetFile(self, id, path) {
+        uiutil::SetFilePicker(id, path)
+        return (self)
+    }
+
+    func:Notify(self, title, text) {
+        uiutil::Notify(title, text)
+        return (self)
+    }
+}
+
+func: New(title) {
+    app = Window()
+    app.Setup(title)
+    return (app)
+}

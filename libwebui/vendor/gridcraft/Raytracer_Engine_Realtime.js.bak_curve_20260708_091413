@@ -1,0 +1,1346 @@
+// Shaders GLSL extraits de test4.html
+
+const vertexShaderSource = `
+    #version 300 es
+    in vec2 a_position;
+    out vec2 v_texcoord;
+    void main() {
+        v_texcoord = a_position * 0.5 + 0.5;
+        gl_Position = vec4(a_position, 0.0, 1.0);
+    }
+`;
+
+const tracerFragmentShaderSource = `
+    #version 300 es
+    precision highp float;
+    uniform vec2 u_resolution;
+    uniform float u_time;
+    uniform int u_max_bounces;
+    uniform int u_frame_count;
+    uniform sampler2D u_last_frame;
+    uniform vec3 u_background_color;
+    uniform bool u_enable_nee;
+    uniform float u_emissive_power;
+    uniform float u_front_emission;
+    uniform float u_temporal_alpha;
+    uniform int u_samples_per_frame;
+
+    in vec2 v_texcoord;
+    out vec4 outColor;
+
+    const float PI = 3.14159265359;
+    const int SCENE_SIZE = 32;
+    const int MAX_LIGHTS = 8;
+
+    struct Ray {
+        vec2 origin;
+        vec2 direction;
+    };
+
+    struct Object {
+        int type;      
+        vec2 position;
+        vec2 size;
+        vec3 color;
+        float radius;
+        int materialType;
+        float roughness;
+        float ior;
+        float opacity;
+    };
+    
+    struct Light {
+        vec2 position;
+        vec2 size;
+        vec3 color;
+        float intensity;
+    };
+
+    uniform Object u_objects[SCENE_SIZE];
+    uniform Light u_lights[MAX_LIGHTS];
+    uniform int u_num_lights;
+    uniform int u_num_objects;
+    // 1 = moyenne cumulative vraie (poids 1/N) pendant la convergence temporal=0,
+    // 0 = lissage exponentiel classique (u_temporal_alpha).
+    uniform int u_accum_mode;
+
+
+    float random(vec2 st) {
+        // Hash entier type PCG2D : bruit bien reparti, sans les correlations
+        // structurees du classique fract(sin(dot)) -> converge plus vite et se
+        // denoise mieux. Meme signature, meme cout.
+        uvec2 q = floatBitsToUint(st);
+        q = q * 1664525u + 1013904223u;
+        q.x += q.y * 1664525u; q.y += q.x * 1664525u;
+        q ^= q >> 16u;
+        q.x += q.y * 1664525u; q.y += q.x * 1664525u;
+        q ^= q >> 16u;
+        return float(q.x & 0x007fffffu) / float(0x00800000);
+    }
+
+    float sampleTime() {
+        // Temporal=0 sert de mode "stable": pas de feedback temporel et pas de
+        // nouveau seed aleatoire chaque frame. Le bruit restant est fixe, donc
+        // le filtre spatial peut le lisser sans scintillement permanent.
+        return (u_temporal_alpha <= 0.001) ? 0.0 : u_time;
+    }
+
+    vec2 cosine_hemisphere(vec2 normal, float r1, float r2) {
+        float r = sqrt(r1);
+        float theta = 2.0 * PI * r2;
+        vec2 tangent = vec2(normal.y, -normal.x);
+        vec2 disk = vec2(r * cos(theta), r * sin(theta));
+        float h = sqrt(max(0.0, 1.0 - r1));
+        return normalize(disk.x * tangent + h * normal);
+    }
+
+    float sdRoundedBox(vec2 p, vec2 b, float r) {
+        vec2 q = abs(p) - b + vec2(r);
+        return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+    }
+
+    // SDF cercle/ellipse pur : isolignes RADIALES (pas de losange interne comme
+    // sdRoundedBox quand r=b). Utilise quand l'objet est quasi-circulaire.
+    float sdCircleBox(vec2 p, vec2 b) {
+        // Normalise par les demi-axes -> distance radiale correcte, y compris a
+        // l'interieur (les iso-distances restent des cercles/ellipses).
+        float k = length(p / b);
+        return (k - 1.0) * min(b.x, b.y);
+    }
+
+    // Objet considere rond si son radius atteint ~la moitie du plus petit cote.
+    bool isRound(Object obj) {
+        return obj.radius >= min(obj.size.x, obj.size.y) * 0.5 - 0.5;
+    }
+
+    // Environnement synthetique : le fond d'ambiance (u_background_color) module
+    // par une legere variation DIRECTIONNELLE. Un fond uniforme donne des miroirs
+    // plats/ternes ; ici le "ciel" est un peu plus clair vers le haut et prend un
+    // gradient doux -> les surfaces MIROIR et VERRE refletent un environnement
+    // avec du relief (aspect metallique/verre credible) meme dans une scene
+    // pauvre. Pour le DIFFUS, qui echantillonne toutes les directions, la moyenne
+    // reste ~u_background_color : aucun changement de comportement.
+    vec3 environmentColor(vec2 dir) {
+        vec2 d = normalize(dir);
+        // Gradient vertical doux (haut plus lumineux) + fine teinte laterale.
+        float grad = 0.5 + 0.5 * (-d.y);            // 0 (bas) -> 1 (haut)
+        float shade = mix(0.82, 1.18, grad);        // +-18% autour du fond
+        vec3 env = u_background_color * shade;
+        // Leger reflet chaud/froid selon l'axe X pour casser l'uniformite.
+        env += vec3(0.03, 0.02, 0.05) * d.x;
+        return max(env, vec3(0.0));
+    }
+
+    float intersectObject(Ray r, Object obj, out vec2 normal) {
+        float t = -1.0;
+        normal = vec2(0.0);
+        
+        if (obj.type == 0) {
+            if (obj.radius < 1.0) { // AABB optimization for sharp corners
+                vec2 min_bounds = obj.position - obj.size * 0.5;
+                vec2 max_bounds = obj.position + obj.size * 0.5;
+                vec2 invDir = 1.0 / r.direction;
+                vec2 t1 = (min_bounds - r.origin) * invDir;
+                vec2 t2 = (max_bounds - r.origin) * invDir;
+                vec2 tmin = min(t1, t2);
+                vec2 tmax = max(t1, t2);
+                float t_enter = max(tmin.x, tmin.y);
+                float t_exit = min(tmax.x, tmax.y);
+                if (t_exit >= t_enter && t_exit > 0.0) {
+                    t = t_enter > 0.001 ? t_enter : t_exit;
+                    vec2 hitPoint = r.origin + r.direction * t;
+                    vec2 p = (hitPoint - obj.position) / (obj.size * 0.5);
+                    float epsilon = 0.01;
+                    if(abs(abs(p.x) - 1.0) < epsilon) normal = vec2(sign(p.x), 0.0);
+                    else normal = vec2(0.0, sign(p.y));
+                }
+            } else { // Coins arrondis OU cercle/ellipse pur
+                // Pre-rejet AABB (slab test) : la boite englobante d'un rounded
+                // box / ellipse est exactement obj.size. Si le rayon la rate, on
+                // sort tout de suite au lieu de payer 64 pas de marche. Le slab
+                // donne aussi t_enter/t_exit pour borner la marche.
+                vec2 b = obj.size * 0.5;
+                vec2 min_bounds = obj.position - b;
+                vec2 max_bounds = obj.position + b;
+                vec2 invDir = 1.0 / r.direction;
+                vec2 t1 = (min_bounds - r.origin) * invDir;
+                vec2 t2 = (max_bounds - r.origin) * invDir;
+                vec2 tmin = min(t1, t2);
+                vec2 tmax = max(t1, t2);
+                float t_enter = max(tmin.x, tmin.y);
+                float t_exit = min(tmax.x, tmax.y);
+                if (t_exit < t_enter || t_exit <= 0.0) return -1.0;
+
+                vec2 local_origin = r.origin - obj.position;
+                if (isRound(obj)) {
+                    // Intersection analytique rayon/ellipse (forme fermee) :
+                    // remplace la marche 64 pas, normale exacte p/b^2 au lieu des
+                    // differences finies. Semantique conservee : origine
+                    // interieure -> t=0 (rejete par intersectScene, comme avant).
+                    vec2 oe = local_origin / b;
+                    vec2 de = r.direction / b;
+                    float A = dot(de, de);
+                    float B = dot(oe, de);
+                    float C = dot(oe, oe) - 1.0;
+                    if (C < 0.0) return 0.0;
+                    float disc = B * B - A * C;
+                    if (disc < 0.0) return -1.0;
+                    float tt = (-B - sqrt(disc)) / A;
+                    if (tt <= 0.0) return -1.0;
+                    t = tt;
+                    vec2 p = local_origin + t * r.direction;
+                    normal = normalize(p / (b * b));
+                } else {
+                    // Marche SDF bornee par le slab : demarre a l'entree de
+                    // l'AABB (pas a 0) et s'arrete des qu'on en ressort.
+                    float t_march = max(t_enter, 0.0);
+                    for(int j=0; j<64; j++) {
+                        vec2 p = local_origin + t_march * r.direction;
+                        float d = sdRoundedBox(p, b, obj.radius);
+                        if (d < 0.01) {
+                            t = t_march;
+                            vec2 eps = vec2(0.01, 0.0);
+                            normal = normalize(vec2(
+                                sdRoundedBox(p + eps.xy, b, obj.radius) - sdRoundedBox(p - eps.xy, b, obj.radius),
+                                sdRoundedBox(p + eps.yx, b, obj.radius) - sdRoundedBox(p - eps.yx, b, obj.radius)
+                            ));
+                            break;
+                        }
+                        t_march += d;
+                        if (t_march > t_exit + 1.0) break;
+                    }
+                }
+            }
+        }
+        return t;
+    }
+
+    float intersectScene(Ray r, out int hit_id, out vec2 normal) {
+        float closest_t = 1e6;
+        hit_id = -1;
+        normal = vec2(0.0);
+        for (int i = 0; i < SCENE_SIZE; i++) {
+            if (i >= u_num_objects) break;
+            if (u_objects[i].type == -1) continue;
+            vec2 local_normal;
+            float t = intersectObject(r, u_objects[i], local_normal);
+            if (t > 0.001 && t < closest_t) {
+                closest_t = t;
+                hit_id = i;
+                normal = local_normal;
+            }
+        }
+        return closest_t;
+    }
+
+    vec2 customReflect2D(vec2 incident, vec2 normal) { return incident - 2.0 * dot(incident, normal) * normal; }
+    vec2 customRefract2D(vec2 incident, vec2 normal, float eta) {
+        float cosI = -dot(normal, incident);
+        float sinT2 = eta * eta * (1.0 - cosI * cosI);
+        if (sinT2 > 1.0) return customReflect2D(incident, normal);
+        float cosT = sqrt(1.0 - sinT2);
+        return eta * incident + (eta * cosI - cosT) * normal;
+    }
+    float fresnel2D(vec2 incident, vec2 normal, float ior) {
+        float cosi = clamp(dot(incident, normal), -1.0, 1.0);
+        float etai = 1.0, etat = ior;
+        if (cosi > 0.0) { float temp = etai; etai = etat; etat = temp; }
+        float sint = etai / etat * sqrt(max(0.0, 1.0 - cosi * cosi));
+        if (sint >= 1.0) return 1.0;
+        float cost = sqrt(max(0.0, 1.0 - sint * sint));
+        cosi = abs(cosi);
+        float Rs = ((etat * cosi) - (etai * cost)) / ((etat * cosi) + (etai * cost));
+        float Rp = ((etai * cosi) - (etat * cost)) / ((etai * cosi) + (etat * cost));
+        return (Rs * Rs + Rp * Rp) / 2.0;
+    }
+    vec2 glossyReflection2D(vec2 perfect, vec2 normal, float roughness, float seed) {
+        if (roughness < 0.001) return perfect;
+        float rand_angle = random(vec2(seed, seed * 2.0)) * PI - (PI / 2.0);
+        vec2 tangent = vec2(normal.y, -normal.x);
+        vec2 randomDir = cos(rand_angle) * normal + sin(rand_angle) * tangent;
+        return normalize(mix(perfect, randomDir, roughness * roughness));
+    }
+
+    vec3 trace(Ray r) {
+        vec3 finalColor = vec3(0.0);
+        vec3 throughput = vec3(1.0);
+
+        for (int i = 0; i < 20; i++) {
+            if (i >= u_max_bounces) break;
+
+            int hit_id;
+            vec2 normal;
+            float closest_t = intersectScene(r, hit_id, normal);
+
+            if (hit_id == -1) {
+                // Rayon echappe : prend la couleur de l'environnement dans sa
+                // direction (fond d'ambiance + variation directionnelle) -> les
+                // miroirs/verres refletent un "ciel" avec du relief, pas du plat.
+                finalColor += environmentColor(r.direction) * throughput;
+                break;
+            }
+
+            Object obj = u_objects[hit_id];
+            vec2 hitPoint = r.origin + r.direction * closest_t;
+            
+            if (obj.materialType == 4) { // EMISSIVE
+                if (i == 0 || !u_enable_nee) {
+                   finalColor += throughput * obj.color * u_emissive_power;
+                }
+                break;
+            }
+
+            if (random(hitPoint + sampleTime() + float(i) * 0.1) > obj.opacity) {
+                r.origin = hitPoint + r.direction * 0.01;
+                continue;
+            }
+            
+            // === NEXT EVENT ESTIMATION (Direct Lighting) ===
+            // Applique aux surfaces DIFFUSES (0) ET GLOSSY (3). Le glossy recoit
+            // l'eclairage direct pondere par sa rugosite (roughness) : plus c'est
+            // rugueux, plus ca se comporte comme du diffus ; un glossy tres lisse
+            // (roughness~0) recoit peu de diffus (il compte surtout sur le reflet).
+            if (u_enable_nee && (obj.materialType == 0 || obj.materialType == 3)) {
+                float neeWeight = (obj.materialType == 3) ? clamp(obj.roughness, 0.15, 1.0) : 1.0;
+                for (int l = 0; l < u_num_lights; l++) {
+                     if(l >= MAX_LIGHTS) break;
+                    Light light = u_lights[l];
+
+                    // Seed AVEC composante temporelle : chaque frame echantillonne
+                    // un point different de la source -> les penombres convergent
+                    // vers un vrai degrade au fil de l'accumulation (avant : bruit
+                    // fige des la frame 1, seulement masque par le denoise).
+                    float lt = sampleTime();
+                    vec2 lightPoint = light.position + (vec2(random(hitPoint + float(l) + lt), random(hitPoint - float(l) - lt)) - 0.5) * light.size;
+                    vec2 toLight = lightPoint - hitPoint;
+                    float dist = length(toLight);
+                    vec2 dirToLight = toLight / dist;
+
+                    Ray shadowRay;
+                    // Biais d'ombre elargi (1.5px au lieu de 0.01) : sur les
+                    // petits objets ronds, un biais minuscule fait re-toucher le
+                    // meme objet (bord courbe) -> auto-ombre = liseré sombre. On
+                    // decale le long de la normale ET vers la lumiere pour sortir
+                    // franchement de la surface avant de tracer l'ombre.
+                    shadowRay.origin = hitPoint + normal * 1.5 + dirToLight * 1.5;
+                    shadowRay.direction = dirToLight;
+
+                    int shadow_hit;
+                    vec2 shadow_normal;
+                    float shadow_t = intersectScene(shadowRay, shadow_hit, shadow_normal);
+
+                    // On ignore aussi une auto-occlusion tres proche (le meme objet
+                    // touche a <2px = artefact de bord, pas une vraie ombre).
+                    if (shadow_hit == -1 || shadow_t > dist - 2.0) {
+                        float NdotL = max(dot(normal, dirToLight), 0.0);
+                        vec3 directLight = light.color * light.intensity * obj.color * NdotL * throughput * neeWeight / (dist * dist + 1.0);
+                        finalColor += directLight;
+                    }
+                }
+            }
+
+            // === INDIRECT LIGHTING / Material Logic ===
+            if(obj.materialType == 0) { // DIFFUSE
+                throughput *= obj.color;
+                float survival = max(throughput.r, max(throughput.g, throughput.b));
+                if (random(hitPoint + float(i) * 123.4) > survival || survival < 0.01) {
+                    break;
+                }
+                throughput /= survival;
+                r.direction = cosine_hemisphere(normal, random(hitPoint + sampleTime() + float(i)), random(hitPoint - sampleTime() - float(i)));
+            } else if(obj.materialType == 1) { // SPECULAR (Miroir)
+                r.direction = customReflect2D(r.direction, normal);
+                throughput *= vec3(1.0);
+            } else if(obj.materialType == 2) { // REFRACTIVE (Verre amélioré)
+                bool entering = dot(r.direction, normal) < 0.0;
+                vec2 refrNormal = entering ? normal : -normal;
+                float eta = entering ? 1.0 / obj.ior : obj.ior;
+                float kr = fresnel2D(r.direction, refrNormal, obj.ior);
+                float edgeFactor = 1.0 - abs(dot(r.direction, normal));
+                kr = mix(kr, 1.0, pow(edgeFactor, 4.0) * 0.5);
+
+                if(random(hitPoint + sampleTime() * 0.5 + float(i)) < kr) {
+                    r.direction = customReflect2D(r.direction, refrNormal);
+                    throughput *= mix(vec3(1.0), obj.color, 0.2);
+                } else {
+                    r.direction = customRefract2D(r.direction, refrNormal, eta);
+                    if (!entering) {
+                        throughput *= mix(vec3(1.0), obj.color, 0.8);
+                    } else {
+                        throughput *= mix(vec3(1.0), obj.color, 0.1);
+                    }
+                }
+            } else if(obj.materialType == 3) { // GLOSSY
+                vec2 perfectReflection = customReflect2D(r.direction, normal);
+                r.direction = glossyReflection2D(perfectReflection, normal, obj.roughness, sampleTime() + float(i));
+                throughput *= obj.color;
+            }
+
+            r.origin = hitPoint + normal * 0.01;
+        }
+        return finalColor;
+    }
+    
+    // EMISSION FRONTALE (axe Z) : le path tracer est 2D et n'emet que dans le
+    // plan (X,Y) -> le halo lateral existe mais la SURFACE de la source ne renvoie
+    // rien vers la camera (axe Z). Ici, si le pixel est DANS un objet emissif, on
+    // ajoute sa luminance propre : la surface parait rayonner vers l'observateur.
+    // La surface est pleinement lumineuse JUSQU'AU BORD (pas de contour eteint),
+    // coeur un peu plus vif. u_front_emission dose l'effet.
+    vec3 frontalEmission(vec2 pixel) {
+        vec3 sum = vec3(0.0);
+        for (int i = 0; i < SCENE_SIZE; i++) {
+            if (i >= u_num_objects) break;
+            if (u_objects[i].type == -1) continue;
+            if (u_objects[i].materialType != 4) continue;
+            Object o = u_objects[i];
+            vec2 p = pixel - o.position;
+            vec2 b = o.size * 0.5;
+            float d = isRound(o) ? sdCircleBox(p, b) : sdRoundedBox(p, b, o.radius);
+            // fill=1 partout dans l'objet, adouci sur ~1.5px au contour (anti-liseré).
+            float fill = 1.0 - smoothstep(-1.5, 0.5, d);
+            if (fill > 0.0) {
+                float depth = clamp(-d / max(min(b.x, b.y), 1.0), 0.0, 1.0);
+                float glow = mix(0.7, 1.15, smoothstep(0.0, 1.0, depth));
+                sum += o.color * u_emissive_power * u_front_emission * glow * fill;
+            }
+        }
+        return sum;
+    }
+
+    void main() {
+        vec2 pixel_coord = gl_FragCoord.xy;
+        float t = sampleTime();
+        vec2 jitter = vec2(random(pixel_coord + t), random(pixel_coord - t)) - 0.5;
+
+        Ray r;
+        r.origin = pixel_coord + jitter;
+        r.direction = vec2(
+            cos(random(r.origin + t * 0.1) * 2.0 * PI),
+            sin(random(r.origin + t * 0.1) * 2.0 * PI)
+        );
+
+        vec3 current_sample_color = vec3(0.0);
+        int samples = min(max(u_samples_per_frame, 1), 4);
+        for (int s = 0; s < 4; s++) {
+            if (s >= samples) break;
+            float seed = float(s) * 19.173;
+            vec2 sampleJitter = vec2(random(pixel_coord + t + seed), random(pixel_coord - t - seed)) - 0.5;
+
+            Ray sr;
+            sr.origin = pixel_coord + sampleJitter;
+            sr.direction = vec2(
+                cos(random(sr.origin + t * 0.1 + seed) * 2.0 * PI),
+                sin(random(sr.origin + t * 0.1 + seed) * 2.0 * PI)
+            );
+            current_sample_color += trace(sr);
+        }
+        current_sample_color /= float(samples);
+        current_sample_color += frontalEmission(pixel_coord);
+
+        vec3 last_frame_color = texture(u_last_frame, v_texcoord).rgb;
+        float a = clamp(u_temporal_alpha, 0.0, 1.0);
+        // Convergence temporal=0 : moyenne cumulative vraie (poids 1/N). L'EMA a
+        // alpha fixe gardait ~alpha de bruit de la DERNIERE frame dans l'image
+        // figee ; le 1/N converge vers la moyenne mathematique des N frames.
+        if (u_accum_mode == 1) a = 1.0 / float(u_frame_count + 1);
+        vec3 finalColor = (u_frame_count <= 0 || a <= 0.001) ? current_sample_color : mix(last_frame_color, current_sample_color, a);
+        
+        outColor = vec4(finalColor, 1.0);
+    }
+`;
+
+const displayFragmentShaderSource = `
+    #version 300 es
+    precision highp float;
+
+    uniform sampler2D u_texture;
+    uniform vec2 u_resolution;
+
+    // Post-Processing Uniforms
+    uniform bool u_enable_srgb;
+    uniform float u_brightness_boost;
+    uniform float u_contrast_boost;
+    uniform float u_saturation;
+    uniform bool u_enable_bloom;
+    uniform float u_bloom_strength;
+    uniform float u_bloom_threshold;
+    uniform bool u_enable_denoise;
+    uniform float u_denoise_strength;
+    uniform float u_denoise_radius;
+
+    in vec2 v_texcoord;
+    out vec4 outColor;
+
+    // Saturation function
+    vec3 adjustSaturation(vec3 color, float saturation) {
+        float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722));
+        vec3 grayscale = vec3(luminance);
+        return mix(grayscale, color, saturation);
+    }
+
+    // Simple Gaussian blur for bloom
+    vec3 blur(sampler2D tex, vec2 uv, vec2 resolution) {
+        vec3 sum = vec3(0.0);
+        float kernel[9] = float[](
+            1.0/16.0, 2.0/16.0, 1.0/16.0,
+            2.0/16.0, 4.0/16.0, 2.0/16.0,
+            1.0/16.0, 2.0/16.0, 1.0/16.0
+        );
+        vec2 pixelSize = 1.0 / resolution;
+        int idx = 0;
+        for (int y = -1; y <= 1; y++) {
+            for (int x = -1; x <= 1; x++) {
+                vec2 offset = vec2(float(x), float(y)) * pixelSize;
+                vec3 texColor = texture(tex, uv + offset).rgb;
+                // Isolate bright parts inside the blur
+                vec3 bright = max(texColor - u_bloom_threshold, 0.0);
+                sum += bright * kernel[idx++];
+            }
+        }
+        return sum;
+    }
+
+    float luma(vec3 c) {
+        return dot(c, vec3(0.2126, 0.7152, 0.0722));
+    }
+
+    // Filtre spatial type SVGF/a-trous simplifie + anti-firefly. Version grille
+    // stable : plus couteuse que la tentative Poisson, mais connue comme
+    // fonctionnelle dans ce prototype.
+    vec3 svgfDenoise(sampler2D tex, vec2 uv, vec2 resolution) {
+        vec2 px = 1.0 / resolution;
+        vec3 center = texture(tex, uv).rgb;
+        float radius = max(0.5, u_denoise_radius);
+
+        vec3 mean = vec3(0.0);
+        vec3 meanSq = vec3(0.0);
+        float statWeight = 0.0;
+        for (int y = -2; y <= 2; y++) {
+            for (int x = -2; x <= 2; x++) {
+                vec2 o = vec2(float(x), float(y));
+                float w = exp(-dot(o, o) * 0.20);
+                vec3 c = texture(tex, uv + o * px * radius).rgb;
+                mean += c * w;
+                meanSq += c * c * w;
+                statWeight += w;
+            }
+        }
+        mean /= max(statWeight, 0.0001);
+        meanSq /= max(statWeight, 0.0001);
+        vec3 sigma = sqrt(max(meanSq - mean * mean, vec3(0.0001)));
+        vec3 clippedCenter = clamp(center, mean - sigma * 1.35, mean + sigma * 1.35);
+
+        vec3 sum = clippedCenter * 0.22;
+        float weightSum = 0.22;
+        float centerLum = luma(clippedCenter);
+
+        for (int y = -3; y <= 3; y++) {
+            for (int x = -3; x <= 3; x++) {
+                if (x == 0 && y == 0) continue;
+                vec2 o = vec2(float(x), float(y));
+                float spatial = exp(-dot(o, o) * 0.16);
+                vec3 sampleColor = texture(tex, uv + o * px * radius).rgb;
+                float lumDiff = abs(luma(sampleColor) - centerLum);
+                float range = exp(-lumDiff * 1.15);
+                float w = spatial * range;
+                sum += sampleColor * w;
+                weightSum += w;
+            }
+        }
+
+        vec3 filtered = sum / max(weightSum, 0.0001);
+        return mix(clippedCenter, filtered, clamp(u_denoise_strength, 0.0, 1.0));
+    }
+
+    void main() {
+        vec3 color = texture(u_texture, v_texcoord).rgb;
+
+        if (u_enable_denoise) {
+            color = svgfDenoise(u_texture, v_texcoord, u_resolution);
+        }
+
+        // 1. Luminosité
+        color *= u_brightness_boost;
+
+        // 2. Contraste
+        color = (color - 0.5) * u_contrast_boost + 0.5;
+
+        // 3. Saturation
+        color = adjustSaturation(color, u_saturation);
+
+        color = clamp(color, 0.0, 1.0);
+
+        // 4. Bloom/Glow
+        if (u_enable_bloom) {
+            vec3 bloom = blur(u_texture, v_texcoord, u_resolution);
+            color += bloom * u_bloom_strength;
+        }
+
+        // 5. Gamma Correction (sRGB)
+        if (u_enable_srgb) {
+            color = pow(color, vec3(1.0/2.2));
+        }
+
+        outColor = vec4(color, 1.0);
+    }
+`;
+
+
+class Raytracer2D {
+    constructor(canvasId, options = {}) {
+        this.canvas = document.getElementById(canvasId);
+        if (!this.canvas) {
+            console.warn(`Canvas with id "${canvasId}" not found. Creating one automatically.`);
+            this.canvas = document.createElement('canvas');
+            this.canvas.id = canvasId;
+            this.canvas.style.position = 'fixed';
+            this.canvas.style.top = '0';
+            this.canvas.style.left = '0';
+            this.canvas.style.width = '100%';
+            this.canvas.style.height = '100%';
+            this.canvas.style.zIndex = '10';
+            this.canvas.style.pointerEvents = 'none';
+            this.canvas.style.mixBlendMode = 'multiply';
+            this.canvas.style.opacity = '0.7';
+            document.body.appendChild(this.canvas);
+        }
+        
+        this.gl = this.canvas.getContext('webgl2', { alpha: true, antialias: false, powerPreference: 'high-performance' });
+
+        this.SCENE_SIZE = 32;
+        this.MAX_LIGHTS = 8;
+        this.scene = [];
+        this.lights = [];
+        
+        this.baseDomTags = ['div', 'button', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a', 'span', 'li', 'section', 'header', 'footer', 'main', 'article', 'input', 'select', 'textarea', 'label', 'nav', 'aside', 'form', 'img', 'video', 'svg', 'canvas', 'iframe', 'ul'];
+
+        this.selectorFilter = options.domSelector || '';
+        this.backgroundColor = [0.95, 0.96, 0.98];
+        this.maxBounces = options.maxBounces !== undefined ? options.maxBounces : 2;
+        this.srgbEnabled = true;
+        this.neeEnabled = true;
+        // Resolution interne de rendu (1.0 = plein). Baisser pour accelerer.
+        this.renderScale = options.renderScale !== undefined ? options.renderScale : 0.55;
+
+        this.brightnessBoost = 1.0;
+        this.contrastBoost = 1.0;
+        this.saturation = 1.0;
+        this.emissivePower = 2.0;
+        this.frontEmission = 1.5;
+        this.temporalAlpha = options.temporalAlpha !== undefined ? options.temporalAlpha : 0.16;
+        // Si l'utilisateur met Temporal a 0, on ne fige pas la toute premiere
+        // passe bruitee : on laisse quelques frames converger automatiquement,
+        // puis on bloque le rendu. C'est l'equivalent du geste manuel
+        // "monter Temporal puis revenir a zero", mais fait par le moteur.
+        this.zeroTemporalSettleFrames = options.zeroTemporalSettleFrames !== undefined ? options.zeroTemporalSettleFrames : 18;
+        this.zeroTemporalWarmupAlpha = options.zeroTemporalWarmupAlpha !== undefined ? options.zeroTemporalWarmupAlpha : 0.18;
+        this.denoiseEnabled = options.denoiseEnabled !== undefined ? !!options.denoiseEnabled : true;
+        this.denoiseStrength = options.denoiseStrength !== undefined ? options.denoiseStrength : 0.86;
+        this.denoiseRadius = options.denoiseRadius !== undefined ? options.denoiseRadius : 1.8;
+        this.bloomEnabled = options.bloomEnabled !== undefined ? !!options.bloomEnabled : true;
+        this.bloomStrength = options.bloomStrength !== undefined ? options.bloomStrength : 0.55;
+        this.bloomThreshold = options.bloomThreshold !== undefined ? options.bloomThreshold : 0.62;
+        this.preserveAccumulationOnMove = !!options.preserveAccumulationOnMove;
+        this.settleProfile = options.settleProfile || 'default';
+        this.burstSamples = 1;
+        this._applySettleProfileDefaults();
+        
+        this.domElementProperties = new Map();
+
+        this.tracerProgram = null;
+        this.displayProgram = null;
+        this.tracerUniforms = {};
+        this.displayUniforms = {};
+        this.frameCount = 0;
+        this.readIndex = 0;
+        // Presentation paresseuse : une fois l'image stable affichee, on ne
+        // redessine plus rien tant qu'un reglage d'affichage ne change pas.
+        this._stablePresented = false;
+        this._displayDirty = true;
+
+        this.debounceScan = this._debounce(this.updateSceneFromDOM, 100);
+
+        this._init();
+    }
+
+    setDomSelector(selector) {
+    }
+
+    setSelectorFilter(filter) {
+        if (this.selectorFilter !== filter) {
+            this.selectorFilter = filter;
+            this.updateSceneFromDOM();
+        }
+    }
+
+    _init() {
+        if (!this.gl) { console.error("WebGL 2 n'est pas supporté."); return; }
+        this._stopped = false;
+        this._initWebGL();
+        this._initEventListeners();
+        this.updateSceneFromDOM();
+        this._startObserving();
+        this.resetAccumulation();
+        this._rafId = requestAnimationFrame(this._renderLoop.bind(this));
+    }
+
+    // Arrete la boucle de rendu, coupe l'observation et retire le canvas du DOM.
+    // INDISPENSABLE : sans ca, chaque new Raytracer2D empile une boucle RAF
+    // eternelle -> raytracers zombies qui se superposent (carre mal place).
+    destroy() {
+        this._stopped = true;
+        if (this._rafId) { cancelAnimationFrame(this._rafId); this._rafId = null; }
+        if (this._domObserver) { try { this._domObserver.disconnect(); } catch (e) {} this._domObserver = null; }
+        if (this.canvas && this.canvas.parentElement) {
+            this.canvas.parentElement.removeChild(this.canvas);
+        }
+    }
+    stop() { this.destroy(); }
+    
+    setMaxBounces(bounces) { if (this.maxBounces !== bounces) { this.maxBounces = bounces; this.resetAccumulation(); } }
+    setBackgroundColor(colorArray) { if (this.backgroundColor.join(',') !== colorArray.join(',')) { this.backgroundColor = colorArray; this.resetAccumulation(); } }
+    // Puissance de l'emissivite (defaut 2.0) : eclat des objets emissifs + force
+    // avec laquelle ils eclairent leurs voisins. Rescan pour maj des lumieres.
+    setEmissivePower(v) { const p = Math.max(0, parseFloat(v)); if (this.emissivePower !== p) { this.emissivePower = p; this.updateSceneFromDOM(); this.resetAccumulation(); } }
+    setFrontEmission(v) { const p = Math.max(0, parseFloat(v)); if (this.frontEmission !== p) { this.frontEmission = p; this.resetAccumulation(); } }
+    // Saturation du rendu (post-process) : >1 ravive les couleurs.
+    setSaturation(v) { this.saturation = Math.max(0, parseFloat(v)); this._displayDirty = true; }
+    setBrightness(v) { this.brightnessBoost = parseFloat(v); this._displayDirty = true; }
+    setContrast(v) { this.contrastBoost = parseFloat(v); this._displayDirty = true; }
+    setTemporalAlpha(v) { this.temporalAlpha = Math.max(0.0, Math.min(1.0, parseFloat(v))); }
+    setPreserveAccumulationOnMove(on) { this.preserveAccumulationOnMove = !!on; }
+    setSettleProfile(profile) {
+        const nextProfile = profile || 'default';
+        if (this.settleProfile === nextProfile) return;
+        this.settleProfile = nextProfile;
+        this._applySettleProfileDefaults();
+        this.resetAccumulation();
+    }
+    _applySettleProfileDefaults() {
+        // Budgets revus a la hausse (les intersections optimisees ont libere du
+        // GPU) : plus de frames x samples accumules en 1/N pendant le settle =
+        // image figee bien plus propre. Le cout ne dure que la convergence
+        // (<1s), le regime permanent reste a 0 (sommeil stableHold).
+        if (this.settleProfile === 'fast-settle') {
+            this.zeroTemporalSettleFrames = 10;
+            this.zeroTemporalWarmupAlpha = 0.34;
+            this.burstSamples = 2;
+        } else if (this.settleProfile === 'smooth-settle') {
+            this.zeroTemporalSettleFrames = 40;
+            this.zeroTemporalWarmupAlpha = 0.11;
+            this.burstSamples = 1;
+        } else if (this.settleProfile === 'quality-burst') {
+            this.zeroTemporalSettleFrames = 16;
+            this.zeroTemporalWarmupAlpha = 0.22;
+            this.burstSamples = 4;
+        } else {
+            this.zeroTemporalSettleFrames = 32;
+            this.zeroTemporalWarmupAlpha = 0.18;
+            this.burstSamples = 2;
+        }
+    }
+    setDenoise(on, strength, radius) {
+        this.denoiseEnabled = !!on;
+        if (strength !== undefined) this.denoiseStrength = Math.max(0, Math.min(1, parseFloat(strength)));
+        if (radius !== undefined) this.denoiseRadius = Math.max(0.5, Math.min(4, parseFloat(radius)));
+        this._displayDirty = true;
+    }
+    // Bloom : halo lumineux autour des zones vives. on = bool, strength/threshold.
+    setBloom(on, strength, threshold) { this.bloomEnabled = !!on; if (strength !== undefined) this.bloomStrength = parseFloat(strength); if (threshold !== undefined) this.bloomThreshold = parseFloat(threshold); this._displayDirty = true; }
+    
+    getObjectProperties(element) {
+        if (!this.domElementProperties.has(element)) {
+            this.domElementProperties.set(element, {
+                materialType: 0,
+                roughness: 0.2,
+                ior: 1.8,
+                opacity: 1.0,
+            });
+        }
+        const props = this.domElementProperties.get(element);
+        // Matériau declaratif via attributs DOM (data-rtx-*) RELUS a chaque scan
+        // si presents -> changer data-rtx-material a chaud met a jour le materiau
+        // (ex libwebui : PillSelect par objet). ex: data-rtx-material="glass".
+        if (element.getAttribute && element.getAttribute('data-rtx-material')) {
+            this._readMaterialAttributes(element, props);
+        }
+        return props;
+    }
+
+    _readMaterialAttributes(element, props) {
+        if (!element || !element.getAttribute) return;
+        const mat = element.getAttribute('data-rtx-material');
+        if (mat) {
+            const map = { diffuse: 0, mirror: 1, glass: 2, glossy: 3, emissive: 4 };
+            const t = map[mat.toLowerCase().trim()];
+            if (t !== undefined) props.materialType = t;
+        }
+        const rough = element.getAttribute('data-rtx-roughness');
+        if (rough !== null) { const v = parseFloat(rough); if (!isNaN(v)) props.roughness = v; }
+        const ior = element.getAttribute('data-rtx-ior');
+        if (ior !== null) { const v = parseFloat(ior); if (!isNaN(v)) props.ior = v; }
+        const opa = element.getAttribute('data-rtx-opacity');
+        if (opa !== null) { const v = parseFloat(opa); if (!isNaN(v)) props.opacity = v; }
+    }
+
+    updateObjectProperty(element, prop, value) {
+        if (element) {
+            const props = this.getObjectProperties(element);
+            props[prop] = value;
+            this.updateSceneFromDOM();
+        }
+    }
+
+    updateSceneFromDOM() {
+        const selectorFilter = (this.selectorFilter || '').trim();
+        // STRICT : si un sélecteur de cible est fourni, on interroge DIRECTEMENT
+        // ce sélecteur (querySelectorAll) au lieu de scanner tous les div/button
+        // puis filtrer. Sans ca, si le filtre etait vide/casse, TOUS les elements
+        // (dont les boutons .ui-btn.primary = fond accent cyan) devenaient des
+        // objets de la scene -> "carre cyan" parasite. Pas de selecteur = rien.
+        let allElements;
+        if (selectorFilter) {
+            try {
+                allElements = Array.from(document.querySelectorAll(selectorFilter));
+            } catch (e) {
+                console.warn(`Raytracer: invalid selector "${selectorFilter}"`);
+                return;
+            }
+        } else {
+            const baseQuery = this.baseDomTags.join(',');
+            allElements = Array.from(document.querySelectorAll(baseQuery));
+        }
+        
+        const newScene = [];
+        const newLights = [];
+        const newSceneElements = [];
+
+        allElements.forEach(el => {
+            if (el.closest('#rc-controls-wrapper')) return;
+
+            const rect = el.getBoundingClientRect();
+            if (rect.width <= 1 || rect.height <= 1) return;
+
+            const styles = window.getComputedStyle(el);
+            if (styles.display === 'none' || styles.visibility === 'hidden' || parseFloat(styles.opacity) === 0) {
+                return;
+            }
+
+            if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) {
+                return;
+            }
+            
+            const color = this._parseColor(styles.backgroundColor, el);
+            const borderRadius = parseFloat(styles.borderRadius) || 0;
+
+            if (color && color.a > 0) {
+                const props = this.getObjectProperties(el);
+                const sceneObject = {
+                    type: 0,
+                    position: [rect.left + rect.width / 2, rect.top + rect.height / 2],
+                    size: [rect.width, rect.height],
+                    color: [color.r / 255, color.g / 255, color.b / 255],
+                    radius: borderRadius,
+                    materialType: props.materialType,
+                    roughness: props.roughness,
+                    ior: props.ior,
+                    opacity: props.opacity,
+                };
+                newScene.push(sceneObject);
+                newSceneElements.push(el);
+
+                if (props.materialType === 4) {
+                    newLights.push({
+                        position: sceneObject.position,
+                        size: sceneObject.size,
+                        color: sceneObject.color,
+                        intensity: this.emissivePower,
+                        sourceIndex: newScene.length - 1
+                    });
+                }
+            }
+        });
+
+        const sceneChanged = JSON.stringify(this.scene) !== JSON.stringify(newScene);
+        const lightsChanged = JSON.stringify(this.lights) !== JSON.stringify(newLights);
+        if (sceneChanged || lightsChanged) {
+            const motionOnly = this.preserveAccumulationOnMove &&
+                this._signatureWithoutPosition(this.scene) === this._signatureWithoutPosition(newScene.slice(0, this.SCENE_SIZE)) &&
+                this._signatureWithoutPosition(this.lights) === this._signatureWithoutPosition(newLights.slice(0, this.MAX_LIGHTS));
+            this.scene = newScene.slice(0, this.SCENE_SIZE);
+            this.lights = newLights.slice(0, this.MAX_LIGHTS);
+            this.sceneElements = newSceneElements.slice(0, this.SCENE_SIZE);
+            this.updateSceneUniforms();
+            this.updateLightsUniforms();
+            if (!motionOnly) this.resetAccumulation();
+        }
+    }
+
+    updateScenePositionsFromDOM() {
+        if (!this.sceneElements || !this.sceneElements.length || !this.scene.length) {
+            this.updateSceneFromDOM();
+            return;
+        }
+
+        let changed = false;
+        for (let i = 0; i < this.scene.length; i++) {
+            const obj = this.scene[i];
+            const el = this.sceneElements[i];
+            if (!obj || !el) continue;
+            const rect = el.getBoundingClientRect();
+            if (rect.width <= 1 || rect.height <= 1) continue;
+            const nx = rect.left + rect.width / 2;
+            const ny = rect.top + rect.height / 2;
+            if (Math.abs(obj.position[0] - nx) > 0.01 || Math.abs(obj.position[1] - ny) > 0.01) {
+                obj.position = [nx, ny];
+                changed = true;
+            }
+        }
+
+        if (!changed) return;
+
+        for (let i = 0; i < this.lights.length; i++) {
+            const light = this.lights[i];
+            if (!light) continue;
+            const source = this.scene[light.sourceIndex];
+            if (!source) continue;
+            light.position = source.position;
+            light.size = source.size;
+        }
+
+        this.updateSceneUniforms();
+        this.updateLightsUniforms();
+    }
+
+    _signatureWithoutPosition(items) {
+        return JSON.stringify((items || []).map(item => {
+            if (!item) return item;
+            const copy = { ...item };
+            copy.position = [0, 0];
+            return copy;
+        }));
+    }
+
+    _oklchToRgb(l, c, h) {
+        // Conversion simplifiée OKLCH -> sRGB
+        const hRad = (h * Math.PI) / 180;
+        const a = c * Math.cos(hRad);
+        const b = c * Math.sin(hRad);
+        const l_ = l + 0.3963377774 * a + 0.2158037573 * b;
+        const m_ = l - 0.1055613458 * a - 0.0638541728 * b;
+        const s_ = l - 0.0894841775 * a - 1.2914855480 * b;
+        const l3 = l_ * l_ * l_;
+        const m3 = m_ * m_ * m_;
+        const s3 = s_ * s_ * s_;
+        let r = +4.0767416621 * l3 - 3.3077115913 * m3 + 0.2309699292 * s3;
+        let g = -1.2684380046 * l3 + 2.6097574011 * m3 - 0.3413193965 * s3;
+        let bl = -0.0041960863 * l3 - 0.7034186147 * m3 + 1.7076147010 * s3;
+        const gammaCorrect = (val) => {
+            if (val <= 0.0031308) return 12.92 * val;
+            return 1.055 * Math.pow(val, 1/2.4) - 0.055;
+        };
+        r = gammaCorrect(Math.max(0, Math.min(1, r)));
+        g = gammaCorrect(Math.max(0, Math.min(1, g)));
+        bl = gammaCorrect(Math.max(0, Math.min(1, bl)));
+        return {
+            r: Math.round(r * 255),
+            g: Math.round(g * 255),
+            b: Math.round(bl * 255)
+        };
+    }
+
+    _parseColor(colorString, element) {
+        if (!colorString || colorString === 'transparent' || colorString.startsWith('rgba(0, 0, 0, 0)')) {
+            return null;
+        }
+        if (colorString.includes('var(')) {
+            const computedColor = getComputedStyle(element).backgroundColor;
+            if(computedColor === colorString) {
+                console.warn(`Raytracer: CSS variable in ${colorString} could not be resolved further.`);
+                return null;
+            }
+            return this._parseColor(computedColor, element);
+        }
+        
+        const rgbaRegex = /rgba?\((\d+)[,\s]+(\d+)[,\s]+(\d+)(?:[,\s/]+([\d.]+))?\)/;
+        let match = colorString.match(rgbaRegex);
+        if (match) {
+            const alpha = match[4] !== undefined ? parseFloat(match[4]) : 1;
+            if (alpha === 0) return null;
+            return { r: parseInt(match[1]), g: parseInt(match[2]), b: parseInt(match[3]), a: alpha };
+        }
+        
+        const hslaRegex = /hsla?\((\d+)[,\s]+([\d.]+)%?[,\s]+([\d.]+)%?(?:[,\s/]+([\d.]+))?\)/;
+        match = colorString.match(hslaRegex);
+        if (match) {
+            const alpha = match[4] !== undefined ? parseFloat(match[4]) : 1;
+            if (alpha === 0) return null;
+            let h = parseFloat(match[1]); let s = parseFloat(match[2]) / 100; let l = parseFloat(match[3]) / 100;
+            let c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = l - c/2, r = 0, g = 0, b = 0;
+            if (0 <= h && h < 60) { [r, g, b] = [c, x, 0]; } else if (60 <= h && h < 120) { [r, g, b] = [x, c, 0]; } else if (120 <= h && h < 180) { [r, g, b] = [0, c, x]; } else if (180 <= h && h < 240) { [r, g, b] = [0, x, c]; } else if (240 <= h && h < 300) { [r, g, b] = [x, 0, c]; } else if (300 <= h && h < 360) { [r, g, b] = [c, 0, x]; }
+            r = Math.round((r + m) * 255); g = Math.round((g + m) * 255); b = Math.round((b + m) * 255);
+            return { r, g, b, a: alpha };
+        }
+
+        const oklchRegex = /oklch\(([\d.]+)\s+([\d.]+)\s+([\d.]+)(?:\s*\/\s*([\d.]+%?))?\)/;
+        match = colorString.match(oklchRegex);
+        if (match) {
+            const l = parseFloat(match[1]);
+            const c = parseFloat(match[2]);
+            const h = parseFloat(match[3]);
+            let alpha = 1;
+            if (match[4]) {
+                alpha = match[4].includes('%') ? parseFloat(match[4]) / 100 : parseFloat(match[4]);
+            }
+            if (alpha === 0) return null;
+            const rgb = this._oklchToRgb(l, c, h);
+            return { r: rgb.r, g: rgb.g, b: rgb.b, a: alpha };
+        }
+
+        try {
+            const tempDiv = document.createElement('div');
+            tempDiv.style.color = colorString;
+            tempDiv.style.display = 'none';
+            document.body.appendChild(tempDiv);
+            const computedColor = getComputedStyle(tempDiv).color;
+            document.body.removeChild(tempDiv);
+            
+            if (computedColor && computedColor !== colorString) {
+                return this._parseColor(computedColor, element);
+            }
+        } catch (e) {
+            console.warn(`Raytracer: Error during color fallback parsing for "${colorString}"`, e);
+            return null;
+        }
+        
+        console.warn(`Raytracer: Could not parse color "${colorString}"`);
+        return null;
+    }
+
+
+    _debounce(func, delay) { let timeout; return (...args) => { clearTimeout(timeout); timeout = setTimeout(() => func.apply(this, args), delay); }; }
+    _startObserving() { this._domObserver = new MutationObserver(() => { this.debounceScan(); }); this._domObserver.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class', 'id'] }); }
+
+    _createShader(type, source) {
+        const shader = this.gl.createShader(type);
+        this.gl.shaderSource(shader, source.trim());
+        this.gl.compileShader(shader);
+        if (!this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS)) { console.error('Shader compile error:', this.gl.getShaderInfoLog(shader)); this.gl.deleteShader(shader); return null; }
+        return shader;
+    }
+
+    _createProgram(vs, fs) {
+        if (!vs || !fs) {
+            console.error("Cannot create program with invalid shaders.");
+            return null;
+        }
+        const program = this.gl.createProgram();
+        this.gl.attachShader(program, vs);
+        this.gl.attachShader(program, fs);
+        this.gl.linkProgram(program);
+        if (!this.gl.getProgramParameter(program, this.gl.LINK_STATUS)) { console.error('Program link error:', this.gl.getProgramInfoLog(program)); this.gl.deleteProgram(program); return null; }
+        return program;
+    }
+
+    _initWebGL() {
+        const gl = this.gl;
+        const vertexShader = this._createShader(gl.VERTEX_SHADER, vertexShaderSource);
+        const tracerFragmentShader = this._createShader(gl.FRAGMENT_SHADER, tracerFragmentShaderSource);
+        const displayFragmentShader = this._createShader(gl.FRAGMENT_SHADER, displayFragmentShaderSource);
+
+        this.tracerProgram = this._createProgram(vertexShader, tracerFragmentShader);
+        this.displayProgram = this._createProgram(vertexShader, displayFragmentShader);
+        
+        if (!this.tracerProgram || !this.displayProgram) {
+            console.error("Failed to initialize WebGL programs.");
+            return;
+        }
+
+        this.tracerUniforms = {
+            resolution: gl.getUniformLocation(this.tracerProgram, 'u_resolution'),
+            time: gl.getUniformLocation(this.tracerProgram, 'u_time'),
+            bounces: gl.getUniformLocation(this.tracerProgram, "u_max_bounces"),
+            frameCount: gl.getUniformLocation(this.tracerProgram, "u_frame_count"),
+            lastFrame: gl.getUniformLocation(this.tracerProgram, "u_last_frame"),
+            backgroundColor: gl.getUniformLocation(this.tracerProgram, "u_background_color"),
+            enableNee: gl.getUniformLocation(this.tracerProgram, "u_enable_nee"),
+            emissivePower: gl.getUniformLocation(this.tracerProgram, "u_emissive_power"),
+            frontEmission: gl.getUniformLocation(this.tracerProgram, "u_front_emission"),
+            temporalAlpha: gl.getUniformLocation(this.tracerProgram, "u_temporal_alpha"),
+            samplesPerFrame: gl.getUniformLocation(this.tracerProgram, "u_samples_per_frame"),
+            numLights: gl.getUniformLocation(this.tracerProgram, "u_num_lights"),
+            numObjects: gl.getUniformLocation(this.tracerProgram, "u_num_objects"),
+            accumMode: gl.getUniformLocation(this.tracerProgram, "u_accum_mode")
+        };
+
+        // Uniform locations des tableaux objets/lumieres resolues UNE FOIS ici.
+        // Avant : ~320 getUniformLocation (lookups par chaine) a CHAQUE maj de
+        // scene, donc a chaque frame pendant un drag.
+        this.objectUniformLocs = [];
+        for (let i = 0; i < this.SCENE_SIZE; i++) {
+            const p = `u_objects[${i}].`;
+            this.objectUniformLocs.push({
+                type: gl.getUniformLocation(this.tracerProgram, p + 'type'),
+                position: gl.getUniformLocation(this.tracerProgram, p + 'position'),
+                size: gl.getUniformLocation(this.tracerProgram, p + 'size'),
+                color: gl.getUniformLocation(this.tracerProgram, p + 'color'),
+                radius: gl.getUniformLocation(this.tracerProgram, p + 'radius'),
+                materialType: gl.getUniformLocation(this.tracerProgram, p + 'materialType'),
+                roughness: gl.getUniformLocation(this.tracerProgram, p + 'roughness'),
+                ior: gl.getUniformLocation(this.tracerProgram, p + 'ior'),
+                opacity: gl.getUniformLocation(this.tracerProgram, p + 'opacity')
+            });
+        }
+        this.lightUniformLocs = [];
+        for (let i = 0; i < this.MAX_LIGHTS; i++) {
+            const p = `u_lights[${i}].`;
+            this.lightUniformLocs.push({
+                position: gl.getUniformLocation(this.tracerProgram, p + 'position'),
+                size: gl.getUniformLocation(this.tracerProgram, p + 'size'),
+                color: gl.getUniformLocation(this.tracerProgram, p + 'color'),
+                intensity: gl.getUniformLocation(this.tracerProgram, p + 'intensity')
+            });
+        }
+
+        this.displayUniforms = {
+            texture: gl.getUniformLocation(this.displayProgram, 'u_texture'),
+            resolution: gl.getUniformLocation(this.displayProgram, 'u_resolution'),
+            enableSrgb: gl.getUniformLocation(this.displayProgram, 'u_enable_srgb'),
+            brightnessBoost: gl.getUniformLocation(this.displayProgram, 'u_brightness_boost'),
+            contrastBoost: gl.getUniformLocation(this.displayProgram, 'u_contrast_boost'),
+            saturation: gl.getUniformLocation(this.displayProgram, 'u_saturation'),
+            enableBloom: gl.getUniformLocation(this.displayProgram, 'u_enable_bloom'),
+            bloomStrength: gl.getUniformLocation(this.displayProgram, 'u_bloom_strength'),
+            bloomThreshold: gl.getUniformLocation(this.displayProgram, 'u_bloom_threshold'),
+            enableDenoise: gl.getUniformLocation(this.displayProgram, 'u_enable_denoise'),
+            denoiseStrength: gl.getUniformLocation(this.displayProgram, 'u_denoise_strength'),
+            denoiseRadius: gl.getUniformLocation(this.displayProgram, 'u_denoise_radius')
+        };
+
+        const positionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
+        
+        this.vao = gl.createVertexArray();
+        gl.bindVertexArray(this.vao);
+        const posLoc = gl.getAttribLocation(this.tracerProgram, 'a_position');
+        gl.enableVertexAttribArray(posLoc);
+        gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+        this._handleResize();
+    }
+    
+    _initEventListeners() {
+        // Resize : debounce court pour une mise a jour reactive du canvas + scene.
+        window.addEventListener('resize', this._debounce(this._handleResize.bind(this), 80));
+        // Scroll : les widgets bougent -> re-scanner la scene (positions DOM).
+        window.addEventListener('scroll', this._debounce(this.updateSceneFromDOM.bind(this), 60), { passive: true, capture: true });
+    }
+    
+    _handleResize() {
+        // renderScale < 1 : le buffer GPU est plus petit (rendu N fois plus
+        // rapide), mais le canvas s'affiche a 100% via CSS -> upscale gratuit.
+        // Gros levier de perf pour le path tracing (cout ~ nb de pixels).
+        const scale = this.renderScale || 1.0;
+        this.canvas.width = Math.max(1, Math.floor(window.innerWidth * scale));
+        this.canvas.height = Math.max(1, Math.floor(window.innerHeight * scale));
+        // Le buffer interne peut etre reduit (renderScale) ; le CSS affiche a
+        // 100% du viewport. On ne force le style QUE si renderScale != 1, et en
+        // '100%' (pas '100vw' qui inclut la scrollbar => desalignement).
+        if (scale !== 1.0) {
+            this.canvas.style.width = '100%';
+            this.canvas.style.height = '100%';
+        }
+        this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
+        this._setupFramebuffers();
+        // Le layout DOM n'est pas encore recalcule au moment du resize -> les
+        // positions (getBoundingClientRect) seraient perimees (bug du "double
+        // resize"). On rescanne APRES que le navigateur a refait le layout :
+        // un premier scan immediat + un scan differe sur 2 frames + un filet a
+        // 120ms couvrent les cas ou le layout se stabilise tard.
+        this.updateSceneFromDOM();
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => { if (!this._stopped) this.updateSceneFromDOM(); });
+        });
+        clearTimeout(this._resizeRescanT);
+        this._resizeRescanT = setTimeout(() => { if (!this._stopped) this.updateSceneFromDOM(); }, 120);
+    }
+
+    // Change la resolution interne de rendu (0.25 a 1.0). Plus bas = plus rapide.
+    setRenderScale(scale) {
+        const s = Math.max(0.1, Math.min(1.0, scale || 1.0));
+        if (this.renderScale === s) return;
+        this.renderScale = s;
+        this._handleResize();
+        this.resetAccumulation();
+    }
+
+    _createTexture() {
+        const gl = this.gl;
+        const texture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        // RGBA16F (au lieu de RGBA32F) : bande passante divisee par 2. La
+        // convergence ne dure que ~18-26 frames, la precision half suffit
+        // largement pour une image LDR tone-mappee derriere.
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, gl.canvas.width, gl.canvas.height, 0, gl.RGBA, gl.HALF_FLOAT, null);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        return texture;
+    }
+
+    _setupFramebuffers() {
+        const gl = this.gl;
+        gl.getExtension('EXT_color_buffer_float');
+        if (this.textures) { this.textures.forEach(t => gl.deleteTexture(t)); }
+        if (this.framebuffers) { this.framebuffers.forEach(f => gl.deleteFramebuffer(f)); }
+
+        this.textures = [this._createTexture(), this._createTexture()];
+        this.framebuffers = [gl.createFramebuffer(), gl.createFramebuffer()];
+        for (let i = 0; i < 2; i++) {
+            gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers[i]);
+            gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.textures[i], 0);
+        }
+        this.resetAccumulation();
+    }
+    
+    updateSceneUniforms() {
+        const gl = this.gl;
+        gl.useProgram(this.tracerProgram);
+        gl.uniform1i(this.tracerUniforms.numObjects, this.scene.length);
+        for (let i = 0; i < this.SCENE_SIZE; i++) {
+            const obj = this.scene[i];
+            const loc = this.objectUniformLocs[i];
+            if (obj) {
+                // Les coords DOM sont en pixels ecran ; le buffer est a renderScale.
+                const s = this.renderScale || 1.0;
+                const y_pos = gl.canvas.height - obj.position[1] * s;
+                gl.uniform1i(loc.type, obj.type);
+                gl.uniform2f(loc.position, obj.position[0] * s, y_pos);
+                gl.uniform2f(loc.size, obj.size[0] * s, obj.size[1] * s);
+                gl.uniform3fv(loc.color, obj.color);
+                gl.uniform1f(loc.radius, obj.radius * s);
+                gl.uniform1i(loc.materialType, obj.materialType);
+                gl.uniform1f(loc.roughness, obj.roughness);
+                gl.uniform1f(loc.ior, obj.ior);
+                gl.uniform1f(loc.opacity, obj.opacity);
+            } else {
+                gl.uniform1i(loc.type, -1);
+            }
+        }
+    }
+
+    updateLightsUniforms() {
+        const gl = this.gl;
+        gl.useProgram(this.tracerProgram);
+        gl.uniform1i(this.tracerUniforms.numLights, this.lights.length);
+        for (let i = 0; i < this.MAX_LIGHTS; i++) {
+            const light = this.lights[i];
+            const loc = this.lightUniformLocs[i];
+            if(light) {
+                const s = this.renderScale || 1.0;
+                const y_pos = gl.canvas.height - light.position[1] * s;
+                gl.uniform2f(loc.position, light.position[0] * s, y_pos);
+                gl.uniform2f(loc.size, light.size[0] * s, light.size[1] * s);
+                gl.uniform3fv(loc.color, light.color);
+                gl.uniform1f(loc.intensity, light.intensity);
+            }
+        }
+    }
+
+    resetAccumulation() {
+        this.frameCount = 0;
+        this._stablePresented = false;
+        this._displayDirty = true;
+        if (this.gl && this.framebuffers && this.framebuffers.length === 2) {
+            for (let i = 0; i < 2; ++i) {
+                this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.framebuffers[i]);
+                this.gl.clearColor(0, 0, 0, 0);
+                this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+            }
+        }
+    }
+
+    _renderLoop(time) {
+        if (this._stopped) return;
+        if (!this.gl || !this.tracerProgram || !this.displayProgram) return;
+        time *= 0.001;
+        const gl = this.gl;
+        const writeIndex = 1 - this.readIndex;
+        const zeroTemporal = this.temporalAlpha <= 0.001;
+        const settleFrames = Math.max(1, this.zeroTemporalSettleFrames || 1);
+        const stableHold = zeroTemporal && this.frameCount >= settleFrames;
+        // Image stable deja presentee et aucun reglage d'affichage change :
+        // on ne dessine RIEN cette frame (le canvas conserve la derniere image
+        // composee). GPU ~0% au repos au lieu de re-payer denoise+bloom a 60fps.
+        if (stableHold && this._stablePresented && !this._displayDirty) {
+            this._rafId = requestAnimationFrame(this._renderLoop.bind(this));
+            return;
+        }
+        const settling = zeroTemporal && !stableHold;
+        const effectiveTemporalAlpha = zeroTemporal ? this.zeroTemporalWarmupAlpha : this.temporalAlpha;
+        const effectiveSamples = settling ? Math.max(1, Math.min(4, this.burstSamples || 1)) : 1;
+        const effectiveDenoiseStrength = settling && this.settleProfile === 'fast-settle'
+            ? Math.max(this.denoiseStrength, 0.94)
+            : (settling && this.settleProfile === 'quality-burst' ? Math.max(this.denoiseStrength, 0.90) : this.denoiseStrength);
+        const effectiveDenoiseRadius = settling && this.settleProfile === 'fast-settle'
+            ? Math.max(this.denoiseRadius, 2.2)
+            : (settling && this.settleProfile === 'quality-burst' ? Math.max(this.denoiseRadius, 1.9) : this.denoiseRadius);
+        const displayIndex = stableHold ? this.readIndex : writeIndex;
+        const shaderBackgroundColor = this.backgroundColor;
+
+        if (!stableHold) {
+            gl.useProgram(this.tracerProgram);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers[writeIndex]);
+            gl.uniform3fv(this.tracerUniforms.backgroundColor, shaderBackgroundColor);
+            gl.uniform2f(this.tracerUniforms.resolution, gl.canvas.width, gl.canvas.height);
+            gl.uniform1f(this.tracerUniforms.time, time);
+            gl.uniform1i(this.tracerUniforms.bounces, this.maxBounces);
+            gl.uniform1i(this.tracerUniforms.frameCount, this.frameCount);
+            gl.uniform1i(this.tracerUniforms.enableNee, this.neeEnabled ? 1 : 0);
+            gl.uniform1f(this.tracerUniforms.emissivePower, this.emissivePower);
+            gl.uniform1f(this.tracerUniforms.frontEmission, this.frontEmission);
+            gl.uniform1f(this.tracerUniforms.temporalAlpha, effectiveTemporalAlpha);
+            gl.uniform1i(this.tracerUniforms.samplesPerFrame, effectiveSamples);
+            gl.uniform1i(this.tracerUniforms.accumMode, settling ? 1 : 0);
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, this.textures[this.readIndex]);
+            gl.uniform1i(this.tracerUniforms.lastFrame, 0);
+            gl.bindVertexArray(this.vao);
+            gl.drawArrays(gl.TRIANGLES, 0, 6);
+        }
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.useProgram(this.displayProgram);
+        gl.uniform2f(this.displayUniforms.resolution, gl.canvas.width, gl.canvas.height);
+        gl.uniform1i(this.displayUniforms.enableSrgb, this.srgbEnabled ? 1 : 0);
+        gl.uniform1f(this.displayUniforms.brightnessBoost, this.brightnessBoost);
+        gl.uniform1f(this.displayUniforms.contrastBoost, this.contrastBoost);
+        gl.uniform1f(this.displayUniforms.saturation, this.saturation);
+        gl.uniform1i(this.displayUniforms.enableBloom, this.bloomEnabled ? 1 : 0);
+        gl.uniform1f(this.displayUniforms.bloomStrength, this.bloomStrength);
+        gl.uniform1f(this.displayUniforms.bloomThreshold, this.bloomThreshold);
+        gl.uniform1i(this.displayUniforms.enableDenoise, this.denoiseEnabled ? 1 : 0);
+        gl.uniform1f(this.displayUniforms.denoiseStrength, effectiveDenoiseStrength);
+        gl.uniform1f(this.displayUniforms.denoiseRadius, effectiveDenoiseRadius);
+
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, this.textures[displayIndex]);
+        gl.uniform1i(this.displayUniforms.texture, 0);
+        gl.bindVertexArray(this.vao);
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+        
+        if (!stableHold) {
+            this.readIndex = writeIndex;
+            this.frameCount++;
+        }
+        this._stablePresented = stableHold;
+        this._displayDirty = false;
+        this._rafId = requestAnimationFrame(this._renderLoop.bind(this));
+    }
+}
+
+// Exposer la classe au scope global
+window.Raytracer2D = Raytracer2D;

@@ -1,0 +1,6 @@
+import : libwebui / widgets
+
+func: DockPage(title, sidebarHtml, mainHtml, footer, actionsHtml) {
+    return (widgets::DockPage(title, sidebarHtml, mainHtml, footer, actionsHtml))
+}
+

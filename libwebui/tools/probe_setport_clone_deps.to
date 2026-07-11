@@ -1,0 +1,11 @@
+import : libwebui / simpleui
+import : libstring / string
+import : libaudio / audio
+import : libvocal / vocal
+import : libtts / tts
+
+if (main()) {
+    app = simpleui::Window()
+    app.SetPort(19245)
+    print("setport + clone deps ok\n")
+}

@@ -1,0 +1,22 @@
+import : libwebui / widget_core
+
+obj:BadgeCounter() {
+    self.html = " "
+    self.id = "badgecounter"
+    self.label = "BadgeCounter"
+    self.value = "value"
+    self.eventName = "badge_counter_click"
+
+    func:Setup(self, id, label, value, eventName) {
+        self.id = id
+        self.label = label
+        self.value = value
+        self.eventName = eventName
+        return (self)
+    }
+
+    func:Close(self) {
+        self.html = widget_core::Styles() $ widget_core::CopyField(self.id, self.label, self.value, self.eventName)
+        return (self)
+    }
+}

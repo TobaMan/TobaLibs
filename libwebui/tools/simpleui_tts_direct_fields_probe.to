@@ -1,0 +1,17 @@
+import : libwebui / simpleui
+import : libtts / clone
+import : libtts / tts
+
+if (main()) {
+    app = simpleui::Window()
+    app.title = "Probe"
+    app.debugPath = "C:/Toba/modules/libwebui/examples/probe_debug.html"
+    app.port = 19234
+    app.page.title = "Probe"
+    app.page.port = 19234
+    app.page.width = 640
+    app.page.height = 260
+    app.page.x = 220
+    app.page.y = 140
+    print("direct fields ok\n")
+}

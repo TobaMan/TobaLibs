@@ -1,0 +1,6 @@
+import : libwebui / widgets
+
+func: ChartLibraryScript() {
+    return (widgets::ChartLibraryScript())
+}
+

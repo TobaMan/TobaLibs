@@ -1,0 +1,226 @@
+/*
+    libwebui/model - Stable internal UI model.
+    Nodes are stored as strings to avoid nested MAPTYPE archive issues in Toba.
+*/
+
+func: Enc(s) {
+    res = freplace(s, "&", "&amp;")
+    res = freplace(res, "'", "&apos;")
+    res = freplace(res, "<", "&lt;")
+    res = freplace(res, ">", "&gt;")
+    return (res)
+}
+
+func: Dec(s) {
+    res = freplace(s, "&gt;", ">")
+    res = freplace(res, "&lt;", "<")
+    res = freplace(res, "&apos;", "'")
+    res = freplace(res, "&amp;", "&")
+    return (res)
+}
+
+func: FirstPos(s, pat, fallback) {
+    res = fallback
+    p = find(s, pat)
+    if (size(p) > 0) {
+        res = p[0]
+    }
+    return (res)
+}
+
+func: LastPos(s, pat, fallback) {
+    res = fallback
+    p = find(s, pat)
+    if (size(p) > 0) {
+        res = p[size(p) - 1]
+    }
+    return (res)
+}
+
+func: Attr(node, key, fallback) {
+    res = fallback
+    pat = " " $ key $ "='"
+    p = find(node, pat)
+    if (size(p) > 0) {
+        start = p[0] + size(pat)
+        stop = start
+        n = size(node)
+        i = for (start, n, 1) {
+            c = slice(node, i, i + 1)
+            if (c == "'") {
+                stop = i
+                break
+            }
+        }
+        res = Dec(slice(node, start, stop))
+    }
+    return (res)
+}
+
+func: Node(kind, id) {
+    res = "<n kind='" $ Enc(kind) $ "' id='" $ Enc(id) $ "'></n>"
+    return (res)
+}
+
+func: Kind(node) {
+    return (Attr(node, "kind", ""))
+}
+
+func: Id(node) {
+    return (Attr(node, "id", ""))
+}
+
+func: SetProp(node, key, value) {
+    close = FirstPos(node, ">", size(node))
+    before = slice(node, 0, close)
+    after = slice(node, close, size(node))
+    attr = " p-" $ key $ "='" $ Enc(value) $ "'"
+    res = before $ attr $ after
+    return (res)
+}
+
+func: Prop(node, key, fallback) {
+    return (Attr(node, "p-" $ key, fallback))
+}
+
+func: Add(parent, child) {
+    close = LastPos(parent, "</n>", size(parent))
+    res = slice(parent, 0, close) $ child $ slice(parent, close, size(parent))
+    return (res)
+}
+
+func: ChildrenRaw(node) {
+    start = FirstPos(node, ">", -1)
+    stop = LastPos(node, "</n>", size(node))
+    res = ""
+    if (start >= 0) {
+        if (stop > start + 1) {
+            res = slice(node, start + 1, stop)
+        }
+    }
+    return (res)
+}
+
+func: Children(node) {
+    return (ChildrenRaw(node))
+}
+
+func: ChildCount(node) {
+    raw = ChildrenRaw(node)
+    res = 0
+    depth = 0
+    n = size(raw)
+    if (n >= 4) {
+        limit = n - 3
+        i = for (0, limit, 1) {
+            four = slice(raw, i, i + 4)
+            if (four == "<n k") {
+                if (depth == 0) {
+                    res = res + 1
+                }
+                depth = depth + 1
+            }
+            else {
+                if (four == "</n>") {
+                    depth = depth - 1
+                }
+            }
+        }
+    }
+    return (res)
+}
+
+func: Child(node, idx) {
+    raw = ChildrenRaw(node)
+    res = ""
+    depth = 0
+    cur = -1
+    start = -1
+    n = size(raw)
+    if (n >= 4) {
+        limit = n - 3
+        i = for (0, limit, 1) {
+            four = slice(raw, i, i + 4)
+            if (four == "<n k") {
+                if (depth == 0) {
+                    cur = cur + 1
+                    if (cur == idx) {
+                        start = i
+                    }
+                }
+                depth = depth + 1
+            }
+            else {
+                if (four == "</n>") {
+                    depth = depth - 1
+                    if (depth == 0) {
+                        if (cur == idx) {
+                            res = slice(raw, start, i + 4)
+                            break
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return (res)
+}
+
+func: App(title) {
+    n = Node("app", "app")
+    n = SetProp(n, "title", title)
+    return (n)
+}
+
+func: Stack(id, direction) {
+    n = Node("stack", id)
+    n = SetProp(n, "direction", direction)
+    return (n)
+}
+
+func: Grid(id, columns) {
+    n = Node("grid", id)
+    n = SetProp(n, "columns", strnum(columns))
+    return (n)
+}
+
+func: Masonry(id, minWidth) {
+    n = Node("masonry", id)
+    n = SetProp(n, "minWidth", strnum(minWidth))
+    return (n)
+}
+
+func: Card(id, title) {
+    n = Node("card", id)
+    n = SetProp(n, "title", title)
+    return (n)
+}
+
+func: Text(id, text) {
+    n = Node("text", id)
+    n = SetProp(n, "text", text)
+    return (n)
+}
+
+func: Button(id, text, eventName) {
+    n = Node("button", id)
+    n = SetProp(n, "text", text)
+    n = SetProp(n, "event", eventName)
+    return (n)
+}
+
+func: Input(id, placeholder, value, eventName) {
+    n = Node("input", id)
+    n = SetProp(n, "placeholder", placeholder)
+    n = SetProp(n, "value", value)
+    n = SetProp(n, "event", eventName)
+    return (n)
+}
+
+func: TextArea(id, placeholder, value, eventName) {
+    n = Node("textarea", id)
+    n = SetProp(n, "placeholder", placeholder)
+    n = SetProp(n, "value", value)
+    n = SetProp(n, "event", eventName)
+    return (n)
+}

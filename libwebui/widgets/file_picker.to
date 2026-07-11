@@ -1,0 +1,6 @@
+import : libwebui / widgets
+
+func: FilePicker(pickerId, label, value, accept, eventName) {
+    return (widgets::FilePicker(pickerId, label, value, accept, eventName))
+}
+

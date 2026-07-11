@@ -1,0 +1,142 @@
+import : libwebui / desktopui
+import : libjson / json
+
+func: JsonEscape(value) {
+    s = desktopui::TextOrEmpty(value)
+    res = s
+    res = freplace(res, "\\", "\\\\")
+    res = freplace(res, "\"", "\\\"")
+    res = freplace(res, "\n", "\\n")
+    res = freplace(res, "\r", "")
+    return (res)
+}
+
+obj:Event() {
+    self.raw = " "
+    self.dataRaw = "{}"
+    self.name = " "
+    self.widgetId = " "
+
+    func:FromJson(self, raw) {
+        self.raw = raw
+        self.name = json::GetString(raw, "name", " ")
+        self.widgetId = json::GetString(raw, "widgetId", " ")
+        self.dataRaw = json::GetRaw(raw, "data", "{}")
+        return (self)
+    }
+
+    func:Is(self, name) {
+        res = 0
+        if (self.name == name) {
+            res = 1
+        }
+        return (res)
+    }
+
+    func:Name(self) {
+        return (self.name)
+    }
+
+    func:WidgetId(self) {
+        return (self.widgetId)
+    }
+
+    func:Get(self, key, fallback) {
+        res = json::GetString(self.dataRaw, key, fallback)
+        return (res)
+    }
+
+    func:GetNumber(self, key, fallback) {
+        res = json::GetNumber(self.dataRaw, key, fallback)
+        return (res)
+    }
+
+    func:Arg(self, idx, fallback) {
+        res = json::GetArrayString(self.raw, "args", idx, fallback)
+        return (res)
+    }
+
+    func:State(self) {
+        return (self.Get("state", self.Arg(1, " ")))
+    }
+
+    func:Value(self) {
+        return (self.Get("value", self.Arg(1, " ")))
+    }
+}
+
+obj:Command() {
+    self.action = " "
+    self.keys = map(0, 0)
+    self.values = map(0, 0)
+
+    func:Setup(self, action) {
+        self.action = action
+        return (self)
+    }
+
+    func:Set(self, key, value) {
+        self.keys = self.keys $ (key)
+        self.values = self.values $ (desktopui::TextOrEmpty(value))
+        return (self)
+    }
+
+    func:ToJson(self) {
+        res = "{"
+        i = for (0, size(self.keys), 1) {
+            if (i > 0) {
+                res = res $ ","
+            }
+            res = res $ "\"" $ JsonEscape(self.keys[i]) $ "\":\"" $ JsonEscape(self.values[i]) $ "\""
+        }
+        res = res $ "}"
+        return (res)
+    }
+
+    func:Execute(self) {
+        res = desktopui::BridgeExecute(self.action, self.ToJson())
+        return (res)
+    }
+}
+
+func: New(raw) {
+    evt = Event()
+    evt.FromJson(raw)
+    return (evt)
+}
+
+func: Poll(timeoutMs) {
+    raw = desktopui::BridgePoll(timeoutMs)
+    evt = Event()
+    evt.FromJson(raw)
+    return (evt)
+}
+
+func: NewCommand(action) {
+    cmd = Command()
+    cmd.Setup(action)
+    return (cmd)
+}
+
+func: Notify(title, text) {
+    cmd = NewCommand("webuiNotify")
+    cmd.Set("title", title)
+    cmd.Set("text", text)
+    res = cmd.Execute()
+    return (res)
+}
+
+func: ChartAddPoint(label, value, secondary) {
+    cmd = NewCommand("webuiChartAddPoint")
+    cmd.Set("label", label)
+    cmd.Set("value", strnum(value))
+    cmd.Set("secondary", strnum(secondary))
+    res = cmd.Execute()
+    return (res)
+}
+
+func: ChartReset() {
+    cmd = NewCommand("webuiChartReset")
+    res = cmd.Execute()
+    return (res)
+}

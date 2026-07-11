@@ -1,0 +1,23 @@
+import : libwebui / simpleui
+import : libwebui / widgets
+import : libtts / clone
+import : libtts / tts
+
+if (main()) {
+    app = simpleui::Window()
+    app.title = "Probe"
+    app.debugPath = "C:/Toba/modules/libwebui/examples/probe_debug.html"
+    app.port = 19234
+    app.page.title = "Probe"
+    app.page.port = 19234
+    app.page.width = 640
+    app.page.height = 260
+    app.page.x = 220
+    app.page.y = 140
+    app.page.body = "<div class='gallery-stack'>"
+    app.page.body = app.page.body $ widgets::PillInput("voice_name", "Nom", "webui_clone", "webuiEvent('name_changed',{id:this.id,value:this.value})")
+    app.page.body = app.page.body $ widgets::PillButtonRow(widgets::PillButton("test_play", "Tester", "webuiEvent('test_play',{id:this.id})", " "))
+    app.page.body = app.page.body $ "</div>"
+    app.ShowAsync()
+    print("manual body show ok\n")
+}

@@ -1,0 +1,6 @@
+import : libwebui / widgets
+
+func: DataPanelStyles() {
+    return (widgets::DataPanelStyles())
+}
+

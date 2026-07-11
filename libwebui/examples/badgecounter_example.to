@@ -1,0 +1,19 @@
+import : libwebui / webui
+import : libwebui / eventbus
+import : libwebui / generated / badgecounter_widget
+
+if (main()) {
+    page = webui::CompactPage()
+    page.SetTitle("BadgeCounter example")
+    page.SetPort(19210)
+    widget = badgecounter_widget::BadgeCounter()
+    widget.Setup("badgecounter", "BadgeCounter", "value", "badge_counter_click")
+    widget.Close()
+    page.Add(widget)
+    page.ShowReliable("C:/Toba/modules/libwebui/examples/badgecounter_debug.html")
+    loop {
+        evt = eventbus::Poll(20)
+        if (evt.HasEvent()) { print(evt.Name() $ " => " $ evt.Value() $ "\n") }
+        sleep(0.02)
+    }
+}

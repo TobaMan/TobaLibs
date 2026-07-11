@@ -1,0 +1,226 @@
+import : libwebui / model
+import : libwebui / desktopui
+
+func: App(title) { return (model::App(title)) }
+func: Add(parent, child) { return (model::Add(parent, child)) }
+func: Stack(id, direction) { return (model::Stack(id, direction)) }
+func: Card(id, title) { return (model::Card(id, title)) }
+func: Text(id, text) { return (model::Text(id, text)) }
+func: Button(id, text, eventName) { return (model::Button(id, text, eventName)) }
+
+func: New(kind, id) {
+    return (model::Node(kind, id))
+}
+
+func: Set(node, key, value) {
+    return (model::SetProp(node, key, value))
+}
+
+func: Toolbar(id) {
+    return (New("toolbar", id))
+}
+
+func: Tabs(id) {
+    return (New("tabs", id))
+}
+
+func: Tab(id, text, eventName, active) {
+    n = New("tab", id)
+    n = Set(n, "text", text)
+    n = Set(n, "event", eventName)
+    n = Set(n, "active", strnum(active))
+    return (n)
+}
+
+func: Badge(id, text, variant) {
+    n = New("badge", id)
+    n = Set(n, "text", text)
+    n = Set(n, "variant", variant)
+    return (n)
+}
+
+func: Dropdown(id, label) {
+    n = New("dropdown", id)
+    n = Set(n, "label", label)
+    return (n)
+}
+
+func: Option(id, text, eventName) {
+    n = New("option", id)
+    n = Set(n, "text", text)
+    n = Set(n, "event", eventName)
+    return (n)
+}
+
+func: Table(id) {
+    return (New("table", id))
+}
+
+func: Row(id) {
+    return (New("row", id))
+}
+
+func: Cell(id, text) {
+    n = New("cell", id)
+    n = Set(n, "text", text)
+    return (n)
+}
+
+func: Header(id, text) {
+    n = Cell(id, text)
+    n = Set(n, "header", "1")
+    return (n)
+}
+
+func: Styles() {
+    css = "<style>"
+    css = css $ ":root{--bg:#fafafa;--panel:#fff;--line:#e4e4e7;--text:#09090b;--muted:#71717a;--hover:#f4f4f5;--accent:#18181b;--radius:8px;--pill:999px;font-family:Segoe UI,Arial,sans-serif;font-size:13px;color:var(--text)}"
+    css = css $ "body[data-theme='shadcn_dark']{--bg:#09090b;--panel:#111113;--line:#27272a;--text:#fafafa;--muted:#a1a1aa;--hover:#1f1f23;--accent:#fafafa}"
+    css = css $ "body{margin:0;background:var(--bg);color:var(--text)}.pg-shell{min-height:100vh;padding:18px;background:var(--bg)}.pg-stack{display:flex;gap:14px}.pg-stack.vertical{flex-direction:column}.pg-stack.horizontal{flex-direction:row;flex-wrap:wrap}.pg-card{border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);overflow:visible}.pg-card-title{padding:14px 16px;border-bottom:1px solid var(--line);font-weight:750}.pg-card-body{padding:14px}.pg-text{color:var(--muted)}"
+    css = css $ ".pg-toolbar,.pg-tabs{display:flex;align-items:center;gap:0;width:max-content;max-width:100%;border:1px solid var(--line);border-radius:var(--pill);background:var(--panel);padding:3px;overflow:hidden}.pg-btn,.pg-tab{height:32px;border:0;background:transparent;color:var(--text);padding:0 12px;font-weight:650;cursor:pointer}.pg-btn:hover,.pg-tab.active{background:var(--hover);color:var(--accent)}.pg-btn:first-child,.pg-tab:first-child{border-top-left-radius:var(--pill);border-bottom-left-radius:var(--pill)}.pg-btn:last-child,.pg-tab:last-child{border-top-right-radius:var(--pill);border-bottom-right-radius:var(--pill)}"
+    css = css $ ".pg-badge{display:inline-flex;align-items:center;gap:6px;height:24px;border:1px solid var(--line);border-radius:var(--pill);padding:0 9px;background:var(--panel);font-size:12px}.pg-badge.done:before{content:' ';width:6px;height:6px;border-radius:999px;background:#00c781}.pg-badge.busy:before{content:' ';width:7px;height:7px;border-radius:999px;border:1px dashed var(--muted)}"
+    css = css $ ".pg-dropdown{position:relative;display:inline-flex}.pg-drop-btn{height:32px;border:1px solid var(--line);border-radius:var(--pill);background:var(--panel);color:var(--text);padding:0 28px 0 12px;font-weight:650;cursor:pointer}.pg-drop-btn:after{content:'v';position:absolute;right:11px;color:var(--muted)}.pg-drop-menu{display:none;position:absolute;right:0;top:calc(100% + 6px);min-width:180px;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);box-shadow:0 18px 50px rgba(0,0,0,.18);padding:4px;z-index:20}.pg-dropdown.open .pg-drop-menu{display:block}.pg-option{width:100%;height:30px;border:0;border-radius:6px;background:transparent;color:var(--text);display:flex;align-items:center;text-align:left;padding:0 8px;cursor:pointer}.pg-option:hover{background:var(--hover)}"
+    css = css $ ".pg-table-wrap{overflow:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel)}.pg-table{width:100%;border-collapse:separate;border-spacing:0;min-width:760px}.pg-table th,.pg-table td{height:44px;border-bottom:1px solid var(--line);padding:0 12px;text-align:left;white-space:nowrap}.pg-table th{background:var(--hover);font-weight:750}.pg-table tr:last-child td{border-bottom:0}.pg-table tr:hover td{background:color-mix(in srgb,var(--hover) 65%,transparent)}"
+    css = css $ "</style>"
+    return (css)
+}
+
+func: Script() {
+    js = "<script>"
+    js = js $ "function pgDrop(btn){var d=btn.closest('.pg-dropdown');if(!d)return;var was=d.classList.contains('open');var all=document.querySelectorAll('.pg-dropdown.open');for(var i=0;i<all.length;i++){all[i].classList.remove('open')}if(!was)d.classList.add('open')}"
+    js = js $ "document.addEventListener('click',function(e){if(!e.target.closest('.pg-dropdown')){var all=document.querySelectorAll('.pg-dropdown.open');for(var i=0;i<all.length;i++){all[i].classList.remove('open')}}});"
+    js = js $ "</script>"
+    return (js)
+}
+
+func: RenderNode(node, childHtml) {
+    k = model::Kind(node)
+    id = desktopui::EscapeHtml(model::Id(node))
+    res = ""
+    if (k == "app") {
+        res = childHtml
+    }
+    if (k == "stack") {
+        res = "<div id='" $ id $ "' class='pg-stack " $ desktopui::EscapeHtml(model::Prop(node, "direction", "vertical")) $ "'>" $ childHtml $ "</div>"
+    }
+    if (k == "card") {
+        res = "<section id='" $ id $ "' class='pg-card'><div class='pg-card-title'>" $ desktopui::EscapeHtml(model::Prop(node, "title", "")) $ "</div><div class='pg-card-body'>" $ childHtml $ "</div></section>"
+    }
+    if (k == "text") {
+        res = "<span id='" $ id $ "' class='pg-text'>" $ desktopui::EscapeHtml(model::Prop(node, "text", "")) $ "</span>"
+    }
+    if (k == "button") {
+        res = "<button id='" $ id $ "' class='pg-btn' onclick=\"tobaEvent('" $ desktopui::EscapeJs(model::Prop(node, "event", model::Id(node))) $ "',this.id)\">" $ desktopui::EscapeHtml(model::Prop(node, "text", "Button")) $ "</button>"
+    }
+    if (k == "toolbar") {
+        res = "<div id='" $ id $ "' class='pg-toolbar'>" $ childHtml $ "</div>"
+    }
+    if (k == "tabs") {
+        res = "<div id='" $ id $ "' class='pg-tabs'>" $ childHtml $ "</div>"
+    }
+    if (k == "tab") {
+        cls = "pg-tab"
+        if (model::Prop(node, "active", "0") == "1") {
+            cls = "pg-tab active"
+        }
+        res = "<button id='" $ id $ "' class='" $ cls $ "' onclick=\"tobaEvent('" $ desktopui::EscapeJs(model::Prop(node, "event", model::Id(node))) $ "',this.id)\">" $ desktopui::EscapeHtml(model::Prop(node, "text", "Tab")) $ "</button>"
+    }
+    if (k == "badge") {
+        res = "<span id='" $ id $ "' class='pg-badge " $ desktopui::EscapeHtml(model::Prop(node, "variant", "")) $ "'>" $ desktopui::EscapeHtml(model::Prop(node, "text", "")) $ "</span>"
+    }
+    if (k == "dropdown") {
+        res = "<div id='" $ id $ "' class='pg-dropdown'><button type='button' class='pg-drop-btn' onclick='pgDrop(this)'>" $ desktopui::EscapeHtml(model::Prop(node, "label", "Menu")) $ "</button><div class='pg-drop-menu'>" $ childHtml $ "</div></div>"
+    }
+    if (k == "option") {
+        res = "<button id='" $ id $ "' type='button' class='pg-option' onclick=\"tobaEvent('" $ desktopui::EscapeJs(model::Prop(node, "event", model::Id(node))) $ "',this.id)\">" $ desktopui::EscapeHtml(model::Prop(node, "text", "Option")) $ "</button>"
+    }
+    if (k == "table") {
+        res = "<div id='" $ id $ "' class='pg-table-wrap'><table class='pg-table'>" $ childHtml $ "</table></div>"
+    }
+    if (k == "row") {
+        res = "<tr id='" $ id $ "'>" $ childHtml $ "</tr>"
+    }
+    if (k == "cell") {
+        tag = "td"
+        if (model::Prop(node, "header", "0") == "1") {
+            tag = "th"
+        }
+        content = childHtml
+        if (content == "") {
+            content = desktopui::EscapeHtml(model::Prop(node, "text", ""))
+        }
+        res = "<" $ tag $ " id='" $ id $ "'>" $ content $ "</" $ tag $ ">"
+    }
+    return (res)
+}
+
+func: Render1(node) {
+    h = ""
+    i = for (0, model::ChildCount(node), 1) {
+        h = h $ RenderNode(model::Child(node, i), "")
+    }
+    return (RenderNode(node, h))
+}
+
+func: Render2(node) {
+    h = ""
+    i = for (0, model::ChildCount(node), 1) {
+        h = h $ Render1(model::Child(node, i))
+    }
+    return (RenderNode(node, h))
+}
+
+func: Render3(node) {
+    h = ""
+    i = for (0, model::ChildCount(node), 1) {
+        h = h $ Render2(model::Child(node, i))
+    }
+    return (RenderNode(node, h))
+}
+
+func: Render4(node) {
+    h = ""
+    i = for (0, model::ChildCount(node), 1) {
+        h = h $ Render3(model::Child(node, i))
+    }
+    return (RenderNode(node, h))
+}
+
+func: Render5(node) {
+    h = ""
+    i = for (0, model::ChildCount(node), 1) {
+        h = h $ Render4(model::Child(node, i))
+    }
+    return (RenderNode(node, h))
+}
+
+func: Render6(node) {
+    h = ""
+    i = for (0, model::ChildCount(node), 1) {
+        h = h $ Render5(model::Child(node, i))
+    }
+    return (RenderNode(node, h))
+}
+
+func: Render7(node) {
+    h = ""
+    i = for (0, model::ChildCount(node), 1) {
+        h = h $ Render6(model::Child(node, i))
+    }
+    return (RenderNode(node, h))
+}
+
+func: Render(app) {
+    title = model::Prop(app, "title", "Toba WebUI")
+    body = "<div class='pg-shell'>" $ Render7(app) $ "</div>"
+    html = "<!doctype html><html><head><meta charset='utf-8'><title>" $ desktopui::EscapeHtml(title) $ "</title>" $ Styles() $ desktopui::Script() $ Script() $ "</head><body data-theme='shadcn_light'>" $ body $ "</body></html>"
+    return (html)
+}
+
+func: Run(app) {
+    html = Render(app)
+    win = desktopui::ShowBrowser(html, 1)
+    desktopui::SetWindow(win, 1100, 720, 100, 70)
+    desktopui::Wait()
+    return (win)
+}

@@ -1,0 +1,18 @@
+// Lance test3.html TEL QUEL dans le host WebView2 de libwebui, pour verifier
+// si le rendu RTX de test3 marche dans WebView2 (isole du wrapper/gallery).
+
+import : libwebui / webui
+
+func: launch3() {
+    html = fsreadf("C:/Toba/modules/libwebui/test3_in_libwebui.html")
+    if (isstr(html)) {
+        webui::ShowWebViewHost(html, "TEST3 dans WebView2", 1280, 860, 120, 80)
+        print("test3 lance dans le host WebView2\n")
+    }
+    else {
+        print("ERREUR: impossible de lire test3_in_libwebui.html\n")
+    }
+    return (1)
+}
+
+launch3()

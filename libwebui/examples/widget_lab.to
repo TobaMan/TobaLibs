@@ -1,0 +1,40 @@
+import : libwebui / webui
+import : libwebui / widgets_extra
+import : libwebui / eventbus
+
+if (main()) {
+    page = webui::CompactPage()
+    page.SetTitle("Widget Lab")
+    page.SetFooter("libwebui widgets_extra")
+    page.SetPort(19194)
+    page.SetWindow(820, 640, 160, 90)
+
+    rating = widgets_extra::Rating()
+    rating.Setup("quality_rating", "Qualite percue", 4, 5, "rating_change")
+    rating.Close()
+    page.Add(rating)
+
+    sw = widgets_extra::Switch()
+    sw.Setup("auto_play", "Lecture automatique", 1, "switch_change")
+    sw.Close()
+    page.Add(sw)
+
+    copy = widgets_extra::CopyField()
+    copy.Setup("voice_path", "Fichier voice", "C:/Toba/voices/webui_clone.voice", "copy_value")
+    copy.Close()
+    page.Add(copy)
+
+    steps = widgets_extra::ProgressSteps()
+    steps.Setup("clone_steps", "Pipeline clone", ("Audio", "Reference", "Voice", "Test"), 3, "step_select")
+    steps.Close()
+    page.Add(steps)
+
+    page.ShowReliable("C:/Toba/modules/libwebui/examples/widget_lab_debug.html")
+    loop {
+        evt = eventbus::Poll(20)
+        if (evt.HasEvent()) {
+            print(evt.Name() $ " : " $ evt.Value() $ "\n")
+        }
+        sleep(0.02)
+    }
+}

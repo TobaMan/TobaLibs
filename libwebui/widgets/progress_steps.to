@@ -1,0 +1,33 @@
+import : libwebui / widget_core
+
+obj:ProgressSteps() {
+    self.html = " "
+    self.id = "steps"
+    self.label = "Steps"
+    self.steps = ("Start", "Middle", "Done")
+    self.current = 1
+    self.eventName = "step_select"
+    self.disabled = 0
+
+    func:Setup(self, id, label, steps, current, eventName) {
+        self.id = id
+        self.label = label
+        self.steps = steps
+        self.current = current
+        self.eventName = eventName
+        return (self)
+    }
+
+    func:SetDisabled(self, disabled) {
+        self.disabled = disabled
+        return (self)
+    }
+
+    func:Close(self) {
+        self.html = widget_core::Styles() $ widget_core::ProgressSteps(self.id, self.label, self.steps, self.current, self.eventName)
+        if (self.disabled == 1) {
+            self.html = widget_core::DisableHtml(self.html)
+        }
+        return (self)
+    }
+}

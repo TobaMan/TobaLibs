@@ -1,0 +1,8 @@
+import : libwebui / simpleui
+import : libtts / clone
+import : libtts / tts
+
+if (main()) {
+    app = simpleui::Window()
+    print("window ok\n")
+}

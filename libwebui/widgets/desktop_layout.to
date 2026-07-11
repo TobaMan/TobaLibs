@@ -1,0 +1,49 @@
+import : libwebui / widgets
+
+obj:DesktopLayout() {
+    self.core = widgets::DesktopLayout()
+
+    func:SetTitle(self, title) {
+        self.core.SetTitle(title)
+        return (self)
+    }
+
+    func:SetFooter(self, footer) {
+        self.core.SetFooter(footer)
+        return (self)
+    }
+
+    func:AddThemeSelector(self) {
+        self.core.AddThemeSelector()
+        return (self)
+    }
+
+    func:AddActionMenu(self) {
+        self.core.AddActionMenu()
+        return (self)
+    }
+
+    func:AddChartPanel(self, panelId, title, value, note) {
+        self.core.AddChartPanel(panelId, title, value, note)
+        return (self)
+    }
+
+    func:AddTablePanel(self, panelId, title, value, note, rows) {
+        self.core.AddTablePanel(panelId, title, value, note, rows)
+        return (self)
+    }
+
+    func:AddHtmlPanel(self, panelId, title, value, note, contentHtml) {
+        self.core.AddHtmlPanel(panelId, title, value, note, contentHtml)
+        return (self)
+    }
+
+    func:AddKpiPanel(self, panelId, title, value, note, kpiItems) {
+        self.core.AddKpiPanel(panelId, title, value, note, kpiItems)
+        return (self)
+    }
+
+    func:Render(self) {
+        return (self.core.Render())
+    }
+}

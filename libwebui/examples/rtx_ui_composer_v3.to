@@ -1,0 +1,92 @@
+import : libwebui / webui
+import : libwebui / widgets_extra
+import : libwebui / eventbus
+import : libwebui / effects / gridcraft
+
+if (main()) {
+    page = webui::CompactPage()
+    page.SetTitle("RTX UI Composer V3")
+    page.SetFooter("Prototype separe - widgets Toba + SceneEditor + RTX V3")
+    page.SetPort(19208)
+    page.SetWindow(1500, 920, 40, 40)
+
+    editor = webui::SceneEditor()
+    editor.Setup("composer_editor")
+
+    // Bouton texte : produit par le widget Toolbar Toba.
+    textToolbar = webui::Toolbar()
+    textToolbar.Button("cmp_text_btn", "Action", "play", "composer_action", "primary")
+    textToolbar.Close()
+    tplButton = "<div class='cmp-surface lw-rtx' data-rtx-material='glass'>" $ textToolbar.html $ "</div>"
+
+    // Icone nue : aucun bouton, fond ou contour parasite.
+    tplIcon = "<div class='cmp-surface lw-rtx cmp-icon-wrap' data-rtx-material='emissive'><span class='cmp-naked-icon' data-icon='sparkles'></span></div>"
+
+    // Carte/panel : vrai CardGrid Toba.
+    card = webui::CardGrid()
+    card.AddCard("Panel", "Surface composable", "Glisse, redimensionne puis choisis son materiau.")
+    card.Close()
+    tplCard = "<div class='cmp-surface lw-rtx' data-rtx-material='diffuse'>" $ card.html $ "</div>"
+
+    tplBadge = "<div class='cmp-surface lw-rtx cmp-badge-wrap' data-rtx-material='glossy'>" $ webui::Badge("Status", "done") $ "</div>"
+
+    toggle = widgets_extra::Toggle()
+    toggle.Setup("cmp_toggle", "Option", 1, "composer_toggle")
+    toggle.Close()
+    tplToggle = "<div class='cmp-surface lw-rtx cmp-toggle-wrap' data-rtx-material='glass'>" $ toggle.html $ "</div>"
+
+    // Source lumineuse pure, sans faux bouton au centre.
+    tplLight = "<div class='cmp-light lw-rtx' data-rtx-material='emissive'></div>"
+
+    editor.AddTemplate("button", tplButton)
+    editor.AddTemplate("icon", tplIcon)
+    editor.AddTemplate("card", tplCard)
+    editor.AddTemplate("badge", tplBadge)
+    editor.AddTemplate("toggle", tplToggle)
+    editor.AddTemplate("light", tplLight)
+    editor.AddToolButton("button", "Bouton", "plus")
+    editor.AddToolButton("icon", "Icone", "sparkles")
+    editor.AddToolButton("card", "Panel", "copy")
+    editor.AddToolButton("badge", "Badge", "bell")
+    editor.AddToolButton("toggle", "Toggle", "settings")
+    editor.AddToolButton("light", "Lumiere", "sparkles")
+    editor.Close()
+
+    fields = webui::Fields()
+    fields.PillSelect("cmp_engine", "Moteur", ("realtime", "quality"), "composer_engine")
+    fields.PillSelect("cmp_blend", "Blending", ("normal", "multiply"), "composer_blend")
+    fields.PillSelect("cmp_material", "Materiau", ("diffuse", "mirror", "glass", "glossy", "emissive"), "composer_material")
+    fields.PillSelect("cmp_quality", "Resolution", ("0.35", "0.5", "0.7", "1.0"), "composer_quality")
+    fields.PillSelect("cmp_shape", "Forme", ("rectangle", "arrondi", "pilule", "cercle"), "composer_shape")
+    fields.PillSelect("cmp_icon", "Icone", ("play", "pause", "plus", "bell", "sparkles", "settings", "user", "trash", "save", "copy"), "composer_icon_pick")
+    fields.SliderPill("cmp_emissive", "Emissivite", 3, 0, 12, 0.1, "composerSetEmissive", "cmp_emissive_value")
+    fields.SliderPill("cmp_ambient", "Ambiance", 0.85, 0.05, 1.5, 0.05, "composerSetAmbient", "cmp_ambient_value")
+    fields.Close()
+
+    color = widgets_extra::ColorPicker()
+    color.Setup("cmp_color", "Couleur du widget selectionne", "#3b82f6", ("#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#a855f7", "#ffffff"), "composer_color")
+    color.Close()
+
+    actions = webui::Toolbar()
+    actions.Button("cmp_front", "Avancer", "maximize", "composer_front", " ")
+    actions.Button("cmp_back", "Reculer", "copy", "composer_back", " ")
+    actions.Button("cmp_delete", "Supprimer", "trash", "composer_delete", " ")
+    actions.Close()
+
+    css = "<style>"
+    css = css $ ".lw-compact-page .ui-pro{max-width:none!important;width:100%;height:100%}.lw-compact-main{overflow:hidden!important}.cmp-shell{height:calc(100vh - 118px);display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:12px}.cmp-properties{min-height:0;overflow:auto;border:1px solid var(--border);border-radius:var(--lw-radius);background:var(--bg-card);padding:12px;display:flex;flex-direction:column;gap:10px}.cmp-properties-title{font-weight:900;padding:4px 2px 10px;border-bottom:1px solid var(--border)}.cmp-properties .lw-pill-field{max-width:none}.cmp-properties .ui-toolbar{width:100%;flex-wrap:wrap}.cmp-color{width:100%}.cmp-editor-host{min-width:0;min-height:0;height:100%}.cmp-editor-host .lw-editor{height:100%;display:flex}.cmp-editor-host .lw-vtb{order:-1;flex:0 0 104px;height:100%;overflow:auto}.cmp-editor-host .lw-editor-page{order:2;height:100%;min-height:0}.cmp-editor-host .lw-eitem{min-width:24px!important;min-height:24px!important;background:transparent!important;box-shadow:none!important;border-radius:0!important;overflow:visible}.cmp-editor-host .lw-eitem.lw-esel{outline:none!important}.cmp-editor-host .lw-eitem.lw-esel>.lw-rtx{outline:3px solid var(--accent);outline-offset:3px}.lw-eitem>.cmp-surface,.lw-eitem>.cmp-light{pointer-events:none}.lw-eitem>.cmp-surface{display:flex!important;align-items:center;justify-content:center;width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;overflow:hidden;background:#3b82f6}.cmp-surface>.ui-toolbar,.cmp-surface>.ui-toolbar>.ui-btn{width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;justify-content:center}.cmp-surface>.gallery-grid,.cmp-surface>.gallery-grid>.ui-card{width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;overflow:hidden}.cmp-surface .ui-card{display:grid!important;grid-template-rows:auto minmax(0,1fr)}.cmp-surface .ui-card-body{min-width:0!important;min-height:0!important;overflow:auto}.cmp-badge-wrap,.cmp-toggle-wrap{padding:8px}.cmp-icon-wrap{border-radius:0;background:transparent!important}.cmp-naked-icon{display:grid;place-items:center;width:72%;height:72%;color:#fff}.cmp-naked-icon svg{width:100%;height:100%;stroke-width:1.8}.cmp-shape-rectangle{border-radius:2px!important}.cmp-shape-arrondi{border-radius:18px!important}.cmp-shape-pilule{border-radius:999px!important}.cmp-shape-cercle{border-radius:999px!important}.cmp-light{display:grid!important;place-items:center;width:100%!important;height:100%!important;border-radius:999px;background:#ff493d!important;box-shadow:0 0 32px 10px rgba(255,73,61,.7)}.lw-resize{z-index:20!important;width:24px!important;height:24px!important;background:rgba(15,23,42,.3)}#composerRtxCanvas{position:fixed;inset:0;width:100vw;height:100vh;z-index:60;pointer-events:none;mix-blend-mode:normal;opacity:.9}</style>"
+
+    script = "<script src='file:///C:/Toba/modules/libwebui/vendor/gridcraft/Raytracer_Engine_Realtime_V3.js'></script><script src='file:///C:/Toba/modules/libwebui/vendor/gridcraft/Raytracer_Engine_V3.js'></script>"
+    script = script $ "<script>(function(){var rt=null,ambient=.85,emissive=3;function status(s){var e=document.getElementById('composer_status');if(e)e.textContent=s}function clip(){var c=document.getElementById('composerRtxCanvas'),p=document.getElementById('composer_editor_page');if(!c||!p)return;var r=p.getBoundingClientRect();c.style.clipPath='inset('+Math.max(0,r.top)+'px '+Math.max(0,innerWidth-r.right)+'px '+Math.max(0,innerHeight-r.bottom)+'px '+Math.max(0,r.left)+'px)'}function item(ed){var s=ed&&ed.sel;return s&&s.classList&&s.classList.contains('lw-eitem')?s:s&&s.closest?s.closest('.lw-eitem'):null}function target(ed){var s=ed&&ed.sel;if(!s)return null;if(s.classList&&s.classList.contains('lw-rtx'))return s;var it=item(ed);return it&&it.querySelector('.lw-rtx')}function installResize(){if(window.__cmpResizeInstalled)return;window.__cmpResizeInstalled=1;window.lwMakeResizable=function(el,h,g){g=g||24;h.addEventListener('pointerdown',function(e){e.preventDefault();e.stopPropagation();var x=e.clientX,y=e.clientY,w=el.offsetWidth,z=el.offsetHeight;h.setPointerCapture(e.pointerId);function mv(q){el.style.width=Math.max(24,Math.round((w+q.clientX-x)/g)*g)+'px';el.style.height=Math.max(24,Math.round((z+q.clientY-y)/g)*g)+'px';if(el.__lwOnChange)el.__lwOnChange(el)}function up(){h.releasePointerCapture(e.pointerId);h.removeEventListener('pointermove',mv);h.removeEventListener('pointerup',up);if(el.__lwOnChange)el.__lwOnChange(el)}h.addEventListener('pointermove',mv);h.addEventListener('pointerup',up)})}}function start(){var ed=window.composer_editor,ms=document.getElementById('cmp_engine'),mode=ms?ms.value:'realtime',E=mode==='quality'?window.RTX_Quality:window.RTX_Realtime;if(!ed||!E){status('attente API/moteur');return false}try{installResize();if(rt&&rt.destroy)rt.destroy();rt=new E('composerRtxCanvas',{domSelector:'#composer_editor .lw-rtx',renderScale:mode==='quality'?1:.7,maxBounces:4,temporalAlpha:0,denoiseEnabled:true,denoiseStrength:.86,denoiseRadius:1.8,settleProfile:'quality-burst'});rt.setBackgroundColor([ambient,ambient,ambient]);rt.setEmissivePower(emissive);if(rt.setFrontEmission)rt.setFrontEmission(1);if(rt.setBloom)rt.setBloom(true,.55,.62);if(rt.setGlossyFresnel)rt.setGlossyFresnel(true,.6);ed.onScan=function(){if(rt)rt.updateSceneFromDOM()};ed.onPick=function(el){var s=document.getElementById('cmp_material'),t=target(ed);if(t&&s)s.value=t.getAttribute('data-rtx-material')||'diffuse'};if(!ed.items().length){var card=ed.add('card','transparent');if(card){card.style.left='180px';card.style.top='120px';card.style.width='360px';card.style.height='220px'}var light=ed.add('light','transparent');if(light){light.style.left='600px';light.style.top='180px';light.style.width='96px';light.style.height='96px'}}ed.reindex();clip();rt.updateSceneFromDOM();if(window.ResizeObserver&&!ed.page.__cmpObserved){ed.page.__cmpObserved=1;new ResizeObserver(function(){clip();if(rt)rt.updateSceneFromDOM()}).observe(ed.page)}status('RTX '+mode+' actif');return true}catch(err){status('erreur: '+err.message);console.error('[Composer RTX]',err);return false}}function boot(n){if(start())return;if(n<80)setTimeout(function(){boot(n+1)},100)}window.composerSetEmissive=function(v){emissive=parseFloat(v);if(rt)rt.setEmissivePower(emissive)};window.composerSetAmbient=function(v){ambient=parseFloat(v);if(rt)rt.setBackgroundColor([ambient,ambient,ambient])};window.addEventListener('toba:event',function(e){var d=e.detail||{},v=d.data&&d.data.value,ed=window.composer_editor,t=target(ed),it=item(ed);if(d.name==='composer_engine')start();if(d.name==='composer_blend'){var cv=document.getElementById('composerRtxCanvas');if(cv)cv.style.mixBlendMode=v}if(d.name==='composer_material'&&t){t.setAttribute('data-rtx-material',v);if(v==='glass'){t.setAttribute('data-rtx-ior','1.5');t.setAttribute('data-rtx-opacity','.42')}else{t.removeAttribute('data-rtx-opacity')}if(rt)rt.updateSceneFromDOM()}if(d.name==='composer_quality'&&rt)rt.setRenderScale(parseFloat(v));if(d.name==='composer_color'&&t){t.style.setProperty('background-color',v,'important');t.setAttribute('data-rtx-color',v);if(t.classList.contains('cmp-light'))t.style.setProperty('box-shadow','0 0 32px 10px '+v,'important');if(rt)rt.updateSceneFromDOM()}if(d.name==='composer_shape'&&t){['rectangle','arrondi','pilule','cercle'].forEach(function(x){t.classList.remove('cmp-shape-'+x)});t.classList.add('cmp-shape-'+v);if(rt)rt.updateSceneFromDOM()}if(d.name==='composer_icon_pick'&&it){var ic=it.querySelector('[data-icon]');if(ic){ic.setAttribute('data-icon',v);ic.removeAttribute('data-rendered');ic.innerHTML=String();if(window.galleryRenderIcons)galleryRenderIcons(it)}}if(d.name==='composer_front'&&ed&&it)ed.toFront(it);if(d.name==='composer_back'&&ed&&it)ed.toBack(it);if(d.name==='composer_delete'&&ed&&it)ed.remove(it)});if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){boot(0)});else boot(0)})();</script>"
+
+    page.AddHtml(css $ "<div class='cmp-shell'><div class='cmp-editor-host'>" $ editor.html $ "</div><aside class='cmp-properties'><div class='cmp-properties-title'>Proprietes du widget</div>" $ fields.html $ "<div class='cmp-color'>" $ color.html $ "</div>" $ actions.html $ "<span id='composer_status' class='tm-value'>demarrage...</span></aside></div><canvas id='composerRtxCanvas'></canvas>" $ script)
+    page.ShowReliable("C:/Toba/modules/libwebui/examples/rtx_ui_composer_v3_debug.html")
+
+    loop {
+        evt = eventbus::Poll(20)
+        if (evt.HasEvent()) {
+            print(evt.Name() $ " : " $ evt.Value() $ "\n")
+        }
+        sleep(0.02)
+    }
+}

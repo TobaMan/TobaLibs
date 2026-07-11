@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>RTX V3 - Barre d'outils multi-materiaux</title>
+<style>
+  :root{--bg:#eef2f7;--ink:#111827}
+  *{box-sizing:border-box}body{margin:0;overflow:hidden;font-family:system-ui;background:var(--bg);color:var(--ink);
+    background-image:linear-gradient(rgba(15,23,42,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(15,23,42,.055) 1px,transparent 1px);background-size:28px 28px}
+  .controls{position:fixed;inset:0 0 auto 0;z-index:5000;display:flex;gap:13px;align-items:center;flex-wrap:wrap;padding:10px 14px;background:#111827;color:#fff;font-size:12px}
+  .controls label{display:flex;gap:6px;align-items:center}.controls input[type=range]{width:105px}#status{margin-left:auto;font:11px Consolas,monospace;opacity:.86}
+  .stage{position:fixed;inset:76px 0 0;display:grid;place-items:center}
+  .demo{display:grid;gap:18px;justify-items:center}.caption{font-size:13px;color:#64748b}
+  .toolbox{position:relative;z-index:2;display:flex;gap:14px;align-items:center;padding:20px;border-radius:24px;background:rgba(255,255,255,.5);box-shadow:0 22px 70px rgba(15,23,42,.18);cursor:grab;touch-action:none}
+  .toolbox.dragging{cursor:grabbing}
+  .tool{position:relative;width:70px;height:70px;border:1px solid rgba(255,255,255,.72);border-radius:19px;background:#94a3b8;color:#fff;display:grid;place-items:center;cursor:pointer;box-shadow:0 9px 22px rgba(15,23,42,.16)}
+  .tool.round{border-radius:999px}.tool.selected{outline:3px solid #0ea5e9;outline-offset:4px}
+  .tool-icon{position:relative;z-index:4;font-size:29px;font-weight:900;line-height:1;pointer-events:none;text-shadow:0 1px 3px rgba(0,0,0,.35)}
+  .tool-name{position:absolute;left:50%;top:calc(100% + 8px);transform:translateX(-50%);font:10px Consolas,monospace;color:#334155;white-space:nowrap;pointer-events:none}
+  #rtxCanvas{position:fixed;inset:0;width:100%;height:100%;z-index:1;pointer-events:none;mix-blend-mode:normal}
+</style>
+</head>
+<body>
+<div class="controls">
+  <button id="start">Demarrer V3</button><button id="stop">Stop</button>
+  <label>Moteur <select id="engine"><option value="rt">Realtime stable</option><option value="quality">Quality</option></select></label>
+  <label>Materiau selectionne <select id="material"><option>diffuse</option><option>mirror</option><option selected>glass</option><option>glossy</option><option>emissive</option></select></label>
+  <label>Resolution <input id="scale" type="range" min=".3" max="1" step=".05" value=".55"></label>
+  <label>Bounces <input id="bounces" type="range" min="1" max="5" step="1" value="4"></label>
+  <label>Ambiance <input id="ambient" type="range" min="0" max="1" step=".05" value=".75"></label>
+  <label>Emission <input id="emission" type="range" min="0" max="8" step=".2" value="3"></label>
+  <label>Blend <select id="blend"><option selected>normal</option><option>screen</option><option>multiply</option><option>overlay</option></select></label>
+  <span id="status">V3 off</span>
+</div>
+<main class="stage"><div class="demo">
+  <div class="toolbox" id="toolbox">
+    <button class="tool gc-rtx" data-rtx-material="diffuse" style="background:#3b82f6"><span class="tool-icon">⌂</span><span class="tool-name">diffuse</span></button>
+    <button class="tool gc-rtx" data-rtx-material="mirror" style="background:#cbd5e1"><span class="tool-icon">⌕</span><span class="tool-name">mirror</span></button>
+    <button class="tool gc-rtx selected" data-rtx-material="glass" data-rtx-ior="1.5" style="background:#dff7ff"><span class="tool-icon">⚙</span><span class="tool-name">glass</span></button>
+    <button class="tool gc-rtx" data-rtx-material="glossy" data-rtx-roughness=".18" style="background:#a855f7"><span class="tool-icon">★</span><span class="tool-name">glossy</span></button>
+    <button class="tool round gc-rtx" data-rtx-material="emissive" style="background:#ff4d3f"><span class="tool-icon">●</span><span class="tool-name">emissive</span></button>
+  </div>
+  <div class="caption">Cliquez un widget, changez son matériau, puis déplacez la barre.</div>
+</div></main>
+<canvas id="rtxCanvas"></canvas>
+<script src="file:///C:/Toba/modules/libwebui/vendor/gridcraft/Raytracer_Engine_Realtime_V3.js"></script>
+<script src="file:///C:/Toba/modules/libwebui/vendor/gridcraft/Raytracer_Engine_V3.js"></script>
+<script>
+const $=id=>document.getElementById(id);let rtx=null,selected=document.querySelector('.tool.selected');
+function ambient(){const a=parseFloat($('ambient').value);return[a,a,a]}
+function rescan(){if(rtx)rtx.updateSceneFromDOM()}
+function start(){if(rtx)rtx.destroy();const Engine=$('engine').value==='rt'?window.RTX_Realtime:window.RTX_Quality;if(!Engine){$('status').textContent='moteur V3 absent';return}rtx=new Engine('rtxCanvas',{domSelector:'.gc-rtx',renderScale:$('engine').value==='rt'?parseFloat($('scale').value):1,maxBounces:parseInt($('bounces').value),temporalAlpha:0,denoiseEnabled:true,denoiseStrength:.86,denoiseRadius:1.8,bloomEnabled:true,settleProfile:'quality-burst'});rtx.setBackgroundColor(ambient());rtx.setEmissivePower(parseFloat($('emission').value));rtx.setFrontEmission(.9);rtx.setBloom(true,.55,.62);rtx.updateSceneFromDOM()}
+function stop(){if(rtx){rtx.destroy();rtx=null}}
+document.querySelectorAll('.tool').forEach(el=>el.onclick=()=>{document.querySelectorAll('.tool').forEach(x=>x.classList.remove('selected'));selected=el;el.classList.add('selected');$('material').value=el.dataset.rtxMaterial||'diffuse'});
+$('material').onchange=e=>{if(!selected)return;selected.dataset.rtxMaterial=e.target.value;selected.querySelector('.tool-name').textContent=e.target.value;rescan()};
+$('start').onclick=start;$('stop').onclick=stop;$('engine').onchange=start;
+$('scale').oninput=e=>{if(rtx&&rtx.setRenderScale&&$('engine').value==='rt')rtx.setRenderScale(parseFloat(e.target.value))};
+$('bounces').oninput=e=>{if(rtx)rtx.setMaxBounces(parseInt(e.target.value))};
+$('ambient').oninput=()=>{if(rtx)rtx.setBackgroundColor(ambient())};$('emission').oninput=e=>{if(rtx)rtx.setEmissivePower(parseFloat(e.target.value))};
+$('blend').onchange=e=>$('rtxCanvas').style.mixBlendMode=e.target.value;
+let drag=null,raf=0;const box=$('toolbox');box.onpointerdown=e=>{if(e.target.closest('.tool'))return;const r=box.getBoundingClientRect();drag={dx:e.clientX-r.left,dy:e.clientY-r.top};box.classList.add('dragging');box.setPointerCapture(e.pointerId)};box.onpointermove=e=>{if(!drag)return;box.style.position='fixed';box.style.left=(e.clientX-drag.dx)+'px';box.style.top=(e.clientY-drag.dy)+'px';if(!raf)raf=requestAnimationFrame(()=>{raf=0;if(rtx&&rtx.updateScenePositionsFromDOM)rtx.updateScenePositionsFromDOM();else rescan()})};box.onpointerup=()=>{if(!drag)return;drag=null;box.classList.remove('dragging');rescan();if(rtx&&rtx.triggerReconverge)rtx.triggerReconverge()};
+function tick(){$('status').textContent=rtx?('V3 '+($('engine').value==='rt'?'RT':'QUALITY')+' | '+rtx.frameCount+' frames | '+(rtx.scene?rtx.scene.length:0)+' widgets'):'V3 off';requestAnimationFrame(tick)}tick();setTimeout(start,100);
+</script>
+</body></html>

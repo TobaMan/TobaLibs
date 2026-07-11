@@ -1,0 +1,83 @@
+import : libwebui / eventbus
+
+func: TextOrEmpty(value) {
+    res = ""
+    if (isstr(value)) {
+        res = value
+    }
+    else {
+        if (isnum(value)) {
+            res = strnum(value)
+        }
+    }
+    return (res)
+}
+
+func: HasText(value) {
+    res = 0
+    text = TextOrEmpty(value)
+    if (size(text) > 0) {
+        if (text != " ") {
+            res = 1
+        }
+    }
+    return (res)
+}
+
+func: QuoteArg(value) {
+    res = "\"" $ TextOrEmpty(value) $ "\""
+    return (res)
+}
+
+func: NormalizePath(path) {
+    res = TextOrEmpty(path)
+    res = freplace(res, "\r", "")
+    res = freplace(res, "\n", "")
+    res = freplace(res, "\\", "/")
+    return (res)
+}
+
+func: JsonText(value) {
+    res = NormalizePath(value)
+    res = freplace(res, "\\", "\\\\")
+    res = freplace(res, "\"", "'")
+    return (res)
+}
+
+func: Notify(title, text) {
+    eventbus::Notify(title, text)
+    print(TextOrEmpty(title) $ " : " $ TextOrEmpty(text) $ "\n")
+    return (1)
+}
+
+func: PlayAudio(path) {
+    cmd = eventbus::Command("webuiPlayAudio")
+    cmd.SetJson("{\"path\":\"" $ JsonText(path) $ "\"}")
+    cmd.Execute()
+    return (1)
+}
+
+func: SetFilePicker(id, path) {
+    cmd = eventbus::Command("webuiSetFilePicker")
+    cmd.SetJson("{\"id\":\"" $ JsonText(id) $ "\",\"path\":\"" $ JsonText(path) $ "\"}")
+    cmd.Execute()
+    return (1)
+}
+
+func: PickFile(title, filter) {
+    script = "C:/Toba/modules/libwebui/file_picker.ps1"
+    cmd = "powershell -NoProfile -STA -ExecutionPolicy Bypass -File " $ QuoteArg(script)
+    cmd = cmd $ " -Title " $ QuoteArg(title)
+    cmd = cmd $ " -Filter " $ QuoteArg(filter)
+    out = runproc(cmd, " ")
+    res = ""
+    if (isstr(out)) {
+        res = NormalizePath(out)
+    }
+    return (res)
+}
+
+func: PickAudioFile() {
+    res = PickFile("Choisir un fichier audio", "Audio (*.wav;*.mp3;*.flac;*.ogg;*.m4a)|*.wav;*.mp3;*.flac;*.ogg;*.m4a|Tous (*.*)|*.*")
+    return (res)
+}

@@ -1,0 +1,195 @@
+import : libllamacpp / llamacpp
+import : libwebui / webui
+import : libwebui / desktopui
+import : libjson / json
+
+func: LogPath() {
+    return ("C:/Toba/modules/libwebui/examples/webui_llamacpp_chat.log")
+}
+
+func: Log(line) {
+    path = LogPath()
+    old = fsreadf(path)
+    if (!isstr(old)) {
+        old = ""
+    }
+    fswritef(path, old $ line $ "\n")
+    return (1)
+}
+
+func: ConfigureServer(serverPath, modelPath, mmprojPath, portText) {
+    modelPort = numstr(portText)
+    server = llamacpp::QuickServer()
+    server.SetServer(serverPath)
+    server.SetModel(modelPath)
+    server.SetMmproj(mmprojPath)
+    server.SetPort(modelPort)
+    server.SetMyAssistantDefaults()
+    return (server)
+}
+
+// UI 100% widgets (plus de HTML inline) via webui::CompactPage.
+func: BuildPage(port) {
+    page = webui::CompactPage()
+    page.SetTitle("Toba llama.cpp Chat")
+    page.SetFooter("libwebui + libllamacpp, safe mode: no automatic model launch")
+    page.SetPort(port)
+    page.SetWindow(1180, 760, 120, 70)
+
+    fields = webui::Fields()
+    fields.PillInput("model_path", "GGUF", llamacpp::DefaultModelPath(), "model_changed")
+    fields.PillInput("mmproj_path", "MMProj", llamacpp::DefaultMmprojPath(), "mmproj_changed")
+    fields.PillInput("server_path", "Server", llamacpp::DefaultServerPath(), "server_changed")
+    fields.PillInput("port", "Port", "8080", "port_changed")
+    fields.Close()
+    page.Add(fields)
+
+    toolbar = webui::Toolbar()
+    toolbar.Button("start_model", "Start", "play", "start_model", "primary")
+    toolbar.Button("stop_model", "Stop", "square", "stop_model", " ")
+    toolbar.Close()
+    page.Add(toolbar)
+
+    chat = webui::Chat()
+    chat.Setup("llm", "llama.cpp Chat", "send_message")
+    page.Add(chat)
+
+    return (page)
+}
+
+func: Main() {
+    port = 19145
+    activeModel = llamacpp::DefaultModelPath()
+    activePort = "8080"
+    activeServer = llamacpp::DefaultServerPath()
+    activeMmproj = llamacpp::DefaultMmprojPath()
+
+    fswritef(LogPath(), "TOBA LLAMACPP CHAT UI STARTED\n")
+
+    page = BuildPage(port)
+    page.ShowReliable("C:/Toba/modules/libwebui/examples/webui_llamacpp_chat_debug.html")
+
+    print("TOBA LLAMACPP CHAT UI STARTED\n")
+    print("Safe mode: no model is started by this UI.\n")
+    print("log = ")
+    print(LogPath())
+    print("\n")
+
+    loading = 0
+    done = 0
+    tick = 0
+
+    loop {
+        if (done == 1) {
+            break
+        }
+        tick = tick + 1
+        evt = webui::PollRaw(25)
+        if (size(evt) > 0) {
+            name = webui::EventName(evt)
+            value = webui::EventValue(evt)
+
+            if (name == "model_changed") {
+                activeModel = value
+                Log("model selected = " $ activeModel)
+                desktopui::BridgeExecute("uiStatus", "{\"text\":\"Model selected\",\"kind\":\"stopped\"}")
+            }
+            if (name == "mmproj_changed") {
+                activeMmproj = value
+            }
+            if (name == "server_changed") {
+                activeServer = value
+            }
+            if (name == "port_changed") {
+                activePort = value
+            }
+            if (name == "start_model") {
+                server = ConfigureServer(activeServer, activeModel, activeMmproj, activePort)
+                Log("start requested, stopping previous server on port = " $ activePort)
+                server.Stop()
+                sleep(0.25)
+                started = server.Start()
+                if (started == 0) {
+                    Log("start model command = " $ server.CommandLine())
+                    loading = 1
+                    tick = 0
+                    desktopui::BridgeExecute("uiLoading", "{\"text\":\"Loading model...\"}")
+                }
+                else {
+                    loading = 0
+                    err = server.LastError()
+                    Log("start model failed = " $ err)
+                    payloadStart = "{\"text\":\"Start failed: " $ llamacpp::JsonEscape(err) $ "\",\"kind\":\"error\"}"
+                    desktopui::BridgeExecute("uiStatus", payloadStart)
+                }
+            }
+            if (name == "stop_model") {
+                server = ConfigureServer(activeServer, activeModel, activeMmproj, activePort)
+                server.Stop()
+                Log("stop response = " $ server.LastResponse())
+                loading = 0
+                alive = server.IsProcessRunning()
+                if (alive == 0) {
+                    desktopui::BridgeExecute("uiStopped", "{\"text\":\"Model stopped.\"}")
+                }
+                else {
+                    desktopui::BridgeExecute("uiStatus", "{\"text\":\"Stop requested, but llama-server is still visible. Check log.\",\"kind\":\"error\"}")
+                }
+            }
+            if (name == "send_message") {
+                server = ConfigureServer(activeServer, activeModel, activeMmproj, activePort)
+                if (server.Ready() == 1) {
+                    raw = server.Chat(value)
+                    content = json::GetString(raw, "content", "")
+                    if (size(content) > 0) {
+                        payload = "{\"text\":\"" $ llamacpp::JsonEscape(content) $ "\"}"
+                        desktopui::BridgeExecute("uiAssistant", payload)
+                    }
+                    else {
+                        desktopui::BridgeExecute("uiSystem", "{\"text\":\"Server replied, but content could not be extracted.\"}")
+                    }
+                }
+                else {
+                    desktopui::BridgeExecute("uiSystem", "{\"text\":\"Model not ready yet. Wait for Ready before chatting.\",\"kind\":\"loading\"}")
+                }
+            }
+            if (name == "window_closed") {
+                Log("window closed, stop llama-server on port = " $ activePort)
+                server = ConfigureServer(activeServer, activeModel, activeMmproj, activePort)
+                server.Stop()
+                loading = 0
+                done = 1
+            }
+        }
+
+        if (loading == 1) {
+            if (tick % 20 == 0) {
+                serverCheck = ConfigureServer(activeServer, activeModel, activeMmproj, activePort)
+                ready = serverCheck.Ready()
+                if (ready == 1) {
+                    loading = 0
+                    Log("model ready on port = " $ activePort)
+                    desktopui::BridgeExecute("uiReady", "{\"text\":\"Model ready. You can chat now.\"}")
+                }
+                else {
+                    aliveCheck = serverCheck.IsProcessRunning()
+                    if (aliveCheck == 1) {
+                        desktopui::BridgeExecute("uiLoading", "{\"text\":\"Loading model...\"}")
+                    }
+                    else {
+                        loading = 0
+                        Log("model load failed or process not visible on port = " $ activePort)
+                        desktopui::BridgeExecute("uiStatus", "{\"text\":\"llama-server is not running. Model did not finish loading.\",\"kind\":\"error\"}")
+                    }
+                }
+            }
+        }
+        sleep(0.05)
+    }
+    desktopui::CloseAll()
+    return (1)
+}
+
+if (main()) {
+    Main()
+}

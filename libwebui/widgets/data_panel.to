@@ -1,0 +1,50 @@
+import : libwebui / widgets
+
+obj:DataPanel() {
+    self.core = widgets::DataPanel()
+
+    func:Setup(self, id) {
+        self.core.Setup(id)
+        return (self)
+    }
+
+    func:AddToolButton(self, label, icon, onClickJs) {
+        self.core.AddToolButton(label, icon, onClickJs)
+        return (self)
+    }
+
+    func:SetSearchBox(self, placeholder) {
+        self.core.SetSearchBox(placeholder)
+        return (self)
+    }
+
+    func:TreeNode(self, label, badge, open) {
+        self.core.TreeNode(label, badge, open)
+        return (self)
+    }
+
+    func:TreeLeaf(self, label, onClickJs) {
+        self.core.TreeLeaf(label, onClickJs)
+        return (self)
+    }
+
+    func:TreeEnd(self) {
+        self.core.TreeEnd()
+        return (self)
+    }
+
+    func:SetColumns(self, cols) {
+        self.core.SetColumns(cols)
+        return (self)
+    }
+
+    func:AddRow(self, cells, onClickJs) {
+        self.core.AddRow(cells, onClickJs)
+        return (self)
+    }
+
+    func:Render(self) {
+        return (self.core.Render())
+    }
+}
+

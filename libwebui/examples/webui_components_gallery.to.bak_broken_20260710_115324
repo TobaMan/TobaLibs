@@ -1,0 +1,823 @@
+import : libwebui / webui
+import : libwebui / desktopui
+import : libwebui / widgets
+import : libwebui / eventbus
+import : libwebui / widgets_extra
+import : libwebui / widget_core
+import : libwebui / effects
+import : libwebui / effects / gridcraft
+import : libjson / json
+
+func: ChartValue(pointId) {
+    v = pointId * 17
+    loop {
+        if (v <= 60) {
+            break
+        }
+        v = v - 60
+    }
+    res = 25 + v
+    return (res)
+}
+
+func: PushChartPoint(pointId) {
+    value = ChartValue(pointId)
+    secondary = value - 8
+    if (secondary < 0) {
+        secondary = 0
+    }
+    eventbus::ChartAddPoint("Toba " $ strnum(pointId), value, secondary)
+    return (pointId + 1)
+}
+
+func: OnGalleryEvent(evt, chartPoint) {
+    handled = 0
+    if (evt.Is("callback_notify")) {
+        eventbus::Notify("Toba callback", "Toba received " $ evt.Name() $ " from " $ evt.WidgetId())
+        handled = 1
+    }
+    if (evt.Is("chart_add_point")) {
+        chartPoint = PushChartPoint(chartPoint)
+        handled = 1
+    }
+    if (evt.Is("chart_add_burst")) {
+        i = for (0, 5, 1) {
+            chartPoint = PushChartPoint(chartPoint)
+        }
+        handled = 1
+    }
+    if (evt.Is("chart_reset")) {
+        eventbus::ChartReset()
+        chartPoint = 1
+        handled = 1
+    }
+    return (chartPoint)
+}
+
+// Controles GridCraft construits avec de VRAIS widgets libwebui : Toolbar
+// (boutons -> events gc_*) + Fields.SliderUnit (sliders themes). startEvent =
+// 'gc_start_radiance' ou 'gc_start_rtx'. Aucun HTML brut.
+func: GcControls(startEvent, suffix) {
+    bar = webui::Toolbar()
+    bar.Button("gc_start_" $ suffix, "Demarrer", "play", startEvent, "primary")
+    bar.Button("gc_stop_" $ suffix, "Arreter", "square", "gc_stop", " ")
+    bar.Button("gc_refresh_" $ suffix, "Rafraichir", "refresh", "gc_refresh", " ")
+    bar.Close()
+
+    // SliderPillHtml directement (pas via Fields qui empile) -> rangee flex.
+    sliders = webui::SliderPillHtml("gc_q_" $ suffix, "Qualite", 0.6, 0.25, 1, 0.05, "gcSetScale", "gc_qv_" $ suffix)
+    sliders = sliders $ webui::SliderPillHtml("gc_o_" $ suffix, "Opacite", 0.75, 0.1, 1, 0.05, "gcSetOpacity", "gc_ov_" $ suffix)
+    sliders = sliders $ webui::SliderPillHtml("gc_i_" $ suffix, "Intensite", 0.6, 0.1, 1, 0.05, "gcSetMaxAlpha", "gc_iv_" $ suffix)
+    sliders = sliders $ webui::SliderPillHtml("gc_f_" $ suffix, "Finesse", 2, 1, 4, 1, "gcSetLineStep", "gc_fv_" $ suffix)
+
+    // Rangee compacte de pills (flex, retour a la ligne si besoin).
+    return (bar.html $ "<div class='gallery-row' style='flex-wrap:wrap;gap:8px;margin-top:10px'>" $ sliders $ "</div>")
+}
+
+if (main()) {
+    page = webui::Page()
+    page.SetTitle("Toba WebUI Component Gallery")
+    page.SetFooter("libwebui gallery built with Toba widget objects")
+    page.SetPort(19165)
+    page.SetWindow(1240, 820, 90, 60)
+    page.CustomChrome()
+
+    overview = webui::Panel()
+    overview.Setup("overview", "Overview", "catalog", "All component families")
+        stats = webui::Stats()
+        stats.Add("Window", "Desktop", "ShowBrowser + DockPage")
+        stats.Add("Widgets", "Pro", "shadcn-like layer")
+        stats.Add("Events", "Bridge", "WebSocket to Toba")
+        stats.Add("Layout", "Dock", "Sidebar + stage")
+        stats.Close()
+        overview.Add(stats)
+
+        cards = webui::CardGrid()
+        cards.AddCard("Design tokens", "Small type, stable heights", "Every widget uses libwebui theme variables.")
+        cards.AddCard("Pill rows preserved", "Joined buttons stay clean", "The pill row system keeps straight inner joins and rounded outer edges.")
+        cards.AddCard("Local icons", "Lucide-style inline SVG", "No network dependency; icons are rendered by the shared script.")
+        cards.AddCard("Custom dropdowns", "Not native select menus", "Dropdown menus are custom widgets and inherit the selected theme.")
+        cards.Close()
+        overview.Add(cards)
+    overview.Close()
+    page.AddPanel(overview)
+
+    inputs = webui::Panel()
+    inputs.Setup("inputs", "Inputs and actions", "events", "Pill fields, buttons and event log")
+        toolbar = webui::Toolbar()
+        toolbar.IconButton("new_btn", "plus", "new_clicked")
+        toolbar.IconButton("search_btn", "search", "search_clicked")
+        toolbar.Separator()
+        toolbar.Button("save_btn", "Save", "save", "save_clicked", "primary")
+        toolbar.Button("copy_btn", "Copy", "copy", "copy_clicked", " ")
+        toolbar.Button("notify_btn", "Toba Notify", "bell", "callback_notify", " ")
+        toolbar.IconButton("delete_btn", "trash", "delete_clicked")
+        toolbar.Close()
+        inputs.Add(toolbar)
+
+        fields = webui::Fields()
+        fields.PillInput("name_input", "Name", "Toba component", "name_changed")
+        fields.PillSelect("mode_select", "Mode", ("Compact", "Comfortable", "Dense"), "mode_changed")
+        fields.Slider("radius_slider", "Radius", 6, 0, 24, "gallerySetRadiusPx", "radius_value")
+        fields.Slider("spacing_slider", "Spacing", 14, 6, 28, "gallerySetSpacingPx", "spacing_value")
+        fields.EventLog()
+        fields.Close()
+        inputs.Add(fields)
+
+        rating = widgets_extra::Rating()
+        rating.Setup("quality_rating", "Qualite percue", 4, 5, "rating_change")
+        rating.Close()
+        inputs.Add(rating)
+
+        sw = widgets_extra::Switch()
+        sw.Setup("auto_play", "Lecture automatique", 1, "switch_change")
+        sw.Close()
+        inputs.Add(sw)
+
+        copy = widgets_extra::CopyField()
+        copy.Setup("voice_path", "Fichier voice", "C:/Toba/voices/webui_clone.voice", "copy_value")
+        copy.Close()
+        inputs.Add(copy)
+
+        steps = widgets_extra::ProgressSteps()
+        steps.Setup("clone_steps", "Pipeline clone", ("Audio", "Reference", "Voice", "Test"), 3, "step_select")
+        steps.Close()
+        inputs.Add(steps)
+
+        date = widgets_extra::DatePicker()
+        date.Setup("delivery_date", "Date de livraison", "2026-06-26", "date_change")
+        date.Close()
+        inputs.Add(date)
+
+        color = widgets_extra::ColorPicker()
+        color.Setup("accent_color", "Couleur accent", "#00d4aa", ("#00d4aa", "#3563e9", "#d64f8c", "#ff8b3d", "#18181b"), "color_change")
+        color.Close()
+        inputs.Add(color)
+
+        disabledRating = widgets_extra::Rating()
+        disabledRating.Setup("disabled_rating", "Qualite verrouillee", 2, 5, "disabled_rating_change")
+        disabledRating.SetDisabled(1)
+        disabledRating.Close()
+        inputs.Add(disabledRating)
+    inputs.Close()
+    page.AddPanel(inputs)
+
+    feedback = webui::Panel()
+    feedback.Setup("feedback", "Feedback", "overlay", "Popups, toasts and notifications")
+        popupBody = "<p><strong>PopupWindow</strong> accepte du HTML Toba libre, se ferme au clic exterieur ou avec Escape, et renvoie des events cote Toba.</p><div class='lw-popup-grid'><div class='lw-popup-metric'><b>3</b>Actions</div><div class='lw-popup-metric'><b>Esc</b>Fermeture</div><div class='lw-popup-metric'><b>100%</b>Themable</div></div>"
+        popup = widgets_extra::PopupWindow()
+        popup.Setup("demo_popup", "Fenetre de test", "Widget factory popup_window.to", popupBody)
+        popup.SetPrimary("Lancer", "popup_launch")
+        popup.SetSecondary("Fermer", "popup_cancel")
+        popup.Close()
+        feedback.Add(popup)
+        feedback.AddHtml("<div class='gallery-row'><button type='button' class='ui-btn primary' onclick='webuiModal(1)'>Popup historique</button><button type='button' class='ui-btn' onclick=\"webuiToast('Saved','Toast event rendered by the web runtime')\"><span data-icon='bell'></span>Toast demo</button><button type='button' class='ui-btn' onclick=\"webuiEvent('callback_notify',{id:'notify_feedback'})\"><span data-icon='bell'></span>Toba notify</button></div>")
+    feedback.Close()
+    page.AddPanel(feedback)
+
+    dp = widgets::DataPanel()
+    dp.Setup("gallery_dp")
+    dp.AddToolButton("Ajouter", "plus", "webuiToast('Ajouter','Nouveau document')")
+    dp.AddToolButton("Supprimer", "trash", "webuiToast('Supprimer','Document retire')")
+    dp.SetSearchBox("Rechercher un document...")
+    dp.TreeNode("Knowledge", "12", 1)
+    dp.TreeLeaf("lca_articles", "webuiToast('Theme','lca_articles selectionne')")
+    dp.TreeLeaf("camera", "webuiToast('Theme','camera selectionne')")
+    dp.TreeEnd()
+    dp.TreeNode("Behavior", "3", 0)
+    dp.TreeLeaf("historique", "webuiToast('Theme','historique selectionne')")
+    dp.TreeEnd()
+    dp.SetColumns(("Document", "Type", "Chunks", "Statut"))
+    dp.AddRow(("these247.pdf", "knowledge", "4", "Indexe"), "webuiToast('Editer','these247.pdf')")
+    dp.AddRow(("reconstruction.pdf", "knowledge", "7", "Indexe"), "webuiToast('Editer','reconstruction.pdf')")
+    dp.AddRow(("camera_01.jpg", "visual", "1", "En cours"), "webuiToast('Editer','camera_01.jpg')")
+
+    data = webui::Panel()
+    data.Setup("data", "Data display", "tables", "Professional table widgets")
+        tabs = webui::Tabs()
+        tabs.Tab("outline", "Outline", " ", 1)
+        tabs.Tab("past", "Past Performance", "3", 0)
+        tabs.Tab("key", "Key Personnel", "2", 0)
+        tabs.Tab("focus", "Focus Documents", " ", 0)
+        tabs.Close()
+
+        columns = webui::Dropdown()
+        columns.Setup("columns_menu", "Customize Columns")
+        columns.Option("Header", "column_header", 1)
+        columns.Option("Status", "column_status", 1)
+        columns.Option("Reviewer", "column_reviewer", 1)
+        columns.Close()
+
+        table = webui::Table()
+        table.AddSection("Cover page", "Cover page", "In Process", "busy", "18", "5", "Eddie Lake", "row_cover")
+        table.AddSection("Table of contents", "Table of contents", "Done", "done", "29", "24", "Eddie Lake", "row_toc")
+        table.AddSection("Executive summary", "Narrative", "Done", "done", "10", "13", "Eddie Lake", "row_summary")
+        table.AddSection("Technical approach", "Narrative", "Done", "done", "27", "23", "Jamik Tashpulatov", "row_technical")
+        table.AddSection("Design", "Narrative", "In Process", "busy", "2", "16", "Jamik Tashpulatov", "row_design")
+        table.AddSection("Capabilities", "Narrative", "In Process", "busy", "20", "8", "Jamik Tashpulatov", "row_capabilities")
+        table.AddSection("Integration with existing systems", "Narrative", "In Process", "busy", "19", "21", "Jamik Tashpulatov", "row_integration")
+        table.AddSection("Innovation and Advantages", "Narrative", "Done", "done", "25", "26", "Assign reviewer", "row_innovation")
+        table.AddSection("Overview of EMR's Innovative Solutions", "Technical content", "Done", "done", "7", "23", "Assign reviewer", "row_emr")
+        table.AddSection("Advanced Algorithms and Machine Learning", "Narrative", "Done", "done", "30", "28", "Assign reviewer", "row_ml")
+        table.Close()
+
+        dataStats = webui::Stats()
+        dataStats.Add("Selected", "0", "0 of 68 row(s)")
+        dataStats.Add("Sections", "68", "Outline dataset")
+        dataStats.Add("Reviewers", "3", "Assignable people")
+        dataStats.Add("Status", "live", "Events routed to Toba")
+        dataStats.Close()
+        data.Add(dataStats)
+
+        tableDemo = webui::TableDemo()
+        tableDemo.AddTop(tabs, columns)
+        tableDemo.AddTable(table)
+        tableDemo.AddPagination()
+        tableDemo.Close()
+        data.Add(tableDemo)
+        data.AddHtml(widgets::DataPanelStyles())
+        data.AddHtml("<div class='gallery-note' style='margin-top:18px'>DataPanel : toolbar + arborescence + tableau modifiable</div><div style='height:420px;margin-top:8px'>" $ dp.Render() $ "</div>")
+        simple = "<div class='gallery-note' style='margin-top:18px'>Tableau simple</div>"
+        simple = simple $ "<div class='tm-table-wrap' style='margin-top:8px'><table class='tm-table'>"
+        simple = simple $ "<thead><tr><th>Nom</th><th>Role</th><th>Statut</th></tr></thead><tbody>"
+        simple = simple $ "<tr><td>Diane</td><td>Assistante</td><td>Active</td></tr>"
+        simple = simple $ "<tr><td>Marc</td><td>Analyste</td><td>Active</td></tr>"
+        simple = simple $ "<tr><td>Sophie</td><td>Chercheuse</td><td>Pause</td></tr>"
+        simple = simple $ "</tbody></table></div>"
+        data.AddHtml(simple)
+    data.Close()
+    page.AddPanel(data)
+
+    advancedPanel = webui::Panel()
+    advancedPanel.Setup("advanced", "Advanced", "tabs", "Charts, media and future advanced widgets")
+    advancedPanel.Fill()
+        chart = widgets_extra::Chart()
+        chart.Setup("gallery_chart", "Chart.js professional chart", "Toba can push real-time points through the bridge")
+        chart.Close()
+        imageOne = widgets_extra::ImageView()
+        imageOne.Setup("advanced_image_view", "Image viewer", "C:/Toba/modules/libwebui/assets/sample_image_1.svg", "Demo image", "Image locale, themable, object-fit configurable")
+        imageOne.SetFit("cover")
+        imageOne.Close()
+        imageGallery = widgets_extra::ImageGallery()
+        imageGallery.Setup("advanced_image_gallery", "Image gallery", "Vignettes cliquables avec event Toba", "image_gallery_select")
+        imageGallery.SetColumns(2)
+        imageGallery.AddImage("C:/Toba/modules/libwebui/assets/sample_image_1.svg", "Landscape", "Landscape")
+        imageGallery.AddImage("C:/Toba/modules/libwebui/assets/sample_image_2.svg", "Curves", "Curves")
+        imageGallery.AddImage("C:/Toba/modules/libwebui/assets/sample_image_3.svg", "Cards", "Cards")
+        imageGallery.Close()
+        carousel = widgets_extra::Carousel()
+        carousel.Setup("advanced_carousel_widget", "Carousel", "Slides image avec fleches, dots et autoplay optionnel", "carousel_change")
+        carousel.SetAutoPlay(0)
+        carousel.AddSlide("C:/Toba/modules/libwebui/assets/sample_image_1.svg", "Landscape", "Image locale")
+        carousel.AddSlide("C:/Toba/modules/libwebui/assets/sample_image_2.svg", "Curves", "Navigation par fleches")
+        carousel.AddSlide("C:/Toba/modules/libwebui/assets/sample_image_3.svg", "Cards", "Dots cliquables")
+        carousel.Close()
+        videos = widgets_extra::VideoPlayer()
+        videos.Setup("advanced_video_player", "Video player", "C:/Toba/modules/libwebui/sample_video.mp4", " ", "HTML5 video component with Toba events")
+        videos.Close()
+        audio = widgets_extra::AudioPlayer()
+        audio.Setup("advanced_audio_player", "Audio player", "C:/Users/damie/Downloads/MyAssistant-main/MyAssistant-main/bin/piper_tts/piper/test.wav", "Lecteur audio avec sliders webui")
+        audio.Close()
+
+        advancedTabs = webui::TabView()
+        advancedTabs.Add("advanced_chart", "Graph", "live", 1, chart)
+        advancedTabs.Add("advanced_image", "Image", "new", 0, imageOne)
+        advancedTabs.Add("advanced_gallery", "Gallery", "new", 0, imageGallery)
+        advancedTabs.Add("advanced_carousel", "Carousel", "new", 0, carousel)
+        advancedTabs.Add("advanced_audio", "Audio player", "wave", 0, audio)
+        advancedTabs.Add("advanced_video", "Video player", "new", 0, videos)
+        advancedTabs.Close()
+        advancedPanel.AddHtml(advancedTabs.html)
+    advancedPanel.Close()
+    page.AddPanel(advancedPanel)
+
+    effectsPanel = webui::Panel()
+    effectsPanel.Setup("effects", "Effects", "motion", "CSS effects, Radiance cascade et Raytracer sur les widgets existants")
+        // Assets effects CSS (classes lwfx-*).
+        effectsPanel.AddHtml(effects::Assets())
+        effectsPanel.AddHtml(effects::CursorGlow())
+        effectsPanel.AddHtml(effects::EnableClickSparks())
+        // Toggle utilisateur (vrai widget Switch) : le glow curseur est
+        // desactive par defaut, l'utilisateur choisit de l'activer.
+        cursorToggle = widgets_extra::Switch()
+        cursorToggle.Setup("fx_cursor_glow", "Effets interactifs (glow curseur + etincelles au clic)", 0, "fx_cursor_glow_toggle")
+        cursorToggle.Close()
+        // Moteurs GridCraft (radiance + rtx) charges une fois pour le panel.
+        effectsPanel.AddHtml(gridcraft::Scripts())
+        // Fonctions gc* definies UNE SEULE fois. gcStart(mode) recoit le mode au
+        // clic. Cible UNIQUEMENT les widgets de l'editeur radiance
+        // (#rad_editor .lw-eitem) -> pas ceux de l'editeur RTX (#gc_editor), sinon
+        // les 2 jeux de widgets se melangent pendant la transition d'onglet
+        // (cartes/emissives de l'autre editeur captees = lumieres parasites).
+        effectsPanel.AddHtml(gridcraft::Runtime("#rad_editor .lw-eitem", 0.6, 0.75))
+
+        // ---- Sous-onglet 1 : CSS effects (classes lwfx-*) ----
+        fxCards = webui::CardGrid()
+        fxCards.AddCardFx(effects::GradientText("Gradient text"), "lwfx-gradient", "Texte anime theme-aware pour titres et statuts.", "lwfx-reveal")
+        fxCards.AddCardFx(effects::ShinyText("Shiny text"), "lwfx-shiny", "Reflet qui balaie le texte, pour mettre en avant un libelle.", "lwfx-reveal")
+        fxCards.AddCardFx(effects::ScrambleText("fx_scramble", "SCRAMBLE"), "lwfx-scramble", "Reveal type terminal (rejoue au changement d'onglet).", "lwfx-reveal")
+        fxCards.AddCardFx("Spotlight", "lwfx-spotlight", "Halo lumineux qui suit la souris. Survole la carte.", "lwfx-spotlight lwfx-reveal")
+        fxCards.AddCardFx("Animated border", "lwfx-border", "Bordure degradee en mouvement continu.", "lwfx-border lwfx-reveal")
+        fxCards.AddCardFx("Star border", "lwfx-star-border", "Point lumineux qui tourne autour de la bordure.", "lwfx-star-border lwfx-reveal")
+        fxCards.AddCardFx("Tilt 3D", "lwfx-tilt", "Inclinaison 3D + ombre profonde au survol.", "lwfx-tilt lwfx-reveal")
+        fxCards.AddCardFx("Glare", "lwfx-glare", "Reflet diagonal qui balaie la carte au survol.", "lwfx-glare lwfx-reveal")
+        fxCards.AddCardFx("Scan", "lwfx-scan", "Bande lumineuse qui balaie en continu (chargement).", "lwfx-scan lwfx-reveal")
+        fxCards.AddCardFx(effects::BlurText("Blur in"), "lwfx-blur", "Apparition floutee (rejouee au changement d'onglet).", "lwfx-reveal")
+        fxCards.AddCardFx("Gradient background", "lwfx-gradient-bg", "Fond degrade anime, subtil, theme-aware.", "lwfx-gradient-bg lwfx-reveal")
+        fxCards.AddCardFx("Float", "lwfx-float", "Flottement vertical lent, pour icones ou badges.", "lwfx-float lwfx-reveal")
+        fxCards.Close()
+        cssTab = "<div class='gallery-stack'><div class='gallery-note'>Ajoute une classe lwfx-* a n'importe quel widget (CardGrid.AddCardFx ou effects::Apply). Clique pour voir les sparks.</div>" $ cursorToggle.html $ fxCards.html $ "</div>"
+
+        // Echantillons = VRAIS widgets libwebui instancies (Table draggable,
+        // Stats, Toolbar, Fields), les memes objets que les autres onglets.
+        // L'overlay cible leurs classes reelles (voir Runtime targets).
+        // Tableau GENERIQUE avec LIGNES CUSTOMISEES : chaque cellule est un widget
+        // libwebui imbrique (Badge de statut, Avatar+nom, boutons d'action). Style
+        // au theme + drag des lignes gratuits via .gallery-table.
+        gcTable = webui::GridTable()
+        gcTable.SetColumns(("Tache", "Statut", "Priorite", "Responsable", "Actions"))
+        gcTable.AddRow(("Indexer les documents", webui::Badge("Termine", "done"), webui::Badge("Haute", "danger"), webui::Avatar("EL", "Eddie Lake"), "<div class='lw-cell-actions'>" $ webui::ActionBtn("Voir", "primary", "gc_view_1") $ webui::ActionBtn("Suppr.", "danger", "gc_del_1") $ "</div>"))
+        gcTable.AddRow(("Analyser les images", webui::Badge("En cours", "busy"), webui::Badge("Moyenne", " "), webui::Avatar("JT", "Jamik Tashpulatov"), "<div class='lw-cell-actions'>" $ webui::ActionBtn("Voir", "primary", "gc_view_2") $ webui::ActionBtn("Suppr.", "danger", "gc_del_2") $ "</div>"))
+        gcTable.AddRow(("Generer le rapport", webui::Badge("En attente", " "), webui::Badge("Basse", " "), webui::Avatar("MC", "Marie Curie"), "<div class='lw-cell-actions'>" $ webui::ActionBtn("Voir", "primary", "gc_view_3") $ webui::ActionBtn("Suppr.", "danger", "gc_del_3") $ "</div>"))
+        gcTable.AddRow(("Publier la synthese", webui::Badge("Termine", "done"), webui::Badge("Haute", "danger"), webui::Avatar("EL", "Eddie Lake"), "<div class='lw-cell-actions'>" $ webui::ActionBtn("Voir", "primary", "gc_view_4") $ webui::ActionBtn("Suppr.", "danger", "gc_del_4") $ "</div>"))
+        gcTable.Close()
+
+        gcSamples = "<div class='gallery-note' style='margin-top:40px;padding-top:20px;border-top:1px solid var(--border)'>Tableau libwebui a lignes customisees (widgets imbriques ; glisse les lignes par la poignee ::). Seuls les boutons/badges/cartes ci-dessus recoivent l'effet, pas le tableau :</div>" $ gcTable.html
+
+        // ---- Sous-onglet 2 : Radiance cascade (MEME SceneEditor que le RTX) ----
+        // Editeur identique au RTX (grille magnetique, VToolbar, drag/resize/menu),
+        // seul le moteur de lumiere change : ici la radiance cascade (eclairage
+        // global). Les widgets colores = sources de lumiere (le moteur lit leur
+        // background-color). Clic sur un widget -> couleur (color picker). Les
+        // reglages globaux (qualite/opacite/intensite/finesse) via GcControls.
+        radEditor = webui::SceneEditor()
+        radEditor.Setup("rad_editor")
+        // Templates dedies (ids distincts de ceux du RTX -> pas de doublon DOM).
+        rtBtn = "<button type='button' class='ui-btn primary'><span data-icon='play'></span>Bouton</button>"
+        rtCard = webui::CardGrid()
+        rtCard.AddCard("Carte", "widget", "Contenu de la carte.")
+        rtCard.Close()
+        rtTable = webui::Table()
+        rtTable.AddSection("Ligne 1", "Type", "Done", "done", "10", "5", "Eddie Lake", "rad_tr1")
+        rtTable.AddSection("Ligne 2", "Type", "In Process", "busy", "8", "3", "Marie Curie", "rad_tr2")
+        rtTable.Close()
+        radEditor.AddTemplate("button", rtBtn)
+        radEditor.AddTemplate("card", rtCard.html)
+        radEditor.AddTemplate("badge", webui::Badge("Badge", "done"))
+        radEditor.AddTemplate("table", rtTable.html)
+        radEditor.AddToolButton("button", "Bouton", "plus")
+        radEditor.AddToolButton("card", "Carte", "copy")
+        radEditor.AddToolButton("badge", "Badge", "bell")
+        radEditor.AddToolButton("table", "Table", "save")
+        radEditor.Close()
+
+        // Color picker custom : couleur (= couleur de la source de lumiere) du
+        // widget selectionne. Emet rad_color_change {value}.
+        radColPicker = widgets_extra::ColorPicker()
+        radColPicker.Setup("radColorPick", "Couleur (widget selectionne)", "#3b82f6", ("#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#a855f7", "#ffffff"), "rad_color_change")
+        radColPicker.Close()
+
+        // Panneau de reglages radiance dans un COLLAPSE (cache par defaut), meme
+        // agencement que le RTX. Les ids (radMatSel...) sont branches par le JS.
+        radCfg = "<div id='rad_settings' class='gallery-collapse' style='margin-top:14px'>"
+        radCfg = radCfg $ "<button type='button' class='gallery-collapse-head' onclick=\"webuiCollapse('rad_settings')\"><span>Reglages radiance</span><span class='gallery-chev'></span></button>"
+        radCfg = radCfg $ "<div class='gallery-collapse-body'>"
+        radCfg = radCfg $ "<div class='gallery-stack' style='gap:12px'>"
+        // (Le moteur demarre automatiquement a l'affichage de l'onglet, comme le RTX.)
+        // Color picker (couleur du widget selectionne).
+        radCfg = radCfg $ radColPicker.html
+        // Qualite (qualityScale).
+        radCfg = radCfg $ "<div class='gallery-row' style='align-items:center;gap:12px'><span class='gallery-note' style='min-width:180px'>Qualite</span><input type='range' id='radQualRange' min='0.25' max='1' step='0.05' value='0.6' style='flex:1'><span id='radQualVal' class='gallery-slider-value' style='min-width:36px'>0.60</span></div>"
+        // Opacite (overlay).
+        radCfg = radCfg $ "<div class='gallery-row' style='align-items:center;gap:12px'><span class='gallery-note' style='min-width:180px'>Opacite</span><input type='range' id='radOpacRange' min='0.1' max='1' step='0.05' value='0.75' style='flex:1'><span id='radOpacVal' class='gallery-slider-value' style='min-width:36px'>0.75</span></div>"
+        // Intensite (maxAlpha).
+        radCfg = radCfg $ "<div class='gallery-row' style='align-items:center;gap:12px'><span class='gallery-note' style='min-width:180px'>Intensite</span><input type='range' id='radIntRange' min='0.1' max='1' step='0.05' value='0.6' style='flex:1'><span id='radIntVal' class='gallery-slider-value' style='min-width:36px'>0.60</span></div>"
+        // Finesse (lineStep).
+        radCfg = radCfg $ "<div class='gallery-row' style='align-items:center;gap:12px'><span class='gallery-note' style='min-width:180px'>Finesse</span><input type='range' id='radStepRange' min='1' max='4' step='1' value='2' style='flex:1'><span id='radStepVal' class='gallery-slider-value' style='min-width:36px'>2</span></div>"
+        // Soleil directionnel : toggle NU (pas de carte) + angle (0-360deg -> rad).
+        radCfg = radCfg $ "<div class='gallery-row' style='align-items:center;gap:12px'><span class='gallery-note' style='min-width:180px'>Soleil directionnel</span>" $ widget_core::Toggle("radSunSwitch", " ", 0, "rad_sun_toggle") $ "</div>"
+        radCfg = radCfg $ "<div class='gallery-row' style='align-items:center;gap:12px'><span class='gallery-note' style='min-width:180px'>Angle du soleil</span><input type='range' id='radSunAngle' min='0' max='360' step='5' value='0' style='flex:1'><span id='radSunAngleVal' class='gallery-slider-value' style='min-width:36px'>0</span></div>"
+        // Correction gamma sRGB : toggle NU.
+        radCfg = radCfg $ "<div class='gallery-row' style='align-items:center;gap:12px'><span class='gallery-note' style='min-width:180px'>Correction gamma sRGB</span>" $ widget_core::Toggle("radSrgbSwitch", " ", 1, "rad_srgb_toggle") $ "</div>"
+        radCfg = radCfg $ "</div></div></div>"
+
+        // Script de branchement : le SceneEditor gere le DOM ; le moteur radiance
+        // (gridcraft::Runtime, deja charge) fait l'eclairage. ed.onScan -> refresh.
+        radScript = "<script>"
+        radScript = radScript $ "window.radEdInit=function(){"
+        radScript = radScript $ "  var ed=window.rad_editor;if(!ed||ed.__radBound)return;ed.__radBound=1;"
+        radScript = radScript $ "  ed.onScan=function(){if(window.gcRefresh)gcRefresh()};"
+        // Color picker -> couleur du widget selectionne (= couleur de la lumiere).
+        radScript = radScript $ "  window.addEventListener('toba:event',function(e){var d=e.detail||{};if(d.name==='rad_color_change'&&ed.sel){var v=(d.data&&d.data.value)||d.value;if(v){ed.sel.style.background=v;ed.onScan()}}});"
+        // Sliders -> setters gc* (moteur radiance).
+        radScript = radScript $ "  function radBind(id,valId,fn,fix){var r=document.getElementById(id),v=document.getElementById(valId);if(!r)return;r.addEventListener('input',function(e){var x=parseFloat(e.target.value);if(v)v.textContent=(fix>=0)?x.toFixed(fix):String(x);fn(x)})}"
+        radScript = radScript $ "  radBind('radQualRange','radQualVal',function(x){if(window.gcSetScale)gcSetScale(x)},2);"
+        radScript = radScript $ "  radBind('radOpacRange','radOpacVal',function(x){if(window.gcSetOpacity)gcSetOpacity(x)},2);"
+        radScript = radScript $ "  radBind('radIntRange','radIntVal',function(x){if(window.gcSetMaxAlpha)gcSetMaxAlpha(x)},2);"
+        radScript = radScript $ "  radBind('radStepRange','radStepVal',function(x){if(window.gcSetLineStep)gcSetLineStep(x)},0);"
+        // Angle soleil : slider en degres -> radians.
+        radScript = radScript $ "  radBind('radSunAngle','radSunAngleVal',function(x){if(window.gcSetSunAngle)gcSetSunAngle(x*Math.PI/180)},0);"
+        // Switches Soleil / sRGB (events des widgets Switch).
+        radScript = radScript $ "  window.addEventListener('toba:event',function(e){var d=e.detail||{};var v=d.data&&d.data.value;if(d.name==='rad_sun_toggle'){if(window.gcSetSun)gcSetSun(v==='on')}else if(d.name==='rad_srgb_toggle'){if(window.gcSetSrgb)gcSetSrgb(v==='on')}});"
+        // Scene par defaut : 4 widgets colores (sources de lumiere).
+        radScript = radScript $ "  if(!ed.items().length){ed.add('card','#ef4444');ed.add('card','#3b82f6');ed.add('card','#a855f7');ed.add('card','#22c55e')}"
+        radScript = radScript $ "};"
+        // Au changement d'onglet radiance : init l'editeur PUIS demarre le moteur
+        // en mode radiance (comme le RTX s'auto-init a l'affichage de son onglet).
+        radScript = radScript $ "window.addEventListener('toba:event',function(e){var d=e.detail||{};if(d.name==='tab_fx_radiance'){if(window.__gcRtx){window.__gcRtx.destroy();window.__gcRtx=null}[150,450,900].forEach(function(ms){setTimeout(function(){radEdInit();if(window.gcStart){gcStart('radiance')}if(window.gcRefresh)gcRefresh()},ms)})}else if(d.name&&d.name.indexOf('theme_')===0){[80,260].forEach(function(ms){setTimeout(function(){if(window.gcRefresh)gcRefresh()},ms)})}});"
+        radScript = radScript $ "</script>"
+
+        // Enveloppe dans .gallery-stack -> gap:var(--lw-gap) (espacement global).
+        radTab = "<div class='gallery-stack'><div class='gallery-note'>Radiance cascade (eclairage global) : place des widgets sur la grille, chaque widget colore devient une source de lumiere. Selectionne un widget pour changer sa couleur ; regle les parametres dans le collapse ci-dessous.</div>"
+        radTab = radTab $ radEditor.html $ radCfg $ radScript $ "</div>"
+
+        // ---- Sous-onglet 3 : Raytracer 2D (COPIE EXACTE de test3_work) --------
+        // Reproduction fidele de test3_work qui MARCHE : widgets .gc-widget en
+        // grille, canvas RTX dedie, appel DIRECT new Raytracer2D('.gc-widget')
+        // (pas le wrapper GridCraftHtmlEffects), clic sur widget -> materiau.
+        rtxTab = "<div class='gallery-note'>Raytracer 2D (path tracing) : clique un widget pour le selectionner, puis choisis son materiau ci-dessous. L'emissif eclaire les voisins.</div>"
+
+        // ==== Editeur = widget webui::SceneEditor (grille magnetique + VToolbar
+        // + drag/resize). Le RTX se branche sur son API (window.gc_editor). ====
+        editor = webui::SceneEditor()
+        editor.Setup("gc_editor")
+        // Widget compose REALISTE : lecteur musique construit avec de VRAIS
+        // widgets libwebui (Thumbnail, ProgressBar, IconButton) - PAS de HTML brut.
+        // Chaque sous-widget porte .lw-rtx + data-rtx-material (via le param rtxMat)
+        // -> le RTX les traite individuellement (vignette+play emissifs, reste diffus).
+        // Lecteur audio = VRAIS widgets libwebui (Thumbnail/ProgressBar/IconButton)
+        // qui se rendent correctement dans Toba (le HTML brut serait echappe).
+        // Chacun porte .lw-rtx + data-rtx-material -> selectionnable dans l'editeur
+        // (materiau/couleur/transparence). Seul le MOTEUR (V3) et la presentation
+        // changent par rapport a la version qui marchait.
+        etPlayer = "<div class='gc-player'>"
+        etPlayer = etPlayer $ "<div class='gc-player-top'>" $ webui::Thumbnail("gcArt", " ", 82, "emissive") $ "<div class='gc-player-meta'><div class='gc-player-title'>Nightfall</div><div class='gc-player-artist'>Aurora Skies</div></div></div>"
+        etPlayer = etPlayer $ webui::ProgressBar("gcBar", 38, 100, "diffuse")
+        etPlayer = etPlayer $ "<div class='gc-player-time'><span>1:23</span><span>3:45</span></div>"
+        etPlayer = etPlayer $ "<div class='gc-player-ctrl'>" $ webui::IconButton("gcPrev", "chevronLeft", " ", 44, " ", "diffuse") $ webui::IconButton("gcPlay", "play", "primary", 54, " ", "emissive") $ webui::IconButton("gcNext", "chevronRight", " ", 44, " ", "diffuse") $ "</div>"
+        etPlayer = etPlayer $ "</div>"
+
+        // Templates de VRAIS widgets libwebui (gardes dans la toolbar pour le mode
+        // custom). Chacun sera scanne par le RTX via .lw-eitem s'il est ajoute.
+        etBtn = "<button type='button' class='ui-btn primary'><span data-icon='play'></span>Bouton</button>"
+        etCard = webui::CardGrid()
+        etCard.AddCard("Carte", "widget", "Contenu de la carte.")
+        etCard.Close()
+        etBadge = webui::Badge("Badge", "done")
+        etTable = webui::Table()
+        etTable.AddSection("Ligne 1", "Type", "Done", "done", "10", "5", "Eddie Lake", "gc_tr1")
+        etTable.AddSection("Ligne 2", "Type", "In Process", "busy", "8", "3", "Marie Curie", "gc_tr2")
+        etTable.Close()
+        // Le lecteur + les widgets restent dans la toolbar (masquee par defaut en
+        // mode demo ; reactivable en mode custom plus tard).
+        editor.AddTemplate("player", etPlayer)
+        editor.AddTemplate("button", etBtn)
+        editor.AddTemplate("card", etCard.html)
+        editor.AddTemplate("badge", etBadge)
+        editor.AddTemplate("table", etTable.html)
+        editor.AddToolButton("player", "Lecteur", "bell")
+        editor.AddToolButton("button", "Bouton", "plus")
+        editor.AddToolButton("card", "Carte", "copy")
+        editor.AddToolButton("badge", "Badge", "bell")
+        editor.AddToolButton("table", "Table", "save")
+        editor.Close()
+
+        // Le canvas RTX (plein viewport) est ajoute a la scene de l'editeur : le
+        // moteur lit les positions en coords viewport. Injecte via un petit HTML.
+        rtxCanvas = "<style>#gcRtxCanvas{position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:60;pointer-events:none;mix-blend-mode:multiply;opacity:1}</style>"
+        // Style du widget compose "lecteur musique". Plus grand pour bien le voir
+        // dans le scene editor. Vignette avec image + boutons ronds.
+        rtxCanvas = rtxCanvas $ "<style>"
+        // Panneau OPAQUE + ombre (comme la page de test) -> contour net du lecteur.
+        rtxCanvas = rtxCanvas $ ".gc-player{display:flex;flex-direction:column;gap:18px;padding:24px;box-sizing:border-box;width:100%;background:var(--bg-card);border-radius:20px;box-shadow:0 14px 44px rgba(0,0,0,.18)}"
+        rtxCanvas = rtxCanvas $ ".gc-player-top{display:flex;gap:18px;align-items:center}"
+        rtxCanvas = rtxCanvas $ ".gc-player-meta{min-width:0}.gc-player-title{font-weight:800;font-size:23px;color:var(--text-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.gc-player-artist{font-size:15px;color:var(--text-2)}"
+        rtxCanvas = rtxCanvas $ ".gc-player-time{display:flex;justify-content:space-between;font-size:12px;color:var(--text-2)}"
+        rtxCanvas = rtxCanvas $ ".gc-player-ctrl{display:flex;gap:12px;justify-content:center;align-items:center;margin-top:2px}"
+        // Conteneur .lw-eitem 'nu' pour le lecteur : pas de fond/ombre/bordure de
+        // selection -> on ne voit QUE le lecteur (comme la page de test isolee).
+        rtxCanvas = rtxCanvas $ ".lw-eitem.gc-bare{background:transparent!important;box-shadow:none!important;overflow:visible;width:420px!important;height:auto!important;min-height:0!important}"
+        rtxCanvas = rtxCanvas $ ".lw-eitem.gc-bare.lw-esel{outline:none}"
+        // IMPORTANT : le selecteur global .lw-eitem>:first-child impose display:block
+        // (spec 0,1,1) et ECRASE le display:flex de .gc-player (spec 0,1,0) -> layout
+        // casse (tout empile, pas de gap). On remet flex ici (spec 0,2,1).
+        rtxCanvas = rtxCanvas $ ".lw-eitem.gc-bare>:first-child{opacity:1!important;width:100%!important;height:auto!important;box-sizing:border-box;display:flex!important;flex-direction:column}"
+        // Mode DEMO : la toolbar verticale de l'editeur RTX est masquee par defaut
+        // (on montre une demo figee). Le mode custom la reaffichera (retirer .gc-demo).
+        rtxCanvas = rtxCanvas $ "#gc_editor.gc-demo .lw-vtb{display:none}"
+        rtxCanvas = rtxCanvas $ "</style>"
+        rtxCanvas = rtxCanvas $ "<canvas id='gcRtxCanvas'></canvas>"
+
+        // Panneau de reglages RTX dans un widget COLLAPSE (cache par defaut). Les
+        // ids restent (gcMatSel...) ; le JS les branche sur l'API window.gc_editor.
+        rtxCfg = "<div id='gc_rtx_settings' class='gallery-collapse' style='margin-top:14px'>"
+        rtxCfg = rtxCfg $ "<button type='button' class='gallery-collapse-head' onclick=\"webuiCollapse('gc_rtx_settings')\"><span>Reglages RTX</span><span class='gallery-chev'></span></button>"
+        rtxCfg = rtxCfg $ "<div class='gallery-collapse-body'>"
+        rtxCfg = rtxCfg $ "<div class='gallery-stack' style='gap:12px'>"
+        // Moteur de rendu : realtime (SVGF) / non-realtime (accumulation) / radiance.
+        rtxCfg = rtxCfg $ "<div class='gallery-row' style='align-items:center;gap:12px'><span class='gallery-note' style='min-width:180px'>Moteur</span><select id='gcEngineSel' class='ui-input' style='width:200px'><option value='realtime'>RTX realtime (SVGF)</option><option value='quality'>RTX non-realtime</option><option value='radiance'>Radiance cascade</option></select></div>"
+        // Champ texte (visible seulement pour l'exemple Texte).
+        rtxCfg = rtxCfg $ "<div class='gallery-row gc-text-only' style='align-items:center;gap:12px;display:none'><span class='gallery-note' style='min-width:180px'>Texte affiche</span><input type='text' id='gcTextInput' class='ui-input' style='width:200px' value='RTX'></div>"
+        // Materiau du widget selectionne
+        rtxCfg = rtxCfg $ "<div class='gallery-row' style='align-items:center;gap:12px'><span class='gallery-note' style='min-width:180px'>Materiau (widget selectionne)</span><select id='gcMatSel' class='ui-input' style='width:200px'><option value='0'>Diffus</option><option value='1'>Miroir</option><option value='2'>Verre</option><option value='3'>Glossy</option><option value='4'>Emissif</option></select></div>"
+        // Couleur du widget selectionne : VRAI color picker custom libwebui
+        // (plan de couleur + teinte + chips + hex). Emet gc_color_change {value}.
+        gcColPicker = widgets_extra::ColorPicker()
+        gcColPicker.Setup("gcColorPick", "Couleur (widget selectionne)", "#3b82f6", ("#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#a855f7", "#ffffff"), "gc_color_change")
+        gcColPicker.Close()
+        rtxCfg = rtxCfg $ gcColPicker.html
+        // Transparence du widget sur l'objet (opacite du contenu 0.1 -> 1.0).
+        rtxCfg = rtxCfg $ "<div class='gallery-row' style='align-items:center;gap:12px'><span class='gallery-note' style='min-width:180px'>Transparence du widget</span><input type='range' id='gcTranspRange' min='0.1' max='1' step='0.05' value='0.75' style='flex:1'><span id='gcTranspVal' class='gallery-slider-value' style='min-width:36px'>0.75</span></div>"
+        // (Avancer / Reculer / Supprimer -> menu contextuel ... sur chaque widget)
+        // Optimisation (renderScale)
+        rtxCfg = rtxCfg $ "<div class='gallery-row' style='align-items:center;gap:12px'><span class='gallery-note' style='min-width:180px'>Optimisation (vitesse)</span><select id='gcOptimSel' class='ui-input' style='width:120px'><option value='0.1'>0.1</option><option value='0.2'>0.2</option><option value='0.3'>0.3</option><option value='0.4'>0.4</option><option value='0.5'>0.5</option><option value='0.6'>0.6</option><option value='0.7' selected>0.7</option><option value='0.8'>0.8</option><option value='0.9'>0.9</option><option value='1.0'>1.0</option></select></div>"
+        // Puissance emissive
+        rtxCfg = rtxCfg $ "<div class='gallery-row' style='align-items:center;gap:12px'><span class='gallery-note' style='min-width:180px'>Puissance emissive</span><input type='range' id='gcEmisRange' min='0' max='8' step='0.2' value='3' style='flex:1'><span id='gcEmisVal' class='gallery-slider-value' style='min-width:36px'>3.0</span></div>"
+        // Saturation
+        rtxCfg = rtxCfg $ "<div class='gallery-row' style='align-items:center;gap:12px'><span class='gallery-note' style='min-width:180px'>Saturation</span><input type='range' id='gcSatRange' min='0' max='3' step='0.1' value='1' style='flex:1'><span id='gcSatVal' class='gallery-slider-value' style='min-width:36px'>1.0</span></div>"
+        // Bloom (halo)
+        rtxCfg = rtxCfg $ "<div class='gallery-row' style='align-items:center;gap:12px'><span class='gallery-note' style='min-width:180px'>Bloom (halo lumineux)</span><input type='range' id='gcBloomRange' min='0' max='2' step='0.1' value='0' style='flex:1'><span id='gcBloomVal' class='gallery-slider-value' style='min-width:36px'>0.0</span></div>"
+        // Ambiance : luminosite du fond du path tracer, DECOUPLE du theme. 0 =
+        // boite noire (contraste dramatique, emissifs ressortent), 1 = studio
+        // blanc (doux). Bouton Auto = re-suit la couleur du theme.
+        rtxCfg = rtxCfg $ "<div class='gallery-row' style='align-items:center;gap:12px'><span class='gallery-note' style='min-width:180px'>Ambiance (fond shader)</span><input type='range' id='gcAmbientRange' min='0' max='1' step='0.05' value='0.3' style='flex:1'><span id='gcAmbientVal' class='gallery-slider-value' style='min-width:36px'>auto</span><button type='button' id='gcAmbientAuto' class='ui-btn' style='padding:4px 10px'>Auto</button></div>"
+        rtxCfg = rtxCfg $ "</div></div></div>"
+
+        // JS RTX : se BRANCHE sur l'editeur (window.gc_editor). L'editeur gere
+        // le DOM (drag/resize/add/pick/reindex) ; le RTX fait le raytracing +
+        // les reglages. api.onScan = rescan RTX ; api.onPick = sync du panneau.
+        rtxScript = "<script>"
+        // Vignette = pochette dessinee sur CANVAS (pas de data URI SVG : les < / '
+        // et surtout // casseraient le HTML/JS genere par Toba). Chaque pochette
+        // est un degrade 2 couleurs ; on lit sa couleur MOYENNE sur le meme canvas
+        // et on la pose en background-color de la vignette -> emission RTX teintee.
+        rtxScript = rtxScript $ "window.gcCovers=[[[249,115,22],[220,38,38]],[[6,182,212],[59,130,246]],[[168,85,247],[236,72,153]]];"
+        rtxScript = rtxScript $ "window.gcDrawCover=function(pair){var c=document.createElement('canvas');c.width=64;c.height=64;var x=c.getContext('2d');var g=x.createLinearGradient(0,0,64,64);g.addColorStop(0,'rgb('+pair[0].join(',')+')');g.addColorStop(1,'rgb('+pair[1].join(',')+')');x.fillStyle=g;x.fillRect(0,0,64,64);x.fillStyle='rgba(255,255,255,.25)';x.beginPath();x.arc(22,22,13,0,6.29);x.fill();return c};"
+        rtxScript = rtxScript $ "window.gcAverageColor=function(canvas){var w=canvas.width,h=canvas.height;var x=canvas.getContext('2d');var d;try{d=x.getImageData(0,0,w,h).data}catch(e){return null}var r=0,g=0,b=0,n=0;for(var i=0;i<d.length;i+=4){var a=d[i+3]/255;r+=d[i]*a;g+=d[i+1]*a;b+=d[i+2]*a;n+=a}if(n<1)return null;return [Math.round(r/n),Math.round(g/n),Math.round(b/n)]};"
+        // Charge une pochette dans le lecteur (el = .lw-eitem) : dessine l'image sur
+        // la vignette (canvas) ET pose bg-color = couleur moyenne -> emission RTX.
+        rtxScript = rtxScript $ "window.gcLoadCover=function(el,idx){var art=el.querySelector('.lw-thumb');if(!art)return;var i=((idx||0)%gcCovers.length+gcCovers.length)%gcCovers.length;el.setAttribute('data-cover',i);var cv=gcDrawCover(gcCovers[i]);cv.className='lw-thumb-img';var old=art.querySelector('.lw-thumb-img');if(old)old.remove();art.appendChild(cv);var rgb=gcAverageColor(cv);if(rgb){art.style.backgroundColor='rgb('+rgb[0]+','+rgb[1]+','+rgb[2]+')';if(window.__gcRtx)window.__gcRtx.updateSceneFromDOM()}};"
+        // Selection du moteur courant (realtime / quality / radiance).
+        rtxScript = rtxScript $ "window.gcEngine=function(){var s=document.getElementById('gcEngineSel');return s?s.value:'quality'};"
+        // Cree le path tracer dans le bon mode. realtime=RTX_Realtime (renderScale
+        // du slider Optim), quality=RTX_Quality/Raytracer2D (accumulation, scale 1).
+        rtxScript = rtxScript $ "window.gcMakePT=function(){var eng=gcEngine();var Eng=(eng==='realtime')?window.RTX_Realtime:(window.RTX_Quality||window.Raytracer2D);if(!Eng)return null;var opt=document.getElementById('gcOptimSel');var rs=(eng==='realtime')?(opt?parseFloat(opt.value):0.7):1.0;return new Eng('gcRtxCanvas',{domSelector:'#gc_editor .lw-rtx',renderScale:rs,settleProfile:'quality-burst'})};"
+        rtxScript = rtxScript $ "window.gcRtxInit=function(){"
+        rtxScript = rtxScript $ "  var ed=window.gc_editor;if(!ed||!document.getElementById('gcRtxCanvas'))return;"
+        // Si un moteur traine (onglet re-affiche), on le detruit et on recree
+        // proprement dans le mode courant -> pas d'ecran noir/fige.
+        rtxScript = rtxScript $ "  if(window.__gcRtx){try{window.__gcRtx.destroy()}catch(e){}window.__gcRtx=null}"
+        rtxScript = rtxScript $ "  window.__gcRtx=gcMakePT();if(!window.__gcRtx)return;"
+        // Reglages de base (comme le player v3) : sans eux le realtime rend vide.
+        rtxScript = rtxScript $ "  if(window.__gcRtx.setEmissivePower)window.__gcRtx.setEmissivePower(3);"
+        rtxScript = rtxScript $ "  if(window.__gcRtx.setFrontEmission)window.__gcRtx.setFrontEmission(1.2);"
+        rtxScript = rtxScript $ "  if(window.__gcRtx.setBloom)window.__gcRtx.setBloom(true,0.65,0.58);"
+        rtxScript = rtxScript $ "  var page=ed.page;var matSel=document.getElementById('gcMatSel');"
+        // Mode demo par defaut : toolbar masquee (voir CSS #gc_editor.gc-demo).
+        rtxScript = rtxScript $ "  var edEl=document.getElementById('gc_editor');if(edEl)edEl.classList.add('gc-demo');"
+        rtxScript = rtxScript $ "  ed.onScan=function(){if(window.__gcRtx)window.__gcRtx.updateSceneFromDOM()};"
+        rtxScript = rtxScript $ "  ed.onPick=function(el){if(el&&matSel){var p=window.__gcRtx.getObjectProperties(el);matSel.value=String(p.materialType)}};"
+        // Fond du shader = lumiere d'ambiance du path tracer. Par defaut il SUIT
+        // le theme (window.__gcAmbient===null). Le slider 'Ambiance' l'override :
+        // 0 = boite noire dramatique (emissifs ressortent), 1 = studio blanc doux.
+        rtxScript = rtxScript $ "  if(typeof window.__gcAmbient==='undefined')window.__gcAmbient=null;"
+        rtxScript = rtxScript $ "  window.gcRtxSyncBg=function(){if(!page||!window.__gcRtx)return;if(window.__gcAmbient!==null){var a=window.__gcAmbient;window.__gcRtx.setBackgroundColor([a,a,a]);return}var c=getComputedStyle(page).backgroundColor;var m=c.match(/(\\d+(?:\\.\\d+)?)/g);if(m&&m.length>=3){window.__gcRtx.setBackgroundColor([m[0]/255,m[1]/255,m[2]/255])}};"
+        rtxScript = rtxScript $ "  gcRtxSyncBg();"
+        // Materiau du widget selectionne (ed.sel). IMPORTANT : on met a jour
+        // l'attribut data-rtx-material (source de verite RELUE par le moteur a
+        // chaque scan) SINON le rescan (drag/refresh) ecrase notre choix.
+        rtxScript = rtxScript $ "  var gcMatNames=['diffuse','mirror','glass','glossy','emissive'];"
+        rtxScript = rtxScript $ "  if(matSel)matSel.addEventListener('change',function(e){var sel=ed.sel;if(!sel)return;var m=parseInt(e.target.value,10);if(sel.hasAttribute('data-rtx-material'))sel.setAttribute('data-rtx-material',gcMatNames[m]||'diffuse');var rt=window.__gcRtx;rt.updateObjectProperty(sel,'materialType',m);if(m===2){rt.updateObjectProperty(sel,'opacity',0.4);rt.updateObjectProperty(sel,'ior',1.5)}else if(m===3){rt.updateObjectProperty(sel,'roughness',0.2);rt.updateObjectProperty(sel,'opacity',1.0)}else{rt.updateObjectProperty(sel,'opacity',1.0)}rt.updateSceneFromDOM()});"
+        // Color picker custom -> couleur du widget selectionne.
+        rtxScript = rtxScript $ "  window.addEventListener('toba:event',function(e){var d=e.detail||{};if(d.name==='gc_color_change'&&ed.sel){var v=(d.data&&d.data.value)||d.value;if(v){ed.sel.style.background=v;ed.onScan()}}});"
+        // Transparence.
+        rtxScript = rtxScript $ "  var trR=document.getElementById('gcTranspRange'),trV=document.getElementById('gcTranspVal');if(trR){trR.addEventListener('input',function(e){var x=parseFloat(e.target.value);if(trV)trV.textContent=x.toFixed(2);if(ed.sel)ed.sel.style.setProperty('--lw-tr',x)})}"
+        // Avancer / Reculer / Supprimer -> menu contextuel partage sur chaque widget.
+        // Optimisation + sliders effet.
+        rtxScript = rtxScript $ "  var optSel=document.getElementById('gcOptimSel');if(optSel){window.__gcRtx.setRenderScale(parseFloat(optSel.value));optSel.addEventListener('change',function(e){window.__gcRtx.setRenderScale(parseFloat(e.target.value))})}"
+        rtxScript = rtxScript $ "  function gcBindRange(id,valId,fn,fix){var r=document.getElementById(id),v=document.getElementById(valId);if(!r)return;fn(parseFloat(r.value));r.addEventListener('input',function(e){var x=parseFloat(e.target.value);if(v)v.textContent=x.toFixed(fix);fn(x)})}"
+        rtxScript = rtxScript $ "  gcBindRange('gcEmisRange','gcEmisVal',function(x){window.__gcRtx.setEmissivePower(x)},1);"
+        rtxScript = rtxScript $ "  gcBindRange('gcSatRange','gcSatVal',function(x){window.__gcRtx.setSaturation(x)},1);"
+        rtxScript = rtxScript $ "  gcBindRange('gcBloomRange','gcBloomVal',function(x){window.__gcRtx.setBloom(x>0,x,0.7)},1);"
+        // Ambiance : le slider override le fond du shader (0..1), le bouton Auto
+        // remet le mode 'suit le theme' (window.__gcAmbient=null).
+        rtxScript = rtxScript $ "  var ambR=document.getElementById('gcAmbientRange'),ambV=document.getElementById('gcAmbientVal'),ambA=document.getElementById('gcAmbientAuto');"
+        rtxScript = rtxScript $ "  if(ambR){ambR.addEventListener('input',function(e){var x=parseFloat(e.target.value);window.__gcAmbient=x;if(ambV)ambV.textContent=x.toFixed(2);gcRtxSyncBg()})}"
+        rtxScript = rtxScript $ "  if(ambA){ambA.addEventListener('click',function(){window.__gcAmbient=null;if(ambV)ambV.textContent='auto';gcRtxSyncBg()})}"
+        // Scene par defaut = VITRINE : un lecteur musique (glossy, capte la
+        // lumiere) + une pochette emissive collee a cote (source de lumiere qui
+        // eclaire le lecteur) + un accent. Positions posees a la main.
+        rtxScript = rtxScript $ "  function gcPlace(el,x,y,w,h){if(!el)return;el.style.left=x+'px';el.style.top=y+'px';if(w)el.style.width=w+'px';if(h)el.style.height=h+'px'}"
+        // Scene par defaut = UN SEUL lecteur, grand, bien visible dans l'editeur.
+        // Le conteneur .lw-eitem n'est PAS un objet RTX (le RTX cible .gc-rtx
+        // interne) : chaque sous-element du lecteur porte son propre materiau.
+        rtxScript = rtxScript $ "  if(!ed.items().length){"
+        rtxScript = rtxScript $ "    var pl=ed.add('player','transparent');if(pl){pl.style.left='200px';pl.style.top='120px';pl.style.width='340px';pl.style.height='auto';pl.classList.add('gc-bare');gcLoadCover(pl)}"
+        rtxScript = rtxScript $ "    ed.reindex();"
+        rtxScript = rtxScript $ "  }"
+        rtxScript = rtxScript $ "  window.__gcRtx.updateSceneFromDOM();"
+        rtxScript = rtxScript $ "};"
+        // Bascule de moteur : detruit le moteur courant et recree dans le nouveau
+        // mode. realtime/quality = path tracer ; radiance = wrapper GridCraft.
+        rtxScript = rtxScript $ "window.gcRebuildEngine=function(){"
+        rtxScript = rtxScript $ "  var ed=window.gc_editor;if(!ed)return;"
+        rtxScript = rtxScript $ "  if(window.__gcRtx){try{window.__gcRtx.destroy()}catch(e){}window.__gcRtx=null}"
+        rtxScript = rtxScript $ "  var cv=document.getElementById('gcRtxCanvas');"
+        rtxScript = rtxScript $ "  var eng=gcEngine();"
+        rtxScript = rtxScript $ "  if(eng==='radiance'){"
+        rtxScript = rtxScript $ "    if(cv)cv.style.display='none';"
+        rtxScript = rtxScript $ "    if(window.GridCraftHtmlEffects){var fx=new GridCraftHtmlEffects({mode:'radiance',targets:['#gc_editor .lw-rtx'],autoStart:true,overlay:{opacity:0.85,blendMode:'multiply',zIndex:60},performance:{maxFPS:60,qualityScale:0.6,maxElements:180,observeDom:true},radiance:{srgb:true,maxAlpha:0.6}});fx.start();window.__gcRtx={_radiance:1,updateSceneFromDOM:function(){fx.refresh()},updateScenePositionsFromDOM:function(){fx.refresh()},destroy:function(){fx.destroy()},setBackgroundColor:function(){},setEmissivePower:function(){},setSaturation:function(){},setBloom:function(){},setRenderScale:function(){},getObjectProperties:function(){return{materialType:0}},updateObjectProperty:function(){}};setTimeout(function(){fx.refresh()},80)}"
+        rtxScript = rtxScript $ "  }else{"
+        rtxScript = rtxScript $ "    if(cv)cv.style.display='';"
+        rtxScript = rtxScript $ "    window.__gcRtx=gcMakePT();"
+        rtxScript = rtxScript $ "    if(window.__gcRtx){if(window.gcRtxSyncBg)gcRtxSyncBg();var em=document.getElementById('gcEmisRange');if(em&&window.__gcRtx.setEmissivePower)window.__gcRtx.setEmissivePower(parseFloat(em.value));window.__gcRtx.updateSceneFromDOM()}"
+        rtxScript = rtxScript $ "  }"
+        rtxScript = rtxScript $ "};"
+        rtxScript = rtxScript $ "(function(){var es=document.getElementById('gcEngineSel');if(es)es.addEventListener('change',function(){window.gcRebuildEngine()})})();"
+        rtxScript = rtxScript $ "window.addEventListener('toba:event',function(e){var d=e.detail||{};if(d.name==='tab_fx_rtx'){if(window.gcStop)gcStop();[150,450,900].forEach(function(ms){setTimeout(function(){gcRtxInit();if(window.__gcRtx){window.__gcRtx.updateSceneFromDOM();if(window.gcRtxSyncBg)gcRtxSyncBg()}},ms)})}else if(d.name&&d.name.indexOf('theme_')===0){[80,260].forEach(function(ms){setTimeout(function(){if(window.gcRtxSyncBg)gcRtxSyncBg()},ms)})}});"
+        rtxScript = rtxScript $ "</script>"
+
+        rtxTab = "<div class='gallery-stack'>" $ rtxTab $ rtxCanvas $ editor.html $ rtxCfg $ rtxScript $ "</div>"
+
+        // Deux onglets seulement : effets CSS et effet lighting (RTX/radiance,
+        // switch moteur + switch exemple lecteur/texte dans le meme SceneEditor).
+        fxTabs = webui::TabView()
+        fxTabs.AddHtml("fx_css", "CSS effects", " ", 1, cssTab)
+        fxTabs.AddHtml("fx_rtx", "Lighting", "RTX", 0, rtxTab)
+        fxTabs.Close()
+        effectsPanel.AddHtml(fxTabs.html)
+    effectsPanel.Close()
+    page.AddPanel(effectsPanel)
+
+    layoutPanel = webui::Panel()
+    layoutPanel.Setup("layout", "Layouts", "dock", "Dock, masonry and responsive placement")
+        layoutCards = webui::CardGrid()
+        layoutCards.AddCard("DockPage", "Application shell", "Header, sidebar, stage and footer.")
+        layoutCards.AddCard("DesktopLayout", "Resizable desktop panels", "Sidebar + main area with themeable spacing.")
+        layoutCards.AddCard("Grid", "Responsive placement", "Auto-fit cards and widgets without manual coordinates.")
+        layoutCards.AddCard("Masonry", "Content-heavy pages", "Useful for heterogeneous widget heights.")
+        layoutCards.Close()
+        layoutPanel.Add(layoutCards)
+        layoutPanel.AddHtml("<div class='gallery-layout-demo'><div>Sidebar</div><div>Main stage</div><div>Resizable panel</div><div>Responsive panel</div></div>")
+        layoutCode = webui::Code()
+        layoutCode.Text("page = webui::Page()\npanel = webui::Panel()\npanel.Setup(\"layout\", \"Layouts\", \"dock\", \"Responsive placement\")\npanel.Add(widget)\npage.AddPanel(panel)")
+        layoutPanel.Add(layoutCode)
+    layoutPanel.Close()
+    page.AddPanel(layoutPanel)
+
+    navigation = webui::Panel()
+    navigation.Setup("navigation", "Navigation widgets", "tree", "Treeview, collapse, accordion, profile menu")
+        nav = webui::Navigation()
+        nav.Build()
+        navigation.Add(nav)
+    navigation.Close()
+    page.AddPanel(navigation)
+
+    bar = widgets::ChatBar()
+    bar.Setup("gallery_chatbar", "Ecris un message...", "webuiToast('Message',document.getElementById('gallery_chatbar_input').value||'(vide)')")
+    bar.AddPillBadge("perso", "users", "Personnalites", "3")
+    bar.AddPill("sources", "image", "Sources")
+    bar.AddPill("comportement", "settings", "Comportement")
+    bar.AddPanel("perso", "Personnalites", "<div class='lw-cbpanel-list'><button class='ui-btn' onclick=\"webuiToast('Personnalite','Diane')\">Diane</button><button class='ui-btn' onclick=\"webuiToast('Personnalite','Marc')\">Marc</button><button class='ui-btn' onclick=\"webuiToast('Personnalite','Sophie')\">Sophie</button></div>")
+    bar.AddPanel("sources", "Sources visuelles", "<div class='lw-cbpanel-list'><button class='ui-btn' onclick=\"webuiToast('Source','Webcam')\">Webcam</button><button class='ui-btn' onclick=\"webuiToast('Source','Ecran')\">Ecran</button><button class='ui-btn' onclick=\"webuiToast('Source','Fichier')\">Fichier</button></div>")
+    bar.AddPanel("comportement", "Comportement", "<div class='lw-cbpanel-list'><button class='ui-btn primary' onclick=\"webuiToast('Mode','Normal')\">Normal</button><button class='ui-btn' onclick=\"webuiToast('Mode','Podcast')\">Podcast</button><button class='ui-btn' onclick=\"webuiToast('Mode','Roleplay')\">Roleplay</button></div>")
+
+    chatPanel = webui::Panel()
+    chatPanel.Setup("chat", "Chat", "composer", "Messages, composer and ChatBar")
+        chat = webui::Chat()
+        chat.Build()
+        chatPanel.Add(chat)
+        chatPanel.AddHtml(widgets::ChatBarStyles())
+        chatPanel.AddHtml("<div class='gallery-note' style='margin-top:18px'>ChatBar : pastilles, panneaux soudes et events vers Toba.</div><div class='lw-cbdemo' style='min-height:200px;margin-top:8px'>" $ bar.Render() $ "</div>")
+        chatPanel.AddHtml(widgets::ChatBarScript())
+    chatPanel.Close()
+    page.AddPanel(chatPanel)
+
+    classicPanel = webui::Panel()
+    classicPanel.Setup("classic", "Classic desktopui", "simple", "Low-level widgets kept for compatibility")
+        classicPanel.AddHtml("<div class='gallery-basic'><div class='tb-toolbar'><button id='classic_run' class='tb-button' onclick=\"webuiEvent('classic_run',{id:'classic_run'})\">Run</button><button id='classic_cancel' class='tb-button secondary' onclick=\"webuiEvent('classic_cancel',{id:'classic_cancel'})\">Cancel</button></div><div class='tb-row'><label for='classic_name'>Name</label><input id='classic_name' class='tb-input' value='Classic widget' onchange=\"webuiEvent('classic_name_changed',{id:this.id,value:this.value})\"></div><div class='tb-row'><select id='classic_size' class='tb-input' onchange=\"webuiEvent('classic_size_changed',{id:this.id,value:this.value})\"><option>Small</option><option>Medium</option><option>Large</option></select></div><textarea id='classic_notes' class='tb-area' onchange=\"webuiEvent('classic_notes_changed',{id:this.id,value:this.value})\">Classic textarea</textarea><div id='classic_status' class='tb-status'>Classic desktopui visual style, wired to webuiEvent for this standalone page.</div></div>")
+        classicCode = webui::Code()
+        classicCode.Text("desktopui::Button\ndesktopui::SecondaryButton\ndesktopui::Input\ndesktopui::Select\ndesktopui::TextArea\ndesktopui::Status")
+        classicPanel.Add(classicCode)
+    classicPanel.Close()
+    page.AddPanel(classicPanel)
+
+    editorsPanel = webui::Panel()
+    editorsPanel.Setup("editors", "Editors", "code", "Code, markdown and rich text")
+        tobaCode = "func: BuildWidget() {\n    html = widget_core::CodeBlock(\"demo_code\", \"Exemple Toba\", \"toba\", \"return (1)\")\n    return (html)\n}"
+        codeBlock = widgets_extra::CodeBlock()
+        codeBlock.Setup("toba_code_sample", "Code Toba", "toba", tobaCode)
+        codeBlock.Close()
+        editorsPanel.Add(codeBlock)
+
+        editorsPanel.AddHtml("<style>#editors #monaco_toba_sample{min-height:180px}#editors #monaco_toba_sample .lw-monaco-host,#editors #monaco_toba_sample .lw-monaco-textarea{min-height:140px}#editors #rich_note_sample{min-height:260px}#editors #rich_note_sample .lw-rich-host{min-height:220px}#editors #rich_note_sample .ql-container,#editors #rich_note_sample .ql-editor,#editors #rich_note_sample .lw-rich-area{min-height:160px}</style>")
+
+        richHtml = "<h2>Note vocale</h2><p>Ce widget utilise <strong>Quill</strong> en local depuis le dossier vendor.</p><blockquote>Selectionne du texte puis teste la toolbar.</blockquote>"
+        rich = widgets_extra::RichTextEditor()
+        rich.Setup("rich_note_sample", "Rich Text Editor", richHtml, "rich_text_change")
+        rich.Close()
+        editorsPanel.Add(rich)
+
+        monacoCode = "func: BuildEditor() {\n    ed = widgets_extra::MonacoEditor()\n    ed.Setup('editor', 'Script Toba', 'toba', 'print(1)', 'monaco_change')\n    ed.Close()\n    return (ed.html)\n}"
+        monaco = widgets_extra::MonacoEditor()
+        monaco.Setup("monaco_toba_sample", "Monaco Editor", "toba", monacoCode, "monaco_change")
+        monaco.Close()
+        editorsPanel.Add(monaco)
+    editorsPanel.Close()
+    page.AddPanel(editorsPanel)
+
+    docsPanel = webui::Panel()
+    docsPanel.Setup("docs", "Widget documentation", "markdown", "Sommaire de navigation + doc des widgets")
+        docs = webui::Markdown()
+        docs.LoadFile("C:/Toba/modules/libwebui/WIDGETS.md")
+        docsPanel.AddHtml("<div class='lw-doc'><nav class='lw-doc-nav'></nav>" $ docs.html $ "</div>")
+    docsPanel.Close()
+    page.AddPanel(docsPanel)
+
+    page.Show()
+    print("native handle after show = ")
+    print(page.NativeHandle())
+    print("\n")
+    print("TOBA WEBUI COMPONENT GALLERY STARTED\n")
+    print("Click Toba Notify or the chart buttons to run Toba callbacks.\n")
+    eventbus::SetCloseGuard(1, "Demander l'autorisation a Toba avant de quitter ?")
+    chartPoint = 1
+    chartStream = 0
+    streamTick = 0
+    diagTick = 0
+    loop {
+        rawEvt = desktopui::BridgePoll(50)
+        diagTick = diagTick + 1
+        if (diagTick > 20) {
+            diagTick = 0
+            print("bridge connected=")
+            print(desktopui::BridgeIsConnected())
+            print(" events=")
+            print(desktopui::BridgeEventCount())
+            print(" error=")
+            print(desktopui::BridgeLastError())
+            print("\n")
+        }
+        if (size(rawEvt) > 0) {
+            print("raw bridge = ")
+            print(rawEvt)
+            print("\n")
+            rawName = json::GetString(rawEvt, "name", " ")
+            if (rawName == "native_window_action") {
+                if (page.NativeHandle() == 0) {
+                    page.nativeHandle = desktopui::NativeWindowFind("Toba WebUI Component Gallery")
+                }
+                print("native action=")
+                print(webui::EventAction(rawEvt))
+                print(" handle=")
+                print(page.NativeHandle())
+                print("\n")
+                webui::HandleNativeWindowEventHandle(rawEvt, page.NativeHandle())
+                print("native result=")
+                print(desktopui::NativeWindowLastActionResult())
+                print("\n")
+                rawEvt = ""
+            }
+        }
+        evt = eventbus::New(rawEvt)
+        if (evt.HasEvent()) {
+            print("component event = ")
+            print(evt.Name())
+            print(" widget = ")
+            print(evt.WidgetId())
+            print(" state = ")
+            print(evt.State())
+            print("\n")
+            if (evt.Is("chart_start_stream")) {
+                chartStream = 1
+                eventbus::Notify("Chart stream", "Toba realtime stream started.")
+            }
+            if (evt.Is("chart_stop_stream")) {
+                chartStream = 0
+                eventbus::Notify("Chart stream", "Toba realtime stream stopped.")
+            }
+            if (evt.Is("window_close_request")) {
+                print("close request received by Toba\n")
+                eventbus::Notify("Fermeture demandee", "Toba a recu window_close_request.")
+            }
+            if (evt.Is("window_close_confirm")) {
+                print("close confirmed by WebUI\n")
+                desktopui::NativeWindowActionHandle(page.NativeHandle(), "force_close")
+                break
+            }
+            if (evt.Is("window_closed")) {
+                print("window closed\n")
+            }
+            chartPoint = OnGalleryEvent(evt, chartPoint)
+        }
+        if (chartStream == 1) {
+            streamTick = streamTick + 1
+            if (streamTick > 8) {
+                chartPoint = PushChartPoint(chartPoint)
+                streamTick = 0
+            }
+        }
+        sleep(0.05)
+    }
+}
+

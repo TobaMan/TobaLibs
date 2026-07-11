@@ -1,0 +1,7 @@
+action=test
+voice_name=webui_clone
+audio_path=C:/Users/damie/Downloads/MyAssistant-main/MyAssistant-main/bin/piper_tts/piper/test.wav
+quality=balanced
+language=fr
+transcript=Bonjour, ceci est une reference vocale de test.
+test_text=Bonjour Damien. Ceci est un test de voix clonée.

@@ -1,0 +1,5 @@
+name=Rating
+category=Input
+description=Selection de note de 1 a 5 avec evenement rating_change.
+props=id,label,value,maxValue,eventName
+events=rating_change

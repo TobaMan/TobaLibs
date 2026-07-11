@@ -1,0 +1,153 @@
+import : libwebui / webui
+import : libwebui / eventbus
+import : libwebui / uiutil
+import : libtts / clone
+import : libtts / tts
+
+func: HasText(value) {
+    res = uiutil::HasText(value)
+    return (res)
+}
+
+func: Log(line) {
+    old = fsreadf("C:/Toba/modules/libwebui/examples/simple_voice_clone.log")
+    if (!isstr(old)) {
+        old = ""
+    }
+    fswritef("C:/Toba/modules/libwebui/examples/simple_voice_clone.log", old $ line $ "\n")
+    return (1)
+}
+
+func: PickAudioFallback() {
+    return ("C:/Users/damie/Downloads/MyAssistant-main/MyAssistant-main/bin/piper_tts/piper/test.wav")
+}
+
+func: PickAudioFile() {
+    res = uiutil::PickAudioFile()
+    return (res)
+}
+
+func: SetFilePicker(id, path) {
+    uiutil::SetFilePicker(id, path)
+    return (1)
+}
+
+func: Notify(title, text) {
+    uiutil::Notify(title, text)
+    return (1)
+}
+
+func: Build() {
+    port = 19233
+    page = webui::CompactPage()
+    page.SetTitle("Voice Clone Simple")
+    page.SetFooter("libwebui + libtts")
+    page.SetPort(port)
+    page.SetWindow(1040, 430, 180, 120)
+
+    fields = webui::Fields()
+    fields.FilePicker("audio_path", "Audio", PickAudioFallback(), ".wav,.mp3", "pick_audio")
+    fields.PillInput("voice_name", "Nom", "webui_clone", "name_changed")
+    fields.PillSelect("quality_select", "Qualite", ("balanced", "fast", "high"), "quality_changed")
+    fields.PillInput("language", "Langue", "fr", "language_changed")
+    fields.PillInput("transcript", "Texte ref", "Bonjour, ceci est une reference vocale de test.", "transcript_changed")
+    fields.PillInput("test_text", "Test", "Bonjour Damien. Ceci est un test de voix clonee.", "test_text_changed")
+    fields.Close()
+    page.Add(fields)
+
+    toolbar = webui::Toolbar()
+    toolbar.Right()
+    toolbar.Button("create_voice", "Creer .voice", "save", "create_voice", "primary")
+    toolbar.Button("test_play", "Tester", "play", "test_play", " ")
+    toolbar.Close()
+    page.Add(toolbar)
+
+    page.ShowReliable("C:/Toba/modules/libwebui/examples/simple_voice_clone_debug.html")
+    return (1)
+}
+
+if (main()) {
+    fswritef("C:/Toba/modules/libwebui/examples/simple_voice_clone.log", "start\n")
+    audioPath = PickAudioFallback()
+    voiceName = "webui_clone"
+    quality = "balanced"
+    language = "fr"
+    transcript = "Bonjour, ceci est une reference vocale de test."
+    testText = "Bonjour Damien. Ceci est un test de voix clonee."
+
+    Log("before Build")
+    Build()
+    Log("after Build")
+
+    loop {
+        raw = webui::PollRaw(10)
+        if (HasText(raw) == 1) {
+            evtName = webui::EventName(raw)
+            Log("EVENT=" $ raw)
+            if (evtName == "pick_audio") {
+                picked = PickAudioFile()
+                if (HasText(picked) == 1) {
+                    audioPath = picked
+                    SetFilePicker("audio_path", audioPath)
+                    Notify("Audio", audioPath)
+                }
+                else {
+                    Notify("Audio", "selection annulee")
+                }
+            }
+            if (evtName == "name_changed") {
+                voiceName = webui::EventValue(raw)
+            }
+            if (evtName == "quality_changed") {
+                quality = webui::EventValue(raw)
+            }
+            if (evtName == "language_changed") {
+                language = webui::EventValue(raw)
+            }
+            if (evtName == "transcript_changed") {
+                transcript = webui::EventValue(raw)
+            }
+            if (evtName == "test_text_changed") {
+                testText = webui::EventValue(raw)
+            }
+            if (evtName == "create_voice") {
+                Notify("Creation", "Generation .voice en cours...")
+                refText = transcript
+                if (quality == "fast") {
+                    refText = ""
+                }
+                voice = clone::CreateVoice(voiceName, audioPath, refText, quality, language)
+                if (HasText(voice) == 1) {
+                    Log("VOICE_CREATED=" $ voice)
+                    Notify(".voice cree", voice)
+                }
+                else {
+                    Log("VOICE_CREATE_FAILED")
+                    Notify("Echec", "voice non cree")
+                }
+            }
+            if (evtName == "test_play") {
+                Notify("Lecture", "Synthese en cours...")
+                wav = clone::SaveWithVoice(voiceName, testText, tts::TempWavPath("simpleui_clone_test"))
+                if (HasText(wav) == 1) {
+                    Log("VOICE_TEST_WAV=" $ wav)
+                    Notify("Lecture", wav)
+                    tts::PlayWav(wav)
+                    Log("VOICE_TEST_PLAY_OK")
+                }
+                else {
+                    Log("VOICE_TEST_FAILED")
+                    Notify("Echec", "wav non cree")
+                }
+            }
+            if (evtName == "window_close_request") {
+                eventbus::AllowClose()
+                break
+            }
+            if (evtName == "window_closed") {
+                break
+            }
+        }
+        sleep(0.01)
+    }
+}

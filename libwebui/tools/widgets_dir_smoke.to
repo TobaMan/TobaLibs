@@ -1,0 +1,148 @@
+import : libwebui / widgets / rating
+import : libwebui / widgets / switch
+import : libwebui / widgets / copy_field
+import : libwebui / widgets / progress_steps
+import : libwebui / widgets / date_picker
+import : libwebui / widgets / color_picker
+import : libwebui / widgets / image_view
+import : libwebui / widgets / image_gallery
+import : libwebui / widgets / carousel
+import : libwebui / widgets / video_player
+import : libwebui / widgets / chart
+import : libwebui / widgets / code_block
+import : libwebui / widgets / monaco_editor
+import : libwebui / widgets / gpu_metric_row
+import : libwebui / widgets / empty_gpu_metric_row
+import : libwebui / widgets / kpi
+import : libwebui / widgets / kpi_grid
+import : libwebui / widgets / dropdown_list
+import : libwebui / widgets / theme_dropdown
+import : libwebui / widgets / action_dropdown
+import : libwebui / widgets / gpu_table
+import : libwebui / widgets / pill_input
+import : libwebui / widgets / pill_select
+import : libwebui / widgets / pill_button
+import : libwebui / widgets / pill_button_row
+import : libwebui / widgets / file_picker
+import : libwebui / widgets / chat_message
+import : libwebui / widgets / chat_composer
+import : libwebui / widgets / dock_page
+import : libwebui / widgets / dock_script
+import : libwebui / widgets / styles
+import : libwebui / widgets / metrics_styles
+import : libwebui / widgets / data_panel_styles
+import : libwebui / widgets / chat_bar_styles
+import : libwebui / widgets / chat_bar_script
+import : libwebui / widgets / task_manager_page
+import : libwebui / widgets / desktop_layout
+import : libwebui / widgets / dashboard
+import : libwebui / widgets / metrics_dashboard
+import : libwebui / widgets / data_panel
+import : libwebui / widgets / chat_bar
+
+if (main()) {
+    ratingWidget = rating::Rating()
+    ratingWidget.Setup("smoke_rating", "Rating", 3, 5, "rating_change")
+    ratingWidget.Close()
+
+    switchWidget = switch::Switch()
+    switchWidget.Setup("smoke_switch", "Switch", 1, "switch_change")
+    switchWidget.Close()
+
+    copyWidget = copy_field::CopyField()
+    copyWidget.Setup("smoke_copy", "Copy", "value", "copy_value")
+    copyWidget.Close()
+
+    stepsWidget = progress_steps::ProgressSteps()
+    stepsWidget.Setup("smoke_steps", "Steps", ("One", "Two", "Three"), 2, "step_change")
+    stepsWidget.Close()
+
+    dateWidget = date_picker::DatePicker()
+    dateWidget.Setup("smoke_date", "Date", "26/06/2026", "date_change")
+    dateWidget.Close()
+
+    colorWidget = color_picker::ColorPicker()
+    colorWidget.Setup("smoke_color", "Color", "#00d4aa", ("#00d4aa", "#3b82f6"), "color_change")
+    colorWidget.Close()
+
+    imageWidget = image_view::ImageView()
+    imageWidget.Setup("smoke_image", "Image", "C:/Toba/modules/libwebui/assets/sample_image_1.svg", "Image", "Image smoke")
+    imageWidget.Close()
+
+    galleryWidget = image_gallery::ImageGallery()
+    galleryWidget.Setup("smoke_gallery", "Gallery", "Gallery smoke", "gallery_change")
+    galleryWidget.AddImage("C:/Toba/modules/libwebui/assets/sample_image_1.svg", "One", "One")
+    galleryWidget.AddImage("C:/Toba/modules/libwebui/assets/sample_image_2.svg", "Two", "Two")
+    galleryWidget.Close()
+
+    carouselWidget = carousel::Carousel()
+    carouselWidget.Setup("smoke_carousel", "Carousel", "Carousel smoke", "carousel_change")
+    carouselWidget.AddSlide("C:/Toba/modules/libwebui/assets/sample_image_1.svg", "One", "Smoke")
+    carouselWidget.AddSlide("C:/Toba/modules/libwebui/assets/sample_image_2.svg", "Two", "Smoke")
+    carouselWidget.Close()
+
+    videoWidget = video_player::VideoPlayer()
+    videoWidget.Setup("smoke_video", "Video", " ", " ", "Video")
+    videoWidget.Close()
+
+    chartWidget = chart::Chart()
+    chartWidget.Setup("smoke_chart", "Chart", "Chart note")
+    chartWidget.Close()
+
+    codeWidget = code_block::CodeBlock()
+    codeWidget.Setup("smoke_code", "Code", "toba", "return (1)")
+    codeWidget.Close()
+
+    editorWidget = monaco_editor::MonacoEditor()
+    editorWidget.Setup("smoke_editor", "Editor", "toba", "return (1)", "editor_change")
+    editorWidget.Close()
+
+    row = gpu_metric_row::GpuMetricRow("GPU", 10, 100, 10, 45)
+    emptyRow = empty_gpu_metric_row::EmptyGpuMetricRow()
+    kpiHtml = kpi::Kpi("kpi_smoke", "CPU", "12%", "ok")
+    gridHtml = kpi_grid::KpiGrid(kpiHtml)
+    dropHtml = dropdown_list::DropdownList("smoke_dropdown", "Choice", ("One", "Two"), ("one", "two"), ("choice_one", "choice_two"), "one", "tm-smoke-dropdown")
+    tableHtml = gpu_table::GpuTable(row $ emptyRow)
+    inputHtml = pill_input::PillInput("smoke_input", "Input", "abc", "webuiEvent('input')")
+    selectHtml = pill_select::PillSelect("smoke_select", "Select", "<option>A</option>", "webuiEvent('select')")
+    btnHtml = pill_button::PillButton("smoke_btn", "Button", "webuiEvent('button')", "primary")
+    btnRowHtml = pill_button_row::PillButtonRow(btnHtml)
+    pickerHtml = file_picker::FilePicker("smoke_file", "File", "C:/test.wav", ".wav", "pick_file")
+    msgHtml = chat_message::ChatMessage("assistant", "hello")
+    composerHtml = chat_composer::ChatComposer("smoke_chat", "Send", "webuiEvent('send')")
+    dockHtml = dock_page::DockPage("Dock", "side", "main", "footer", theme_dropdown::ThemeDropdown() $ action_dropdown::ActionDropdown())
+    dockJs = dock_script::DockScript()
+    baseCss = styles::Styles() $ metrics_styles::MetricsStyles() $ data_panel_styles::DataPanelStyles() $ chat_bar_styles::ChatBarStyles()
+    chatJs = chat_bar_script::ChatBarScript()
+    tmHtml = task_manager_page::TaskManagerPage("content", " ")
+
+    layoutWidget = desktop_layout::DesktopLayout()
+    layoutWidget.SetTitle("Smoke")
+    layoutWidget.AddHtmlPanel("p", "Panel", "ok", "note", "content")
+    layoutHtml = layoutWidget.Render()
+
+    dashWidget = dashboard::Dashboard()
+    dashWidget.AddMetric("cpu", "CPU", "10%", "note")
+    dashHtml = dashWidget.Render()
+
+    metricsWidget = metrics_dashboard::MetricsDashboard()
+    metricsWidget.AddChart("cpu", "CPU", "10%", "note")
+    metricsWidget.AddGpuTable(row)
+    metricsHtml = metricsWidget.Render()
+
+    dataWidget = data_panel::DataPanel()
+    dataWidget.Setup("dp")
+    dataWidget.SetColumns(("Name", "Status"))
+    dataWidget.AddRow(("Item", "ok"), "webuiEvent('edit')")
+    dataHtml = dataWidget.Render()
+
+    chatWidget = chat_bar::ChatBar()
+    chatWidget.Setup("chat", "Message", "webuiEvent('send')")
+    chatWidget.AddPill("files", "folder", "Files")
+    chatWidget.AddPanel("files", "Files", "panel")
+    chatHtml = chatWidget.Render()
+
+    html = ratingWidget.html $ switchWidget.html $ copyWidget.html $ stepsWidget.html $ dateWidget.html $ colorWidget.html $ imageWidget.html $ galleryWidget.html $ carouselWidget.html $ videoWidget.html $ chartWidget.html $ codeWidget.html $ editorWidget.html
+    html = html $ gridHtml $ dropHtml $ tableHtml $ inputHtml $ selectHtml $ btnRowHtml $ pickerHtml $ msgHtml $ composerHtml $ dockHtml $ dockJs $ baseCss $ chatJs $ tmHtml $ layoutHtml $ dashHtml $ metricsHtml $ dataHtml $ chatHtml
+    print("widgets_dir_smoke_html_size=" $ strnum(size(html)) $ "\n")
+}

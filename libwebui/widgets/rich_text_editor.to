@@ -1,0 +1,43 @@
+import : libwebui / widget_core
+
+obj:RichTextEditor() {
+    self.html = " "
+    self.id = "rich_text_editor"
+    self.title = "Rich Text Editor"
+    self.value = "<p>Hello <strong>Toba</strong></p>"
+    self.eventName = "rich_text_change"
+    self.loaderUrl = " "
+    self.readOnly = 0
+    self.disabled = 0
+
+    func:Setup(self, id, title, value, eventName) {
+        self.id = id
+        self.title = title
+        self.value = value
+        self.eventName = eventName
+        return (self)
+    }
+
+    func:SetLoaderUrl(self, loaderUrl) {
+        self.loaderUrl = loaderUrl
+        return (self)
+    }
+
+    func:SetReadOnly(self, readOnly) {
+        self.readOnly = readOnly
+        return (self)
+    }
+
+    func:SetDisabled(self, disabled) {
+        self.disabled = disabled
+        return (self)
+    }
+
+    func:Close(self) {
+        self.html = widget_core::Styles() $ widget_core::RichTextEditor(self.id, self.title, self.value, self.eventName, self.loaderUrl, self.readOnly)
+        if (self.disabled == 1) {
+            self.html = widget_core::DisableHtml(self.html)
+        }
+        return (self)
+    }
+}

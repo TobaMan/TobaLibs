@@ -1,0 +1,8 @@
+import : libwebui / simpleui
+import : libstring / string
+
+if (main()) {
+    app = simpleui::Window()
+    app.SetPort(19243)
+    print("setport + string ok\n")
+}

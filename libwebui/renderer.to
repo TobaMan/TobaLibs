@@ -1,0 +1,131 @@
+import : libwebui / model
+import : libwebui / desktopui
+
+func: ExtraStyles() {
+    res = "<style>"
+    res = res $ ".lw-stack{display:flex;gap:12px;align-items:stretch}.lw-stack.vertical{flex-direction:column}.lw-stack.horizontal{flex-direction:row;flex-wrap:wrap}"
+    res = res $ ".lw-grid{display:grid;gap:12px;grid-template-columns:repeat(var(--cols),minmax(0,1fr))}"
+    res = res $ ".lw-masonry{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(var(--minw),1fr));align-items:start}"
+    res = res $ ".lw-card{background:#fff;border:1px solid #d8dee9;border-radius:8px;padding:14px}.lw-card-title{font-weight:650;margin-bottom:10px}"
+    res = res $ "</style>"
+    return (res)
+}
+
+func: RenderWithChildren(node, childHtml) {
+    kind = model::Kind(node)
+    res = ""
+    if (kind == "app") {
+        res = childHtml
+    }
+    else {
+        if (kind == "jsonraw") {
+            data = desktopui::EscapeJs(model::Prop(node, "json", "{}"))
+            res = "<div id='lw-json-root'><div class='lw-card'><div class='lw-card-title'>Loading JSON UI</div><div class='tb-status'>If this stays visible, the JSON renderer script did not run.</div></div></div>"
+            res = res $ "<script>(function(){"
+            res = res $ "var jsonText='" $ data $ "';"
+            res = res $ "function esc(s){return String(s==null?String():s)}"
+            res = res $ "function el(t,c){var e=document.createElement(t);if(c)e.className=c;return e}"
+            res = res $ "function add(p,c){if(c)p.appendChild(c);return p}"
+            res = res $ "function node(n){if(!n)return document.createTextNode(String());var t=n.type||'text',e,kids=n.children||[];"
+            res = res $ "if(t==='stack'){e=el('div','lw-stack '+(n.direction||'vertical'));}"
+            res = res $ "else if(t==='grid'){e=el('div','lw-grid');e.style.setProperty('--cols',n.columns||12);}"
+            res = res $ "else if(t==='masonry'){e=el('div','lw-masonry');e.style.setProperty('--minw',(n.minWidth||260)+'px');}"
+            res = res $ "else if(t==='card'){e=el('section','lw-card');if(n.title){var hd=el('div','lw-card-title');hd.textContent=esc(n.title);e.appendChild(hd);}}"
+            res = res $ "else if(t==='button'){e=el('button','tb-button');e.id=n.id||String();e.textContent=esc(n.text||'Button');e.onclick=function(){tobaEvent(n.event||n.id||'event',this.id)};return e;}"
+            res = res $ "else if(t==='input'){e=el('input','tb-input');e.id=n.id||String();e.placeholder=esc(n.placeholder||String());e.value=esc(n.value||String());e.onchange=function(){tobaEvent(n.event||n.id||'change',this.id,this.value)};return e;}"
+            res = res $ "else if(t==='textarea'){e=el('textarea','tb-area');e.id=n.id||String();e.placeholder=esc(n.placeholder||String());e.value=esc(n.value||String());e.onchange=function(){tobaEvent(n.event||n.id||'change',this.id,this.value)};return e;}"
+            res = res $ "else {e=el('div','tb-row');e.id=n.id||String();e.textContent=esc(n.text||String());return e;}"
+            res = res $ "e.id=n.id||String();for(var i=0;i<kids.length;i++)add(e,node(kids[i]));return e;}"
+            res = res $ "try{var app=JSON.parse(jsonText);var root=document.getElementById('lw-json-root');root.innerHTML=String();add(root,node(app.layout||app));}catch(err){document.getElementById('lw-json-root').textContent='JSON UI error: '+err.message;}"
+            res = res $ "})();</script>"
+        }
+        else {
+            if (kind == "stack") {
+            dir = model::Prop(node, "direction", "vertical")
+            res = "<div id='" $ desktopui::EscapeHtml(model::Id(node)) $ "' class='lw-stack " $ desktopui::EscapeHtml(dir) $ "'>" $ childHtml $ "</div>"
+            }
+            else {
+                if (kind == "grid") {
+                cols = model::Prop(node, "columns", 12)
+                res = "<div id='" $ desktopui::EscapeHtml(model::Id(node)) $ "' class='lw-grid' style='--cols:" $ cols $ "'>" $ childHtml $ "</div>"
+                }
+                else {
+                    if (kind == "masonry") {
+                    minw = model::Prop(node, "minWidth", 260)
+                    res = "<div id='" $ desktopui::EscapeHtml(model::Id(node)) $ "' class='lw-masonry' style='--minw:" $ minw $ "px'>" $ childHtml $ "</div>"
+                    }
+                    else {
+                        if (kind == "card") {
+                        title = model::Prop(node, "title", "")
+                        res = "<section id='" $ desktopui::EscapeHtml(model::Id(node)) $ "' class='lw-card'>"
+                        if (size(title) > 0) {
+                            res = res $ "<div class='lw-card-title'>" $ desktopui::EscapeHtml(title) $ "</div>"
+                        }
+                        res = res $ childHtml $ "</section>"
+                        }
+                        else {
+                            if (kind == "text") {
+                            res = desktopui::Text(model::Id(node), model::Prop(node, "text", ""))
+                            }
+                            else {
+                                if (kind == "button") {
+                                res = desktopui::Button(model::Id(node), model::Prop(node, "text", "Button"), model::Prop(node, "event", model::Id(node)))
+                                }
+                                else {
+                                    if (kind == "input") {
+                                    res = desktopui::Input(model::Id(node), model::Prop(node, "placeholder", ""), model::Prop(node, "value", ""), model::Prop(node, "event", model::Id(node)))
+                                    }
+                                    else {
+                                        if (kind == "textarea") {
+                                        res = desktopui::TextArea(model::Id(node), model::Prop(node, "placeholder", ""), model::Prop(node, "value", ""), model::Prop(node, "event", model::Id(node)))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return (res)
+}
+
+func: RenderLeaf(node) {
+    return (RenderWithChildren(node, ""))
+}
+
+func: RenderLevel1(node) {
+    childHtml = ""
+    i = for (0, model::ChildCount(node), 1) {
+        childHtml = childHtml $ RenderLeaf(model::Child(node, i))
+    }
+    return (RenderWithChildren(node, childHtml))
+}
+
+func: RenderLevel2(node) {
+    childHtml = ""
+    i = for (0, model::ChildCount(node), 1) {
+        childHtml = childHtml $ RenderLevel1(model::Child(node, i))
+    }
+    return (RenderWithChildren(node, childHtml))
+}
+
+func: RenderLevel3(node) {
+    childHtml = ""
+    i = for (0, model::ChildCount(node), 1) {
+        childHtml = childHtml $ RenderLevel2(model::Child(node, i))
+    }
+    return (RenderWithChildren(node, childHtml))
+}
+
+func: Render(node) {
+    return (RenderLevel3(node))
+}
+
+func: Page(app) {
+    title = model::Prop(app, "title", "Toba WebUI")
+    body = ExtraStyles() $ Render(app)
+    html = desktopui::DesktopPage(title, "", body, "libwebui")
+    return (html)
+}

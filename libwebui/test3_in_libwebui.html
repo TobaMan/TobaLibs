@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raytracer 2D sur le DOM</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            color: #111827;
+            margin: 0;
+            padding: 2rem;
+            transition: background-color 0.3s;
+        }
+
+        .page-content {
+            max-width: 1200px;
+            margin: auto;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.5rem;
+            transition: opacity 0.3s;
+        }
+
+        h1 {
+            grid-column: 1 / -1;
+            text-align: center;
+            font-size: 2.5rem;
+            color: #1f2937;
+            margin-bottom: 2rem;
+        }
+        
+        .widget {
+            background-color: #ffffff;
+            color: #111827;
+            padding: 1.5rem;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            transition: box-shadow 0.2s;
+            min-height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .widget:hover {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.07), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+        }
+        .widget.rtx-selected {
+            outline: 3px solid #3b82f6;
+            outline-offset: 2px;
+        }
+
+        .widget.header { grid-column: 1 / -1; background-color: #d1d5db; }
+        .widget.sidebar { grid-column: 1 / 2; grid-row: 2 / 4; background-color: #9ca3af; }
+        .widget.main { grid-column: 2 / -1; background-color: #4ade80; }
+        .widget.footer-1 { background-color: #60a5fa; }
+        .widget.footer-2 { background-color: #f87171; }
+        .widget.footer-3 { background-color: #fbbf24; }
+        .widget.footer-4 { background-color: #a78bfa; }
+
+        #raytracerCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+            mix-blend-mode: multiply;
+            opacity: 0.7;
+            transition: opacity 0.3s, mix-blend-mode 0.3s;
+        }
+
+        #settingsBtn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 30;
+            background-color: #fff;
+            color: #1f2937;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 0.75rem 1.25rem;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+            transition: all 0.2s;
+        }
+        #settingsBtn:hover {
+             background-color: #f9fafb;
+             transform: translateY(-2px);
+        }
+
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.2); z-index: 19; display: none;
+        }
+        
+        .controls {
+            position: fixed; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 0; border-radius: 12px; z-index: 20;
+            display: none; flex-direction: column;
+            border: 1px solid rgba(0, 0, 0, 0.1); font-size: 0.9rem;
+            color: #1f2937; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 340px;
+        }
+
+        .controls-header {
+            padding: 1rem 1.5rem; font-weight: 700; cursor: move;
+            border-bottom: 1px solid rgba(0,0,0,0.1); display: flex;
+            justify-content: space-between; align-items: center;
+        }
+        .close-btn { cursor: pointer; font-size: 1.2rem; line-height: 1; padding: 0.2rem; }
+        .controls-body { padding: 1.5rem; display: flex; flex-direction: column; gap: 1.2rem; }
+        .control-item { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+        .control-item label { white-space: nowrap; }
+        .control-item input[type="range"] { width: 150px; }
+        .control-item .value-display { min-width: 40px; text-align: right; font-weight: 500; }
+        .control-item select {
+            padding: 4px 8px; border-radius: 6px; border: 1px solid #ccc;
+            background-color: #fff; width: 150px;
+        }
+
+        .switch { position: relative; display: inline-block; width: 50px; height: 28px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 28px; }
+        .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #3b82f6; }
+        input:checked + .slider:before { transform: translateX(22px); }
+
+        .editor-section h3 { margin: 0 0 10px 0; font-size: 1em; color: #111827; font-weight: 700; }
+        .color-picker { display: flex; gap: 8px; flex-wrap: wrap; }
+        .color-swatch { width: 28px; height: 28px; border-radius: 6px; cursor: pointer; border: 3px solid transparent; transition: border-color 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .color-swatch.active { border-color: #3b82f6; }
+
+        body.raytracer-only .page-content { opacity: 0; pointer-events: none; }
+        body.raytracer-only #raytracerCanvas { mix-blend-mode: normal; opacity: 1; }
+        /* Mode "RTX + widgets fantomes" : le rendu raytracing OPAQUE (net) EN
+           FOND, et les widgets par-dessus fusionnes en preservant leur TONALITE
+           (mix-blend-mode) au lieu d'une simple opacite qui delave. Le mode de
+           fusion + l'intensite sont reglables pour trouver le meilleur rendu. */
+        body.rtx-ghost #raytracerCanvas { mix-blend-mode: normal; opacity: 1; }
+        body.rtx-ghost .page-content { opacity: 1; }
+        body.rtx-ghost .widget {
+            mix-blend-mode: var(--ghost-blend, multiply);
+            opacity: var(--ghost-opacity, 0.9);
+            box-shadow: none;
+            /* Correction gamma AUTO par widget (--w-bright / --w-sat calcules en
+               JS a partir de la luminosite du RTX derriere) : plus le RTX est
+               sombre derriere, plus on remonte le widget -> couleur preservee
+               quel que soit l'eclairage. Voir autoGammaCorrect(). */
+            filter: brightness(var(--w-bright, 1)) saturate(var(--w-sat, 1.6));
+            transition: filter 0.12s linear;
+        }
+        /* Mode "combinaison GL" : l'image des widgets est combinee dans le canvas
+           (shader). Les widgets DOM deviennent transparents (fond+ombre) pour ne
+           garder que le TEXTE lisible par-dessus le rendu GL. */
+        body.gl-combine .page-content { opacity: 1; }
+        body.gl-combine #raytracerCanvas { mix-blend-mode: normal; opacity: 1; }
+        body.gl-combine .widget {
+            background-color: transparent !important;
+            box-shadow: none !important;
+            mix-blend-mode: normal;
+            filter: none;
+            color: #fff;
+            text-shadow: 0 1px 3px rgba(0,0,0,.55);
+        }
+        body.gl-combine h1 { color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,.5); }
+        hr { width:100%; border-color: rgba(0,0,0,0.1); border-style: solid; border-width: 1px 0 0 0; }
+    </style>
+</head>
+<body>
+
+    <button id="settingsBtn">Réglages</button>
+    <div class="modal-overlay" id="modalOverlay"></div>
+
+    <div class="controls" id="settingsModal">
+        <div class="controls-header" id="modalHeader">
+            <span>Panneau de Contrôle</span>
+            <span class="close-btn" id="closeBtn">&times;</span>
+        </div>
+        <div class="controls-body">
+            <div class="editor-section"><h3>Affichage</h3></div>
+            <div class="control-item">
+                <label for="toggleRaytracer">Activer Raytracer</label>
+                <label class="switch"><input type="checkbox" id="toggleRaytracer" checked><span class="slider"></span></label>
+            </div>
+            <div class="control-item">
+                <label for="glCombine">Combinaison GL (image widgets)</label>
+                <select id="glCombine">
+                    <option value="off">Off</option>
+                    <option value="multiply">Multiply</option>
+                    <option value="additive">Additif</option>
+                </select>
+            </div>
+            <div class="control-item">
+                <label for="glStrength">Force combinaison</label>
+                <input type="range" id="glStrength" min="0" max="1" step="0.05" value="1">
+                <span id="glStrengthValue" class="value-display">1.00</span>
+            </div>
+            <div class="control-item">
+                <label for="toggleOverlayOnly">Vue Raytracer Seule</label>
+                <label class="switch"><input type="checkbox" id="toggleOverlayOnly"><span class="slider"></span></label>
+            </div>
+            <div class="control-item">
+                <label for="toggleGhost">RTX + widgets fantômes</label>
+                <label class="switch"><input type="checkbox" id="toggleGhost"><span class="slider"></span></label>
+            </div>
+            <div class="control-item">
+                <label for="ghostSlider">Opacité widgets</label>
+                <input type="range" id="ghostSlider" min="0" max="1" step="0.05" value="0.85">
+                <span id="ghostValue" class="value-display">0.85</span>
+            </div>
+            <div class="control-item">
+                <label for="ghostBlend">Fusion (garde la teinte)</label>
+                <select id="ghostBlend">
+                    <option value="multiply">Multiply</option>
+                    <option value="normal">Normal</option>
+                    <option value="soft-light">Soft Light</option>
+                    <option value="overlay">Overlay</option>
+                    <option value="color">Color (teinte pure)</option>
+                    <option value="hue">Hue</option>
+                    <option value="luminosity">Luminosity</option>
+                    <option value="hard-light">Hard Light</option>
+                </select>
+            </div>
+            <div class="control-item">
+                <label for="satSlider">Saturation widgets</label>
+                <input type="range" id="satSlider" min="1" max="4" step="0.1" value="1.8">
+                <span id="satValue" class="value-display">1.8</span>
+            </div>
+            <div class="control-item">
+                <label for="brightSlider">Luminosité widgets</label>
+                <input type="range" id="brightSlider" min="0.8" max="2" step="0.05" value="1.1">
+                <span id="brightValue" class="value-display">1.1</span>
+            </div>
+            <div class="control-item">
+                <label for="opacitySlider">Opacité</label>
+                <input type="range" id="opacitySlider" min="0" max="1" step="0.05" value="0.7">
+                <span id="opacityValue" class="value-display">0.70</span>
+            </div>
+            <hr />
+            <div class="editor-section"><h3>Rendu Global</h3></div>
+            <div class="control-item">
+                <label for="bouncesSlider">Rebonds de lumière</label>
+                <input type="range" id="bouncesSlider" min="1" max="10" step="1" value="3">
+                <span id="bouncesValue" class="value-display">3</span>
+            </div>
+            <div class="control-item">
+                <label for="materialType">Materiau (widget selectionne)</label>
+                <select id="materialType">
+                    <option value="0">Diffus</option>
+                    <option value="1">Miroir</option>
+                    <option value="2">Verre</option>
+                    <option value="3">Lustré (Glossy)</option>
+                    <option value="4">Émissif (Lumière)</option>
+                </select>
+            </div>
+             <div class="control-item material-option" id="roughness-control">
+                <label for="roughnessSlider">Rugosité</label>
+                <input type="range" id="roughnessSlider" min="0" max="1" step="0.01" value="0.2">
+                <span id="roughnessValue" class="value-display">0.20</span>
+            </div>
+             <div class="control-item material-option" id="ior-control">
+                <label for="iorSlider">Indice de Réfraction</label>
+                <input type="range" id="iorSlider" min="1" max="2.5" step="0.01" value="1.5">
+                <span id="iorValue" class="value-display">1.50</span>
+            </div>
+            <hr />
+             <div class="editor-section">
+                <h3>Couleur de fond (en mode "Vue Seule")</h3>
+                <div class="color-picker" id="bgColorPicker">
+                    <div class="color-swatch" style="background: #1a1a1a" data-color="0.1,0.1,0.1"></div>
+                    <div class="color-swatch active" style="background: #ffffff" data-color="1.0,1.0,1.0"></div>
+                    <div class="color-swatch" style="background: #87ceeb" data-color="0.53,0.81,0.92"></div>
+                    <div class="color-swatch" style="background: #191970" data-color="0.1,0.1,0.44"></div>
+                    <div class="color-swatch" style="background: #f08080" data-color="0.94,0.5,0.5"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <canvas id="raytracerCanvas"></canvas>
+
+    <div class="page-content">
+        <h1>Démonstration du Raytracer sur le DOM</h1>
+        <div class="widget header">Header Widget</div>
+        <div class="widget sidebar">Sidebar</div>
+        <div class="widget main">Main Content</div>
+        <div class="widget footer-1">Footer 1</div>
+        <div class="widget footer-2">Footer 2</div>
+        <div class="widget footer-3">Footer 3</div>
+        <div class="widget footer-4">Footer 4</div>
+    </div>
+
+    <script src="vendor/gridcraft/Raytracer_Engine.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            window.raytracer = new Raytracer2D('raytracerCanvas', { domSelector: '.widget' });
+
+            const ui = {
+                canvas: document.getElementById('raytracerCanvas'),
+                toggleRaytracer: document.getElementById('toggleRaytracer'),
+                toggleOverlay: document.getElementById('toggleOverlayOnly'),
+                toggleGhost: document.getElementById('toggleGhost'),
+                ghostSlider: document.getElementById('ghostSlider'),
+                ghostValue: document.getElementById('ghostValue'),
+                ghostBlend: document.getElementById('ghostBlend'),
+                glCombine: document.getElementById('glCombine'),
+                glStrength: document.getElementById('glStrength'),
+                glStrengthValue: document.getElementById('glStrengthValue'),
+                satSlider: document.getElementById('satSlider'),
+                satValue: document.getElementById('satValue'),
+                brightSlider: document.getElementById('brightSlider'),
+                brightValue: document.getElementById('brightValue'),
+                opacitySlider: document.getElementById('opacitySlider'),
+                opacityValue: document.getElementById('opacityValue'),
+                bouncesSlider: document.getElementById('bouncesSlider'),
+                bouncesValue: document.getElementById('bouncesValue'),
+                bgColorPicker: document.getElementById('bgColorPicker'),
+                materialType: document.getElementById('materialType'),
+                roughnessControl: document.getElementById('roughness-control'),
+                roughnessSlider: document.getElementById('roughnessSlider'),
+                roughnessValue: document.getElementById('roughnessValue'),
+                iorControl: document.getElementById('ior-control'),
+                iorSlider: document.getElementById('iorSlider'),
+                iorValue: document.getElementById('iorValue'),
+                modal: document.getElementById('settingsModal'),
+                overlay: document.getElementById('modalOverlay'),
+                openBtn: document.getElementById('settingsBtn'),
+                closeBtn: document.getElementById('closeBtn'),
+                header: document.getElementById('modalHeader'),
+            };
+
+            const updateMaterialControls = () => {
+                const selectedType = ui.materialType.value;
+                ui.roughnessControl.style.display = selectedType === '3' ? 'flex' : 'none'; // Glossy
+                ui.iorControl.style.display = selectedType === '2' ? 'flex' : 'none'; // Glass
+            };
+
+            ui.toggleRaytracer.addEventListener('change', (e) => { ui.canvas.style.display = e.target.checked ? 'block' : 'none'; });
+            ui.toggleOverlay.addEventListener('change', (e) => { document.body.classList.toggle('raytracer-only', e.target.checked); window.raytracer.resetAccumulation(); });
+            // Mode "RTX + widgets fantomes" : rendu RTX opaque en fond + widgets
+            // par-dessus a faible opacite (le rendu voulu).
+            ui.toggleGhost.addEventListener('change', (e) => { document.body.classList.toggle('rtx-ghost', e.target.checked); window.raytracer.resetAccumulation(); });
+            ui.ghostSlider.addEventListener('input', (e) => { document.body.style.setProperty('--ghost-opacity', e.target.value); ui.ghostValue.textContent = parseFloat(e.target.value).toFixed(2); });
+            ui.ghostBlend.addEventListener('change', (e) => { document.body.style.setProperty('--ghost-blend', e.target.value); });
+            ui.satSlider.addEventListener('input', (e) => { document.body.style.setProperty('--ghost-sat', e.target.value); ui.satValue.textContent = parseFloat(e.target.value).toFixed(1); });
+            ui.brightSlider.addEventListener('input', (e) => { document.body.style.setProperty('--ghost-bright', e.target.value); ui.brightValue.textContent = parseFloat(e.target.value).toFixed(2); });
+            ui.opacitySlider.addEventListener('input', (e) => { ui.canvas.style.opacity = e.target.value; ui.opacityValue.textContent = parseFloat(e.target.value).toFixed(2); });
+            ui.bouncesSlider.addEventListener('input', (e) => { window.raytracer.setMaxBounces(parseInt(e.target.value, 10)); ui.bouncesValue.textContent = e.target.value; });
+            // --- Materiau PAR widget : cliquer un widget le selectionne, le
+            // panneau agit alors sur CE widget (via updateObjectProperty). ---
+            let selectedWidget = null;
+            const matNames = ['Diffus', 'Miroir', 'Verre', 'Glossy', 'Emissif'];
+            const syncPanelFromWidget = () => {
+                if (!selectedWidget) return;
+                const p = window.raytracer.getObjectProperties(selectedWidget);
+                ui.materialType.value = String(p.materialType);
+                ui.roughnessSlider.value = p.roughness; ui.roughnessValue.textContent = parseFloat(p.roughness).toFixed(2);
+                ui.iorSlider.value = p.ior; ui.iorValue.textContent = parseFloat(p.ior).toFixed(2);
+                updateMaterialControls();
+            };
+            const selectWidget = (el) => {
+                if (selectedWidget) selectedWidget.classList.remove('rtx-selected');
+                selectedWidget = el;
+                if (el) { el.classList.add('rtx-selected'); syncPanelFromWidget(); }
+            };
+            document.querySelectorAll('.widget').forEach((el) => {
+                el.style.cursor = 'pointer';
+                el.addEventListener('click', () => selectWidget(el));
+            });
+            // Selectionne le premier widget par defaut pour que le panneau agisse.
+            selectWidget(document.querySelector('.widget'));
+
+            ui.materialType.addEventListener('change', (e) => { if (selectedWidget) window.raytracer.updateObjectProperty(selectedWidget, 'materialType', parseInt(e.target.value, 10)); updateMaterialControls(); });
+            ui.roughnessSlider.addEventListener('input', (e) => { if (selectedWidget) window.raytracer.updateObjectProperty(selectedWidget, 'roughness', parseFloat(e.target.value)); ui.roughnessValue.textContent = parseFloat(e.target.value).toFixed(2); });
+            ui.iorSlider.addEventListener('input', (e) => { if (selectedWidget) window.raytracer.updateObjectProperty(selectedWidget, 'ior', parseFloat(e.target.value)); ui.iorValue.textContent = parseFloat(e.target.value).toFixed(2); });
+            
+            ui.bgColorPicker.addEventListener('click', (e) => {
+                if(e.target.classList.contains('color-swatch')) {
+                    window.raytracer.setBackgroundColor(e.target.dataset.color.split(',').map(Number));
+                    ui.bgColorPicker.querySelector('.active').classList.remove('active');
+                    e.target.classList.add('active');
+                }
+            });
+
+            // --- MODAL DIALOG LOGIC ---
+            const openModal = () => { ui.modal.style.display = 'flex'; ui.overlay.style.display = 'block'; };
+            const closeModal = () => { ui.modal.style.display = 'none'; ui.overlay.style.display = 'none'; };
+            ui.openBtn.addEventListener('click', openModal);
+            ui.closeBtn.addEventListener('click', closeModal);
+            ui.overlay.addEventListener('click', closeModal);
+
+            let isDragging = false, offset = { x: 0, y: 0 };
+            ui.header.addEventListener('mousedown', (e) => { isDragging = true; offset = { x: e.clientX - ui.modal.offsetLeft, y: e.clientY - ui.modal.offsetTop }; ui.header.style.cursor = 'grabbing'; });
+            document.addEventListener('mousemove', (e) => { if (isDragging) { ui.modal.style.left = `${e.clientX - offset.x}px`; ui.modal.style.top = `${e.clientY - offset.y}px`; }});
+            document.addEventListener('mouseup', () => { isDragging = false; ui.header.style.cursor = 'move'; });
+
+            updateMaterialControls();
+
+            // --- Combinaison GL : capture l'image des widgets (SVG foreignObject)
+            // et la passe en texture au moteur, qui la combine avec l'eclairage
+            // RTX puis applique le gamma (dans le shader display). ------------
+            const captureWidgetsToTexture = () => {
+                const w = window.innerWidth, h = window.innerHeight;
+                const pc = document.querySelector('.page-content');
+                if (!pc) return;
+                // Serialise .page-content (avec ses styles calcules essentiels).
+                // On clone le DOM et on inline les backgrounds/couleurs/radius.
+                const clone = pc.cloneNode(true);
+                const srcEls = pc.querySelectorAll('*');
+                const dstEls = clone.querySelectorAll('*');
+                const inlineStyle = (src, dst) => {
+                    const cs = getComputedStyle(src);
+                    dst.style.cssText = '';
+                    ['background-color','color','border-radius','border','box-shadow',
+                     'padding','margin','font','font-size','font-weight','font-family',
+                     'display','align-items','justify-content','text-align','min-height',
+                     'grid-column','grid-row','width','height'].forEach(p => {
+                        dst.style.setProperty(p, cs.getPropertyValue(p));
+                    });
+                };
+                inlineStyle(pc, clone);
+                for (let i = 0; i < srcEls.length; i++) inlineStyle(srcEls[i], dstEls[i]);
+                clone.style.width = w + 'px';
+                clone.style.margin = '0';
+                const xml = new XMLSerializer().serializeToString(clone);
+                const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '">' +
+                    '<foreignObject width="100%" height="100%">' +
+                    '<div xmlns="http://www.w3.org/1999/xhtml" style="width:' + w + 'px;height:' + h + 'px;padding:2rem;box-sizing:border-box;font-family:Inter,sans-serif">' +
+                    xml + '</div></foreignObject></svg>';
+                const img = new Image();
+                img.onload = () => { window.raytracer.setWidgetImage(img); window.raytracer.resetAccumulation(); };
+                img.onerror = () => console.warn('capture widgets: SVG load failed');
+                img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+            };
+
+            ui.glCombine.addEventListener('change', (e) => {
+                const mode = e.target.value;
+                window.raytracer.setWidgetMix(mode);
+                document.body.classList.toggle('gl-combine', mode !== 'off');
+                if (mode !== 'off') captureWidgetsToTexture();
+                window.raytracer.resetAccumulation();
+            });
+            ui.glStrength.addEventListener('input', (e) => {
+                window.raytracer.setWidgetStrength(e.target.value);
+                ui.glStrengthValue.textContent = parseFloat(e.target.value).toFixed(2);
+                window.raytracer.resetAccumulation();
+            });
+            // Recapture si la fenetre change de taille (positions widgets changent).
+            window.addEventListener('resize', () => { if (ui.glCombine.value !== 'off') captureWidgetsToTexture(); });
+
+            // --- Correction gamma AUTO par widget ---------------------------
+            // On echantillonne la luminosite du rendu RTX derriere chaque widget
+            // et on ajuste brightness/saturation du widget en consequence : plus
+            // le fond RTX est sombre (le multiply ecraserait la couleur), plus on
+            // remonte le widget ; plus il est clair, moins on corrige. La teinte
+            // du widget est ainsi preservee quel que soit l'eclairage.
+            const sampleCanvas = document.createElement('canvas');
+            const sctx = sampleCanvas.getContext('2d', { willReadFrequently: true });
+            const SW = 160; // resolution reduite d'echantillonnage (rapide)
+            let autoRAF = 0;
+            const autoGammaCorrect = () => {
+                autoRAF = 0;
+                if (!document.body.classList.contains('rtx-ghost')) return;
+                const cv = ui.canvas;
+                if (!cv || !cv.width) return;
+                const ar = cv.height / cv.width;
+                sampleCanvas.width = SW;
+                sampleCanvas.height = Math.max(1, Math.round(SW * ar));
+                try { sctx.drawImage(cv, 0, 0, sampleCanvas.width, sampleCanvas.height); }
+                catch (e) { return; }
+                const vw = window.innerWidth, vh = window.innerHeight;
+                document.querySelectorAll('.widget').forEach((el) => {
+                    const r = el.getBoundingClientRect();
+                    // zone du canvas correspondant au widget (canvas = plein ecran)
+                    const sx = Math.max(0, Math.round((r.left / vw) * sampleCanvas.width));
+                    const sy = Math.max(0, Math.round((r.top / vh) * sampleCanvas.height));
+                    const sw = Math.max(1, Math.round((r.width / vw) * sampleCanvas.width));
+                    const sh = Math.max(1, Math.round((r.height / vh) * sampleCanvas.height));
+                    let data;
+                    try { data = sctx.getImageData(sx, sy, sw, sh).data; }
+                    catch (e) { return; }
+                    let lum = 0, n = 0;
+                    for (let i = 0; i < data.length; i += 16) { // sous-echantillonne
+                        lum += 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+                        n++;
+                    }
+                    if (!n) return;
+                    const avg = (lum / n) / 255; // 0=noir, 1=blanc, luminosite RTX derriere
+                    // Gamma inverse : fond sombre -> bright haut (compense le multiply)
+                    // fond clair -> bright ~1. Courbe douce, bornee.
+                    const bright = Math.min(1.9, Math.max(1.0, 1.0 + (1.0 - avg) * 0.9));
+                    // Plus le fond est colore/sombre, plus on sature pour garder la teinte.
+                    const sat = Math.min(2.4, Math.max(1.2, 1.2 + (1.0 - avg) * 1.1));
+                    el.style.setProperty('--w-bright', bright.toFixed(3));
+                    el.style.setProperty('--w-sat', sat.toFixed(3));
+                });
+            };
+            const scheduleAutoGamma = () => { if (!autoRAF) autoRAF = requestAnimationFrame(autoGammaCorrect); };
+            // Recalcule en continu (le RTX bouge : bounces, materiaux, accumulation).
+            setInterval(scheduleAutoGamma, 120);
+            ui.toggleGhost.addEventListener('change', scheduleAutoGamma);
+        });
+    </script>
+
+</body>
+</html>
+

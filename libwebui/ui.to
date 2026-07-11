@@ -1,0 +1,25 @@
+import : libwebui / model
+import : libwebui / renderer
+import : libwebui / jsonui
+import : libwebui / desktopui
+
+func: App(title) { return (model::App(title)) }
+func: Add(parent, child) { return (model::Add(parent, child)) }
+func: Stack(id, direction) { return (model::Stack(id, direction)) }
+func: Grid(id, columns) { return (model::Grid(id, columns)) }
+func:Masonry(id, minWidth) { return (model::Masonry(id, minWidth)) }
+func: Card(id, title) { return (model::Card(id, title)) }
+func: Text(id, text) { return (model::Text(id, text)) }
+func: Button(id, text, eventName) { return (model::Button(id, text, eventName)) }
+func: Input(id, placeholder, value, eventName) { return (model::Input(id, placeholder, value, eventName)) }
+func: TextArea(id, placeholder, value, eventName) { return (model::TextArea(id, placeholder, value, eventName)) }
+
+func: FromJson(js) { return (jsonui::FromJson(js)) }
+func: FromFile(path) { return (jsonui::FromFile(path)) }
+func: Render(app) { return (renderer::Page(app)) }
+
+func: Run(app) {
+    html = Render(app)
+    win = desktopui::ShowBrowser(html, 1)
+    return (win)
+}

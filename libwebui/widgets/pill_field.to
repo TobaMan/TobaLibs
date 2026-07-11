@@ -1,0 +1,6 @@
+import : libwebui / widgets
+
+func: PillField(label, contentHtml) {
+    return (widgets::PillField(label, contentHtml))
+}
+

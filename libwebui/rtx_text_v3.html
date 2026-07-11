@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Texte RTX V3 - matériaux et transport lumineux</title>
+<style>
+  /* Meme recette que le lecteur audio : FOND CLAIR + blend MULTIPLY.
+     Les lettres sont VISIBLES et COLOREES (comme le bouton play bleu) ;
+     le RTX les illumine par-dessus. Le SDF donne la forme exacte de la lettre. */
+  /* Meme fond quadrille blanc que le lecteur audio / les courbes (.stage). */
+  body{margin:0;font-family:system-ui;color:#111827;overflow:hidden;
+    background:#eef2f7;
+    background-image:
+      linear-gradient(rgba(15,23,42,.055) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(15,23,42,.055) 1px,transparent 1px);
+    background-size:28px 28px}
+  .toolbar{position:fixed;top:0;left:0;right:0;z-index:5000;background:#111827;color:#fff;padding:10px 16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:13px}
+  .toolbar label{display:flex;gap:6px;align-items:center}
+  #status{margin-left:auto;font:11px monospace;opacity:.85}
+  /* Controles adaptatifs selon le moteur (comme le player). */
+  .rad-only{display:none}
+  .toolbar.mode-radiance .rad-only{display:flex}
+  .toolbar.mode-radiance .pt-only{display:none}
+  /* Les LETTRES = de vrais elements HTML colores (comme les widgets .gc-rtx).
+     buildGlyphs() lit leur position/couleur/materiau depuis le DOM. */
+  #word{position:fixed;left:0;right:0;top:50%;transform:translateY(-50%);
+        display:flex;justify-content:center;align-items:center;gap:2vw;z-index:2;
+        pointer-events:none;font-family:'Arial Black',system-ui,sans-serif;font-weight:900}
+  /* La lettre HTML est VISIBLE par-dessus, dans sa couleur palette (semi-
+     transparente) : le glow RTX transparait dessous, comme le texte du player. */
+  .gc-glyph{font-size:32vh;line-height:1;color:currentColor}
+  /* Le canvas RTX (glow SDF) est SOUS le texte HTML (z-index plus bas). */
+  #rtxCanvas{position:fixed;inset:0;width:100%;height:100%;z-index:1;pointer-events:none;mix-blend-mode:multiply}
+  .rtx-env{position:fixed;z-index:0;transform:translate(-50%,-50%);touch-action:none;cursor:grab;user-select:none}
+  body.sources-front .rtx-env{z-index:3}
+  .rtx-emitter{width:72px;height:72px;border-radius:50%;border:2px solid rgba(255,255,255,.8)}
+  #lightRed{left:18%;top:52%;background:#ff493d;box-shadow:0 0 28px 8px rgba(255,73,61,.65)}
+  #lightGreen{left:82%;top:52%;background:#41ff91;box-shadow:0 0 28px 8px rgba(65,255,145,.65)}
+  .hint{position:fixed;left:50%;bottom:18px;z-index:4;transform:translateX(-50%);padding:7px 12px;border-radius:999px;background:rgba(17,24,39,.82);color:white;font-size:12px;pointer-events:none}
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <label>Texte <input type="text" id="txt" value="RTX" style="width:120px"></label>
+    <label title="Moteur de rendu"><b>Moteur</b>
+      <select id="engineSel">
+        <option value="realtime" selected>RTX realtime (SVGF)</option>
+        <option value="quality">RTX non-realtime</option>
+        <option value="radiance">Radiance cascade</option>
+      </select>
+    </label>
+    <!-- Controles RADIANCE (masques sauf en mode radiance) -->
+    <label class="rad-only">Qualite <input type="range" id="radQuality" min="0.25" max="1" step="0.05" value="0.6"></label>
+    <label class="rad-only">Intensite <input type="range" id="radIntensity" min="0.1" max="1" step="0.05" value="0.6"></label>
+    <label class="rad-only">Opacite <input type="range" id="radOpacity" min="0.1" max="1" step="0.05" value="0.85"></label>
+    <label class="rad-only" title="Soleil directionnel">Soleil <input type="checkbox" id="radSun"></label>
+    <label>Materiau
+      <select id="mat"><option value="glass" selected>verre</option><option value="cycle">par lettre</option><option value="emissive">emissive</option><option value="diffuse">diffuse</option><option value="glossy">glossy</option><option value="mirror">mirror</option></select>
+    </label>
+    <label title="Opacite des lettres HTML au-dessus : plus bas = le matériau RTX domine">Opacite texte <input type="range" id="txtOpacity" min="0" max="1" step="0.01" value="0.08"></label>
+    <label title="Fusion du canvas RTX avec le fond/texte">Blend
+      <select id="blendSel">
+        <option value="multiply">multiply</option>
+        <option value="screen">screen</option>
+        <option value="normal" selected>normal</option>
+        <option value="plus-lighter">plus-lighter</option>
+        <option value="overlay">overlay</option>
+      </select>
+    </label>
+    <label title="Ordre visuel des objets emissifs par rapport aux lettres">Sources
+      <select id="sourcesDepth"><option value="behind" selected>derriere les lettres</option><option value="front">devant les lettres</option></select>
+    </label>
+    <label class="pt-only" title="Resolution interne">Resolution <input type="range" id="renderScale" min="0.3" max="1" step="0.05" value="0.75"></label>
+    <label class="pt-only">Bounces <input type="range" id="bounces" min="1" max="5" step="1" value="4"></label>
+    <label class="pt-only">Temporal <input type="range" id="temporal" min="0" max="0.55" step="0.01" value="0.08"></label>
+    <label class="pt-only">SVGF <input type="checkbox" id="denoise" checked></label>
+    <label class="pt-only">Force <input type="range" id="denoiseStrength" min="0" max="1" step="0.02" value="0.85"></label>
+    <label class="pt-only">Rayon <input type="range" id="denoiseRadius" min="0.5" max="3" step="0.1" value="1.5"></label>
+    <label>Ambiance <input type="range" id="amb" min="0" max="1" step="0.05" value="0.9"></label>
+    <label class="pt-only">Emissive <input type="range" id="emis" min="0" max="8" step="0.2" value="2.4"></label>
+    <label class="pt-only">Front <input type="range" id="front" min="0" max="3" step="0.1" value="0.8"></label>
+    <label class="pt-only">Bloom <input type="checkbox" id="bloom" checked></label>
+    <label class="pt-only" title="Tone mapping filmique">ACES <input type="checkbox" id="aces"></label>
+    <label class="pt-only">Expo <input type="range" id="acesExpo" min="0.5" max="4" step="0.1" value="1.6"></label>
+    <label class="pt-only" title="Lisere lumineux glossy">Fresnel <input type="checkbox" id="fresnel"></label>
+    <label class="pt-only">Force Fr <input type="range" id="fresnelPow" min="0" max="1" step="0.05" value="0.6"></label>
+    <span id="status"></span>
+  </div>
+
+  <!-- Ces objets font partie de la MEME scène que les glyphes. Le moteur peut
+       donc atteindre leur émission après réflexion/réfraction. -->
+  <div id="lightRed" class="rtx-env rtx-emitter" data-rtx-material="emissive" title="Source rouge déplaçable"></div>
+  <div id="lightGreen" class="rtx-env rtx-emitter" data-rtx-material="emissive" title="Source verte déplaçable"></div>
+  <div class="hint">Déplacez les deux sources autour ou derrière les lettres</div>
+
+  <!-- Le mot : un span par lettre. buildGlyphs() les scanne (DOM -> SDF). -->
+  <div id="word"></div>
+
+  <canvas id="rtxCanvas"></canvas>
+  <canvas id="shapeCanvas" style="display:none"></canvas>
+  <canvas id="sdfCanvas" style="display:none"></canvas>
+
+  <!-- Les 3 moteurs, comme le lecteur audio. -->
+  <!-- Chemins absolus pour que cette copie de démonstration fonctionne aussi
+       lorsqu'elle est ouverte directement depuis Downloads/MyAssistant-main. -->
+  <script src="file:///C:/Toba/modules/libwebui/vendor/gridcraft/Raytracer_Engine_Realtime_V3.js"></script>
+  <script src="file:///C:/Toba/modules/libwebui/vendor/gridcraft/Raytracer_Engine_V3.js"></script>
+  <script src="file:///C:/Toba/modules/libwebui/vendor/gridcraft/Radiance_Cascade_Engine.js"></script>
+  <script src="file:///C:/Toba/modules/libwebui/vendor/gridcraft/GridCraftHtmlEffects.js"></script>
+  <script>
+    let rtx=null;
+    const RANGE_BUF=60;        // +-px BUFFER encodes dans le SDF (portee du glow)
+    function currentEngine(){ return document.getElementById('engineSel').value; }
+    // renderScale effectif : lu du slider (path tracers). buildGlyphs lit de toute
+    // facon la taille reelle du canvas moteur, donc reste aligne quel que soit le scale.
+    function RENDER_SCALE(){ return parseFloat(document.getElementById('renderScale').value)||0.75; }
+
+    const PALETTE=['#2a78d6','#1baf7a','#eda100','#008300','#4a3aa7','#e34948','#e87ba4','#eb6834'];
+    const MAT_CYCLE=['glass','glossy','diffuse','emissive','glass','mirror'];
+    const MAT_CODE={diffuse:0,mirror:1,glass:2,glossy:3,emissive:4};
+
+    function hexToRgb(h){const n=parseInt(h.slice(1),16);return [(n>>16&255)/255,(n>>8&255)/255,(n&255)/255];}
+
+    // (Re)construit les <span> lettres dans le DOM avec couleur + materiau.
+    function buildWord(){
+      const txt=(document.getElementById('txt').value||'A').replace(/\s/g,'');
+      const matSel=document.getElementById('mat').value;
+      const word=document.getElementById('word'); word.textContent='';
+      txt.split('').forEach((ch,k)=>{
+        const sp=document.createElement('span');
+        sp.className='gc-glyph'; sp.textContent=ch;
+        // Le verre reste optiquement neutre : les couleurs fortes du HTML
+        // masqueraient la radiance rouge/verte transmise par le path tracer.
+        const chosenMat=matSel==='cycle' ? MAT_CYCLE[k%MAT_CYCLE.length] : matSel;
+        const col=chosenMat==='glass' ? '#edf7ff' : PALETTE[k%PALETTE.length];
+        sp.dataset.rtxColor=col;
+        sp.style.color=col;                 // lettre HTML visible, meme couleur
+        sp.dataset.rtxMaterial=chosenMat;
+        word.appendChild(sp);
+      });
+    }
+
+    // Distance transform euclidienne exacte (Felzenszwalb-Huttenlocher), O(n).
+    // f[] = 0 pour les pixels source, +INF sinon. Retourne la distance (px) au
+    // plus proche pixel source. Separable : 1D par lignes puis par colonnes.
+    function edt1d(f,n){
+      const d=new Float64Array(n), v=new Int32Array(n), z=new Float64Array(n+1);
+      let k=0; v[0]=0; z[0]=-Infinity; z[1]=Infinity;
+      for(let q=1;q<n;q++){
+        let s=((f[q]+q*q)-(f[v[k]]+v[k]*v[k]))/(2*q-2*v[k]);
+        while(s<=z[k]){k--; s=((f[q]+q*q)-(f[v[k]]+v[k]*v[k]))/(2*q-2*v[k]);}
+        k++; v[k]=q; z[k]=s; z[k+1]=Infinity;
+      }
+      k=0;
+      for(let q=0;q<n;q++){ while(z[k+1]<q)k++; const dx=q-v[k]; d[q]=dx*dx+f[v[k]]; }
+      return d;
+    }
+    function edt2d(bin,W,H){                 // bin: Uint8 1=source, retourne dist px
+      const INF=1e12; const f=new Float64Array(W*H);
+      for(let i=0;i<W*H;i++)f[i]=bin[i]?0:INF;
+      const col=new Float64Array(H);
+      for(let x=0;x<W;x++){                  // passe colonnes
+        for(let y=0;y<H;y++)col[y]=f[y*W+x];
+        const dc=edt1d(col,H);
+        for(let y=0;y<H;y++)f[y*W+x]=dc[y];
+      }
+      const row=new Float64Array(W);
+      for(let y=0;y<H;y++){                  // passe lignes
+        for(let x=0;x<W;x++)row[x]=f[y*W+x];
+        const dr=edt1d(row,W);
+        for(let x=0;x<W;x++)f[y*W+x]=Math.sqrt(dr[x]);
+      }
+      return f;
+    }
+
+    // SDF PLEIN-ECRAN a la taille du BUFFER. UNE SEULE source de verite : chaque
+    // lettre est rasterisee a sa position ECRAN reelle (getBoundingClientRect)
+    // *renderScale -> alignement exact avec le moteur PAR CONSTRUCTION (comme les
+    // rectangles du player). r = distance signee, g = index de lettre (+1).
+    function buildGlyphs(){
+      const spans=Array.from(document.querySelectorAll('.gc-glyph'));
+      // taille du BUFFER = canvas GL reel du moteur (source unique de verite).
+      // s = ratio buffer/viewport REEL -> aligne quel que soit le renderScale.
+      const vw=document.documentElement.clientWidth||innerWidth;
+      const vh=document.documentElement.clientHeight||innerHeight;
+      const cv=rtx&&rtx.canvas&&rtx.canvas.width ? rtx.canvas : null;
+      const bufW=cv?cv.width :vw, bufH=cv?cv.height:vh;
+      const s=bufW/vw;
+
+      // 1) masque binaire + index de lettre par pixel. On peint chaque lettre
+      //    dans un canvas dedie (couleur = k+1) pour lire l'index sans ambiguite.
+      const mask=document.getElementById('shapeCanvas'); mask.width=bufW; mask.height=bufH;
+      const mc=mask.getContext('2d',{willReadFrequently:true});
+      mc.fillStyle='#000'; mc.fillRect(0,0,bufW,bufH);
+      mc.fillStyle='#fff'; mc.textAlign='left'; mc.textBaseline='alphabetic';
+      const glyphs=[]; const idxOf=new Int16Array(bufW*bufH).fill(-1);
+      spans.forEach((sp,k)=>{
+        // On lit la VRAIE font CSS du span (getComputedStyle) et sa position DOM
+        // (getBoundingClientRect du span = le line-box, EXACTEMENT le repere ou le
+        // navigateur pose le texte). On dessine dans le canvas avec la MEME font
+        // et le MEME baseline -> la glyphe canvas == la glyphe HTML, pixel pres.
+        const cs=getComputedStyle(sp);
+        const r=sp.getBoundingClientRect();          // line-box du span (repere DOM)
+        // font canvas = font CSS scalee au buffer.
+        mc.font=cs.fontStyle+' '+cs.fontWeight+' '+(parseFloat(cs.fontSize)*s)+'px '+cs.fontFamily;
+        mc.textAlign='left'; mc.textBaseline='alphabetic';
+        // le navigateur (line-height:1, centre vertical) pose la baseline a :
+        // top_linebox + (lineHeight + (ascent-descent))/2 . On mesure ascent/descent.
+        const m=mc.measureText(sp.textContent);
+        const asc=m.fontBoundingBoxAscent, desc=m.fontBoundingBoxDescent;
+        const lineH=r.height*s;
+        const baseY=r.top*s + (lineH + (asc-desc))/2;
+        const gx=r.left*s + (r.width*s - m.width)/2;  // centre horizontal (textAlign center CSS)
+        mc.fillStyle='#fff';
+        mc.fillText(sp.textContent, gx, baseY);
+        const matName=sp.dataset.rtxMaterial||'emissive';
+        glyphs.push({ color:hexToRgb(sp.dataset.rtxColor||'#3b82f6'),
+                      mat:(MAT_CODE[matName]!==undefined?MAT_CODE[matName]:4),
+                      _font:mc.font, _gx:gx, _gy:baseY, _ch:sp.textContent });
+      });
+      // index par pixel : on repeint lettre par lettre en testant l'appartenance.
+      const full=mc.getImageData(0,0,bufW,bufH).data;
+      const bin=new Uint8Array(bufW*bufH);
+      for(let p=0;p<bufW*bufH;p++)bin[p]=full[p*4]>128?1:0;
+      // attribution d'index : pour chaque lettre, on redessine seule sur un scratch.
+      const sc2=document.createElement('canvas'); sc2.width=bufW; sc2.height=bufH;
+      const c2=sc2.getContext('2d',{willReadFrequently:true});
+      glyphs.forEach((g,k)=>{
+        c2.clearRect(0,0,bufW,bufH);
+        c2.fillStyle='#fff'; c2.textAlign='left'; c2.textBaseline='alphabetic';
+        c2.font=g._font;
+        c2.fillText(g._ch, g._gx, g._gy);
+        const dd=c2.getImageData(0,0,bufW,bufH).data;
+        for(let p=0;p<bufW*bufH;p++){ if(dd[p*4]>128) idxOf[p]=k; }
+        delete g._font; delete g._gx; delete g._gy; delete g._ch;
+      });
+
+      // 2) distance transform O(n) dedans ET dehors -> distance signee.
+      const inv=new Uint8Array(bufW*bufH); for(let p=0;p<bufW*bufH;p++)inv[p]=bin[p]?0:1;
+      const dOut=edt2d(bin,bufW,bufH);      // dist au bord depuis dehors
+      const dIn =edt2d(inv,bufW,bufH);      // dist au bord depuis dedans
+      const out=document.getElementById('sdfCanvas'); out.width=bufW; out.height=bufH;
+      const oc=out.getContext('2d'); const img=oc.createImageData(bufW,bufH); const od=img.data;
+      for(let p=0;p<bufW*bufH;p++){
+        const sd = bin[p] ? -dIn[p] : dOut[p];         // signee (px buffer)
+        const enc=Math.max(0,Math.min(1, sd/(2*RANGE_BUF)+0.5));
+        const o=p*4;
+        od[o]=Math.round(enc*255);                     // r = distance
+        od[o+1]=(idxOf[p]>=0)?(idxOf[p]+1):0;          // g = index+1
+        od[o+2]=0; od[o+3]=255;
+      }
+      oc.putImageData(img,0,0);
+      return {atlas:out, glyphs, bufW, bufH};
+    }
+
+    function refresh(){
+      if(!rtx)return;
+      const {atlas,glyphs,bufW,bufH}=buildGlyphs();
+      rtx.setGlyphs(atlas, glyphs, RANGE_BUF, 0.2, 1.5);
+      document.getElementById('status').setAttribute('data-sdf', bufW+'x'+bufH+' n='+glyphs.length);
+    }
+    function rebuild(){ buildWord(); applyTextOpacity(); requestAnimationFrame(()=>{ if(rtx&&rtx._radiance)rtx.updateSceneFromDOM(); else refresh(); }); }
+
+    function ambientColor(){ const a=parseFloat(document.getElementById('amb').value); return [a,a,a]; }
+    const $=id=>document.getElementById(id);
+
+    // Applique les reglages path-tracer courants au moteur actif.
+    function applyPT(){
+      if(!rtx||rtx._radiance)return;
+      rtx.setMaxBounces(parseInt($('bounces').value,10));
+      if(rtx.setTemporalAlpha)rtx.setTemporalAlpha(parseFloat($('temporal').value));
+      if(rtx.setDenoise)rtx.setDenoise($('denoise').checked,parseFloat($('denoiseStrength').value),parseFloat($('denoiseRadius').value));
+      rtx.setBloom($('bloom').checked,0.6,0.5);
+      rtx.setBackgroundColor(ambientColor());
+      rtx.setEmissivePower(parseFloat($('emis').value));
+      rtx.setFrontEmission(parseFloat($('front').value));
+      if(rtx.setAces)rtx.setAces($('aces').checked,parseFloat($('acesExpo').value));
+      if(rtx.setGlossyFresnel)rtx.setGlossyFresnel($('fresnel').checked,parseFloat($('fresnelPow').value));
+    }
+
+    function start(){
+      if(rtx){ rtx.destroy&&rtx.destroy(); rtx=null; }
+      const eng=currentEngine();
+      let cv=$('rtxCanvas'); if(!cv){ cv=document.createElement('canvas'); cv.id='rtxCanvas'; document.body.appendChild(cv); }
+      if(eng==='radiance'){ cv.style.display='none'; startRadiance(); return; }
+      cv.style.display='';
+      const Engine = eng==='realtime' ? window.RTX_Realtime : window.RTX_Quality;
+      if(!Engine){ console.warn('[RTX] moteur pas charge'); return; }
+      // realtime = renderScale du slider ; non-realtime = 1 (net, accumulation).
+      const rs = eng==='realtime' ? RENDER_SCALE() : 1.0;
+      try{
+        rtx=new Engine('rtxCanvas',{ domSelector:'.rtx-env', renderScale:rs, maxBounces:parseInt($('bounces').value,10),
+          temporalAlpha:parseFloat($('temporal').value), denoiseEnabled:$('denoise').checked,
+          denoiseStrength:parseFloat($('denoiseStrength').value), denoiseRadius:parseFloat($('denoiseRadius').value),
+          bloomEnabled:$('bloom').checked, acesEnabled:$('aces').checked, glossyFresnel:$('fresnel').checked,
+          settleProfile:'quality-burst' });
+        applyPT();
+        requestAnimationFrame(refresh);
+      }catch(err){
+        rtx=null;console.error('[RTX V3] initialisation:',err);
+        $('status').setAttribute('data-error',err&&err.message?err.message:String(err));
+      }
+    }
+
+    // Adaptateur radiance (comme le player) : meme surface d'API, illumine les
+    // lettres comme rectangles DOM (le wrapper scanne background-color).
+    function startRadiance(){
+      if(!window.GridCraftHtmlEffects || !window.RC){ console.warn('[RAD] wrapper/RC absent'); return; }
+      const fx=new GridCraftHtmlEffects({
+        mode:'radiance', targets:['.gc-glyph','.rtx-env'], autoStart:true,
+        overlay:{opacity:parseFloat($('radOpacity').value), blendMode:'multiply', zIndex:1},
+        performance:{maxFPS:60, qualityScale:parseFloat($('radQuality').value), maxElements:180, observeDom:true},
+        radiance:{srgb:true, enableSun:$('radSun').checked, maxAlpha:parseFloat($('radIntensity').value)}
+      });
+      fx.start();
+      rtx={ _fx:fx, _radiance:true, scene:{length:0}, frameCount:0, canvas:null,
+        updateSceneFromDOM(){ fx.refresh(); }, setGlyphs(){}, destroy(){ fx.destroy(); },
+        setRadOptions(o){ fx.setOptions(o); } };
+      setTimeout(()=>fx.refresh(),80);
+    }
+
+    function switchEngine(){
+      document.querySelector('.toolbar').classList.toggle('mode-radiance', currentEngine()==='radiance');
+      start();
+    }
+
+    $('txt').oninput=rebuild;
+    $('mat').onchange=rebuild;
+    // Opacite des lettres HTML (au-dessus du canvas RTX) : marche dans TOUS les
+    // modes. Plus bas -> on voit davantage le glow RTX en dessous.
+    // Opacite de TOUT le mot en une fois (sur #word, pas par lettre).
+    function applyTextOpacity(){ document.getElementById('word').style.opacity=$('txtOpacity').value; }
+    $('txtOpacity').addEventListener('input',applyTextOpacity);
+    // Blend du canvas RTX : 'normal'/'screen' font ressortir la surface des
+    // materiaux ; 'multiply' assombrit (rendu d'origine du player).
+    function applyBlend(){ document.getElementById('rtxCanvas').style.mixBlendMode=$('blendSel').value; }
+    $('blendSel').addEventListener('change',applyBlend);
+    function applySourcesDepth(){document.body.classList.toggle('sources-front',$('sourcesDepth').value==='front');}
+    $('sourcesDepth').addEventListener('change',applySourcesDepth);
+    $('engineSel').onchange=switchEngine;
+    $('renderScale').oninput=()=>{ if(rtx&&rtx.setRenderScale&&currentEngine()==='realtime'){rtx.setRenderScale(RENDER_SCALE()); requestAnimationFrame(refresh);} };
+    $('bounces').oninput=()=>{ if(rtx&&!rtx._radiance)rtx.setMaxBounces(parseInt($('bounces').value,10)); };
+    $('temporal').oninput=()=>{ if(rtx&&rtx.setTemporalAlpha)rtx.setTemporalAlpha(parseFloat($('temporal').value)); };
+    ['denoise','denoiseStrength','denoiseRadius'].forEach(id=>$(id).oninput=()=>{ if(rtx&&rtx.setDenoise)rtx.setDenoise($('denoise').checked,parseFloat($('denoiseStrength').value),parseFloat($('denoiseRadius').value)); });
+    $('bloom').onchange=()=>{ if(rtx&&!rtx._radiance)rtx.setBloom($('bloom').checked,0.6,0.5); };
+    $('emis').oninput=e=>{ if(rtx&&!rtx._radiance)rtx.setEmissivePower(parseFloat(e.target.value)); };
+    $('front').oninput=e=>{ if(rtx&&!rtx._radiance)rtx.setFrontEmission(parseFloat(e.target.value)); };
+    $('amb').oninput=()=>{ if(rtx&&!rtx._radiance)rtx.setBackgroundColor(ambientColor()); };
+    $('aces').onchange=()=>{ if(rtx&&rtx.setAces)rtx.setAces($('aces').checked,parseFloat($('acesExpo').value)); };
+    $('acesExpo').oninput=()=>{ if(rtx&&rtx.setAces)rtx.setAces($('aces').checked,parseFloat($('acesExpo').value)); };
+    $('fresnel').onchange=()=>{ if(rtx&&rtx.setGlossyFresnel)rtx.setGlossyFresnel($('fresnel').checked,parseFloat($('fresnelPow').value)); };
+    $('fresnelPow').oninput=()=>{ if(rtx&&rtx.setGlossyFresnel)rtx.setGlossyFresnel($('fresnel').checked,parseFloat($('fresnelPow').value)); };
+    function pushRad(){ if(rtx&&rtx._radiance)rtx.setRadOptions({ overlay:{opacity:parseFloat($('radOpacity').value)}, performance:{qualityScale:parseFloat($('radQuality').value)}, radiance:{maxAlpha:parseFloat($('radIntensity').value), enableSun:$('radSun').checked} }); }
+    ['radQuality','radIntensity','radOpacity'].forEach(id=>$(id).oninput=pushRad);
+    $('radSun').onchange=pushRad;
+
+    // Les sources restent de vrais objets HTML, mais leurs positions sont relues
+    // par le moteur pendant le drag. Les glyphes SDF ne sont pas reconstruits.
+    document.querySelectorAll('.rtx-emitter').forEach(el=>{
+      let drag=null,raf=0;
+      el.addEventListener('pointerdown',e=>{
+        const r=el.getBoundingClientRect();
+        drag={dx:e.clientX-(r.left+r.width/2),dy:e.clientY-(r.top+r.height/2)};
+        el.setPointerCapture(e.pointerId);
+      });
+      el.addEventListener('pointermove',e=>{
+        if(!drag)return;
+        el.style.left=Math.max(38,Math.min(innerWidth-38,e.clientX-drag.dx))+'px';
+        el.style.top=Math.max(90,Math.min(innerHeight-38,e.clientY-drag.dy))+'px';
+        if(raf)return;
+        raf=requestAnimationFrame(()=>{
+          raf=0;if(!rtx)return;
+          if(rtx.updateScenePositionsFromDOM)rtx.updateScenePositionsFromDOM();
+          else rtx.updateSceneFromDOM();
+        });
+      });
+      const end=()=>{
+        if(!drag)return;drag=null;
+        if(rtx){rtx.updateSceneFromDOM();if(rtx.triggerReconverge)rtx.triggerReconverge();}
+      };
+      el.addEventListener('pointerup',end);el.addEventListener('pointercancel',end);
+    });
+
+    // RESIZE : re-scan apres reflow (double rAF) + debounce -> alignement conserve.
+    let resizeT=0;
+    window.addEventListener('resize',()=>{
+      clearTimeout(resizeT);
+      resizeT=setTimeout(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>{ if(rtx&&!rtx._radiance)refresh(); else if(rtx&&rtx._radiance)rtx.updateSceneFromDOM(); })),80);
+    });
+    setInterval(()=>{const st=$('status');const eng=currentEngine(),error=st.getAttribute('data-error');st.textContent=error?('ERREUR RTX: '+error):('V3 moteur='+(rtx?(rtx._radiance?'RADIANCE':(eng==='realtime'?'RT':'QUALITY')):'off')+' frame='+(rtx?rtx.frameCount:0)+' objets='+(rtx&&rtx.scene?rtx.scene.length:0)+' | sdf '+(st.getAttribute('data-sdf')||'?'));},400);
+    // Le DOM du mot existe avant WebGL : même si un moteur échoue, les lettres
+    // restent visibles et l'erreur est affichée dans la barre d'état.
+    buildWord();applyTextOpacity();applyBlend();applySourcesDepth();
+    window.addEventListener('load',()=>{ setTimeout(switchEngine,120); });
+  </script>
+</body>
+</html>

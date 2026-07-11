@@ -1,0 +1,6 @@
+import : libwebui / widgets
+
+func: ChatComposer(textareaId, buttonText, onClickJs) {
+    return (widgets::ChatComposer(textareaId, buttonText, onClickJs))
+}
+

@@ -1,0 +1,73 @@
+import : libwebui / desktopui
+import : libwebui / widget_core
+import : libwebui / widgets / image_view
+
+func: ImageGalleryScript() {
+    js = "<script data-libwebui-image-gallery='1'>"
+    js = js $ "window.lwGalleryPick=function(id,btn){var root=document.getElementById(id);if(!root||!btn)return;var img=root.querySelector('.lw-gallery-main img');var cap=root.querySelector('.lw-gallery-current');var src=btn.getAttribute('data-src')||String();var label=btn.getAttribute('data-caption')||String();var alt=btn.getAttribute('data-alt')||label;if(img){img.src=src;img.alt=alt}if(cap)cap.textContent=label;var xs=root.querySelectorAll('.lw-gallery-thumb');for(var i=0;i<xs.length;i++)xs[i].classList.toggle('active',xs[i]===btn);webuiEvent(root.getAttribute('data-event')||'image_gallery_select',{id:id,value:src,caption:label})};"
+    js = js $ "</script>"
+    return (js)
+}
+
+obj:ImageGallery() {
+    self.html = " "
+    self.id = "image_gallery"
+    self.title = "Image gallery"
+    self.note = "Selection de vignettes"
+    self.eventName = "image_gallery_select"
+    self.images = " "
+    self.firstSrc = " "
+    self.firstAlt = "Image"
+    self.firstCaption = " "
+    self.count = 0
+    self.columns = 2
+    self.disabled = 0
+
+    func:Setup(self, id, title, note, eventName) {
+        self.id = id
+        self.title = title
+        self.note = note
+        self.eventName = eventName
+        return (self)
+    }
+
+    func:SetColumns(self, columns) {
+        self.columns = columns
+        return (self)
+    }
+
+    func:AddImage(self, source, caption, alt) {
+        srcRaw = image_view::ImageSourceUrl(source)
+        src = desktopui::EscapeHtml(srcRaw)
+        cap = desktopui::EscapeHtml(caption)
+        safeAlt = desktopui::EscapeHtml(alt)
+        cls = "lw-gallery-thumb"
+        if (self.count == 0) {
+            cls = "lw-gallery-thumb active"
+            self.firstSrc = srcRaw
+            self.firstAlt = alt
+            self.firstCaption = caption
+        }
+        self.images = self.images $ "<button type='button' class='" $ cls $ "' data-src='" $ src $ "' data-caption='" $ cap $ "' data-alt='" $ safeAlt $ "' onclick=\"lwGalleryPick('" $ desktopui::EscapeJs(self.id) $ "',this)\"><img src='" $ src $ "' alt='" $ safeAlt $ "' loading='lazy'><span>" $ cap $ "</span></button>"
+        self.count = self.count + 1
+        return (self)
+    }
+
+    func:SetDisabled(self, disabled) {
+        self.disabled = disabled
+        return (self)
+    }
+
+    func:Close(self) {
+        hero = "<div class='lw-image-empty'>Ajoute des images avec AddImage(...).</div>"
+        if (self.count > 0) {
+            hero = "<img src='" $ desktopui::EscapeHtml(self.firstSrc) $ "' alt='" $ desktopui::EscapeHtml(self.firstAlt) $ "' loading='lazy' onclick=\"webuiEvent('image_gallery_open',{id:'" $ desktopui::EscapeJs(self.id) $ "',value:this.src})\">"
+        }
+        self.html = widget_core::Styles() $ image_view::ImageStyles() $ ImageGalleryScript()
+        self.html = self.html $ "<section id='" $ desktopui::EscapeHtml(self.id) $ "' class='ui-card lw-gallery-card' data-event='" $ desktopui::EscapeHtml(self.eventName) $ "'><div class='ui-card-head'><div class='ui-card-title'>" $ desktopui::EscapeHtml(self.title) $ "</div><div class='ui-card-sub'>" $ desktopui::EscapeHtml(self.note) $ "</div></div><div class='ui-card-body'><div class='lw-gallery-layout'><div><div class='lw-image-frame lw-gallery-main'>" $ hero $ "</div><div class='lw-image-caption'><span class='lw-gallery-current'>" $ desktopui::EscapeHtml(self.firstCaption) $ "</span><span class='lw-image-source'>" $ strnum(self.count) $ " images</span></div></div><div class='lw-gallery-thumbs' style='--lw-cols:" $ strnum(self.columns) $ "'>" $ self.images $ "</div></div></div></section>"
+        if (self.disabled == 1) {
+            self.html = widget_core::DisableHtml(self.html)
+        }
+        return (self)
+    }
+}

@@ -1,0 +1,20 @@
+import : libwebui / desktopui
+import : libwebui / widgets
+import : libwebui / runtime
+import : libwebui / webui
+import : libtts / clone
+import : libtts / tts
+
+if (main()) {
+    body = "<div class='gallery-stack'>"
+    body = body $ widgets::PillInput("voice_name", "Nom", "webui_clone", "webuiEvent('name_changed',{id:this.id,value:this.value})")
+    body = body $ widgets::PillButtonRow(widgets::PillButton("test_play", "Tester", "webuiEvent('test_play',{id:this.id})", " "))
+    body = body $ "</div>"
+    html = "<!doctype html><html><head><meta charset='utf-8'><title>Probe</title>" $ widgets::Styles() $ runtime::ProStyles() $ runtime::Styles() $ "</head><body data-theme='light_modern'><main>" $ body $ "</main>" $ runtime::Script() $ "</body></html>"
+    html = desktopui::WithBridge(html, 19235)
+    desktopui::BridgeStart(19235)
+    desktopui::BridgeClear()
+    win = desktopui::ShowBrowser(html, 1)
+    desktopui::SetWindow(win, 640, 260, 220, 140)
+    print("direct show ok\n")
+}

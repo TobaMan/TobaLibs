@@ -1,0 +1,6 @@
+import : libwebui / widgets
+
+func: Styles() {
+    return (widgets::Styles())
+}
+

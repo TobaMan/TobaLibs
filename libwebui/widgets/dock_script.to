@@ -1,0 +1,6 @@
+import : libwebui / widgets
+
+func: DockScript() {
+    return (widgets::DockScript())
+}
+

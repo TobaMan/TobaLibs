@@ -1,0 +1,6 @@
+import : libwebui / widgets
+
+func: GpuTable(rows) {
+    return (widgets::GpuTable(rows))
+}
+

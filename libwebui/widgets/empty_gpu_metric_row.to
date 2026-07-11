@@ -1,0 +1,6 @@
+import : libwebui / widgets
+
+func: EmptyGpuMetricRow() {
+    return (widgets::EmptyGpuMetricRow())
+}
+

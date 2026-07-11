@@ -1,0 +1,61 @@
+import : libwebui / desktopui
+import : libjson / json
+
+func: JsonEscape(value) {
+    s = desktopui::TextOrEmpty(value)
+    res = s
+    res = freplace(res, "\\", "\\\\")
+    return (res)
+}
+
+func: New(raw) {
+    name = json::GetString(raw, "name", " ")
+    return (name)
+}
+
+obj:UiEventMini() {
+    self.raw = " "
+    self.name = " "
+
+    func:FromJson(self, raw) {
+        self.raw = raw
+        self.name = json::GetString(raw, "name", " ")
+        return (self)
+    }
+
+    func:Name(self) {
+        return (self.name)
+    }
+}
+
+func: NewObj(raw) {
+    evt = UiEventMini()
+    evt.FromJson(raw)
+    return (evt)
+}
+
+obj:UiCommandMini() {
+    self.action = " "
+    self.payload = "{}"
+
+    func:Setup(self, action) {
+        self.action = action
+        self.payload = "{}"
+        return (self)
+    }
+
+    func:SetJson(self, payload) {
+        self.payload = payload
+        return (self)
+    }
+
+    func:Json(self) {
+        return (self.payload)
+    }
+}
+
+func: Command(action) {
+    cmd = UiCommandMini()
+    cmd.Setup(action)
+    return (cmd)
+}

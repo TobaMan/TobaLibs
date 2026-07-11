@@ -1,0 +1,7 @@
+import : libwebui / simpleui
+import : libtts / clone
+import : libtts / tts
+
+if (main()) {
+    print("simpleui + libtts imports ok\n")
+}

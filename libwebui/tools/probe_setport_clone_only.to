@@ -1,0 +1,8 @@
+import : libwebui / simpleui
+import : libtts / clone
+
+if (main()) {
+    app = simpleui::Window()
+    app.SetPort(19244)
+    print("setport + clone ok\n")
+}

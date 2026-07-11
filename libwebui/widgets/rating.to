@@ -1,0 +1,33 @@
+import : libwebui / widget_core
+
+obj:Rating() {
+    self.html = " "
+    self.id = "rating"
+    self.label = "Rating"
+    self.value = 3
+    self.maxValue = 5
+    self.eventName = "rating_change"
+    self.disabled = 0
+
+    func:Setup(self, id, label, value, maxValue, eventName) {
+        self.id = id
+        self.label = label
+        self.value = value
+        self.maxValue = maxValue
+        self.eventName = eventName
+        return (self)
+    }
+
+    func:SetDisabled(self, disabled) {
+        self.disabled = disabled
+        return (self)
+    }
+
+    func:Close(self) {
+        self.html = widget_core::Styles() $ widget_core::Rating(self.id, self.label, self.value, self.maxValue, self.eventName)
+        if (self.disabled == 1) {
+            self.html = widget_core::DisableHtml(self.html)
+        }
+        return (self)
+    }
+}
