@@ -1,0 +1,190 @@
+/*
+    libmath - Math utilities for Toba
+    Usage : import : libmath / math
+            m = math::Max(3, 7)
+
+    Complements the native functions (abs, sqrt, pow, sin, cos, log, floor, ceil,
+    rand) with the common missing utilities. Toba style : single return.
+*/
+
+// NB : in Toba, an enum from an IMPORTED module is not visible inside the module
+// functions. So constants used internally are defined LOCALLY in the functions
+// that need them (see Pi() below) rather than in a shared enum.
+
+func: Pi() {
+    return (3.14159265358979)
+}
+
+// ===================================================================
+// MIN / MAX / CLAMP
+// ===================================================================
+
+func: Min(a, b) {
+    res = a
+    if (b < a) {
+        res = b
+    }
+    return (res)
+}
+
+func: Max(a, b) {
+    res = a
+    if (b > a) {
+        res = b
+    }
+    return (res)
+}
+
+func: Clamp(value, lo, hi) {
+    // Bounds 'value' between lo and hi
+    res = value
+    if (value < lo) {
+        res = lo
+    }
+    else {
+        if (value > hi) {
+            res = hi
+        }
+    }
+    return (res)
+}
+
+// ===================================================================
+// ROUNDING
+// ===================================================================
+
+func: Round(x) {
+    // Rounds to the nearest integer
+    res = floor(x + 0.5)
+    return (res)
+}
+
+func: Sign(x) {
+    // Returns -1, 0 or 1 depending on the sign of x
+    res = 0
+    if (x > 0) {
+        res = 1
+    }
+    else {
+        if (x < 0) {
+            res = -1
+        }
+    }
+    return (res)
+}
+
+// ===================================================================
+// ANGLE CONVERSIONS
+// ===================================================================
+
+func: DegToRad(degrees) {
+    // Degrees -> radians
+    return (degrees * 3.14159265358979 / 180)
+}
+
+func: RadToDeg(radians) {
+    // Radians -> degrees
+    return (radians * 180 / 3.14159265358979)
+}
+
+// ===================================================================
+// INTEGER ARITHMETIC
+// ===================================================================
+
+func: Gcd(a, b) {
+    // Greatest common divisor (Euclid's algorithm)
+    x = abs(a)
+    y = abs(b)
+    iter = for (0, 1000, 1) {
+        if (y == 0) {
+            break
+        }
+        t = y
+        y = x % y
+        x = t
+    }
+    return (x)
+}
+
+func: Lcm(a, b) {
+    // Least common multiple
+    res = 0
+    g = Gcd(a, b)
+    if (g != 0) {
+        res = abs(a * b) / g
+    }
+    return (res)
+}
+
+func: Factorial(n) {
+    // n! for n >= 0
+    res = 1
+    if (n > 1) {
+        i = for (2, n + 1, 1) {
+            res = res * i
+        }
+    }
+    return (res)
+}
+
+func: IsEven(n) {
+    // 1 if n is even, 0 otherwise
+    res = 0
+    if (n % 2 == 0) {
+        res = 1
+    }
+    return (res)
+}
+
+// ===================================================================
+// STATISTICS (on an array)
+// ===================================================================
+
+func: Sum(tab) {
+    // Sum of the array elements
+    total = 0
+    i = for (0, size(tab), 1) {
+        total = total + tab[i]
+    }
+    return (total)
+}
+
+func: Average(tab) {
+    // Average of the elements (0 if empty array)
+    res = 0
+    n = size(tab)
+    if (n > 0) {
+        res = Sum(tab) / n
+    }
+    return (res)
+}
+
+func: MinOf(tab) {
+    // Smallest value of an array
+    res = 0
+    n = size(tab)
+    if (n > 0) {
+        res = tab[0]
+        i = for (1, n, 1) {
+            if (tab[i] < res) {
+                res = tab[i]
+            }
+        }
+    }
+    return (res)
+}
+
+func: MaxOf(tab) {
+    // Largest value of an array
+    res = 0
+    n = size(tab)
+    if (n > 0) {
+        res = tab[0]
+        i = for (1, n, 1) {
+            if (tab[i] > res) {
+                res = tab[i]
+            }
+        }
+    }
+    return (res)
+}

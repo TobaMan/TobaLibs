@@ -1,0 +1,29 @@
+/*
+    test_math.to - Test suite for libmath
+    Run : cd C:\Toba  &&  Toba.exe C:\Toba\modules\libmath\test_math.to editor
+    OK  = no "error(" in the output and values match the expected comments.
+*/
+
+import : libmath / math
+
+func: Run() {
+    print("Min(3,7)      = " $ strnum(math::Min(3, 7)) $ "\n")        // 3
+    print("Max(3,7)      = " $ strnum(math::Max(3, 7)) $ "\n")        // 7
+    print("Clamp(12,0,9) = " $ strnum(math::Clamp(12, 0, 9)) $ "\n") // 9
+    print("Clamp(-5,0,9) = " $ strnum(math::Clamp(-5, 0, 9)) $ "\n") // 0
+    print("Round(2.6)    = " $ strnum(math::Round(2.6)) $ "\n")       // 3
+    print("Sign(-4)      = " $ strnum(math::Sign(-4)) $ "\n")         // -1
+    print("Sign(0)       = " $ strnum(math::Sign(0)) $ "\n")          // 0
+    print("Gcd(12,18)    = " $ strnum(math::Gcd(12, 18)) $ "\n")      // 6
+    print("Lcm(4,6)      = " $ strnum(math::Lcm(4, 6)) $ "\n")        // 12
+    print("Factorial(5)  = " $ strnum(math::Factorial(5)) $ "\n")     // 120
+    print("IsEven(8)     = " $ strnum(math::IsEven(8)) $ "\n")        // 1
+    print("Sum([1,2,3,4])= " $ strnum(math::Sum((1, 2, 3, 4))) $ "\n")     // 10
+    print("Average(...)  = " $ strnum(math::Average((2, 4, 6))) $ "\n")    // 4
+    print("MinOf(...)    = " $ strnum(math::MinOf((5, 2, 9))) $ "\n")      // 2
+    print("MaxOf(...)    = " $ strnum(math::MaxOf((5, 2, 9))) $ "\n")      // 9
+}
+
+if (main()) {
+    Run()
+}
